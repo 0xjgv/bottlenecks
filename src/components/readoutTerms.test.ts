@@ -19,23 +19,22 @@ const PLAIN = new Set([
   'in',
   'out',
   'passed',
-  'search',
-  'index',
-  'append',
-  'new',
+  'lookups',
+  'filed',
+  'logged',
+  'joining',
   'jobs',
-  'deliver',
-  'publish',
-  'flushed',
-  'acked',
+  'read',
+  'posted',
+  'recorded',
+  'promised',
   'running',
   'high in',
   'next run',
   'burst',
-  // The autoscaler's phase word sits in the label slot.
-  'observing',
-  'warming',
-  'cooldown',
+  // The hiring plan's phase word sits in the label slot.
+  'onboarding',
+  'holding',
   'steady',
 ]);
 
@@ -98,11 +97,11 @@ describe('readout terms', () => {
     expect(readoutTermFor('ratelimiter', 'refused')).toBe('throttled');
     expect(readoutTermFor('breaker', 'refused')).toBe('rejected');
     expect(readoutTermFor('websocket', 'refused')).toBe('conn-refused');
-    expect(readoutTermFor('lambda', 'cold')).toBe('cold-start');
+    expect(readoutTermFor('lambda', 'ramping')).toBe('cold-start');
     expect(readoutTermFor('shard', 'cold')).toBe('shard');
   });
 
-  it('explains the three words on a plain server', () => {
+  it('explains the three words on a plain team', () => {
     expect(readoutTermFor('service', 'busy')).toBe('utilisation');
     expect(readoutTermFor('service', 'p99')).toBe('p99');
     expect(readoutTermFor('service', 'waiting')).toBe('backlog');

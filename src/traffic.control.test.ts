@@ -55,10 +55,10 @@ describe('offered load control', () => {
       new URL('./components/Inspector.tsx', import.meta.url),
       'utf8',
     );
-    expect(ui.includes('No traffic source')).toBe(true);
+    expect(ui.includes('No incoming work')).toBe(true);
     // The figure is rendered only on the branch that HAS a source: the
     // sentence comes first in the ternary, the number after it.
-    const sentence = ui.indexOf('No traffic source');
+    const sentence = ui.indexOf('No incoming work');
     const figure = ui.indexOf('formatRateBare(rps)');
     expect(sentence).toBeGreaterThan(-1);
     expect(figure).toBeGreaterThan(sentence);

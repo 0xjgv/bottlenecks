@@ -57,10 +57,10 @@ describe('charts before the first run', () => {
 
     const text = container.textContent ?? '';
     expect(text).not.toMatch(/\b0ms\b/);
-    expect(headline('Latency')?.textContent).toBe('n/a');
-    expect(headline('Latency')?.classList.contains('is-unmeasured')).toBe(true);
-    expect(headline('Throughput')?.textContent).toBe('n/a');
-    expect(headline('Failures')?.textContent).toBe('n/a');
+    expect(headline('Cycle time')?.textContent).toBe('n/a');
+    expect(headline('Cycle time')?.classList.contains('is-unmeasured')).toBe(true);
+    expect(headline('Work finished')?.textContent).toBe('n/a');
+    expect(headline('Failed work')?.textContent).toBe('n/a');
     for (const v of container.querySelectorAll('.mx-legend .mx-key-value')) {
       expect(v.textContent).toBe('n/a');
     }
@@ -86,21 +86,19 @@ describe('charts before the first run', () => {
       expect(r.textContent).toBe('n/a');
     }
     expect(container.querySelector('.mx-empty')?.textContent).toBe(
-      'Add a client to send traffic.',
+      'Add incoming work to start the flow.',
     );
     expect(container.querySelector('.mx-clean')?.textContent).toBe(
-      'Add a client to send traffic.',
+      'Add incoming work to start the flow.',
     );
     expect(container.querySelector('.tr-empty')?.textContent).toBe(
-      'Add a client to send traffic.',
+      'Add incoming work to start the flow.',
     );
   });
 
   it('keeps the plain waiting line while the clock runs', () => {
     render(new Engine(simple));
-    expect(container.querySelector('.mx-empty')?.textContent).toBe(
-      'Waiting for traffic',
-    );
+    expect(container.querySelector('.mx-empty')?.textContent).toBe('Waiting for work');
   });
 
   it('shows the measured numbers once traffic has run', () => {
@@ -111,9 +109,9 @@ describe('charts before the first run', () => {
     expect(snap.system.goodputRps).toBeGreaterThan(0);
     render(engine);
 
-    expect(headline('Latency')?.textContent).not.toBe('n/a');
-    expect(headline('Latency')?.classList.contains('is-unmeasured')).toBe(false);
-    expect(headline('Throughput')?.textContent).not.toBe('n/a');
+    expect(headline('Cycle time')?.textContent).not.toBe('n/a');
+    expect(headline('Cycle time')?.classList.contains('is-unmeasured')).toBe(false);
+    expect(headline('Work finished')?.textContent).not.toBe('n/a');
     expect(container.querySelector('.mx-empty')).toBeNull();
   });
 });

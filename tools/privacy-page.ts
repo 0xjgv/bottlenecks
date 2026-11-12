@@ -5,8 +5,8 @@
  * Static for the same reason the glossary is: a policy has to be readable by
  * anyone who follows the link without the app booting first. Every claim here
  * describes code in this repository (local storage, the share store in
- * src/share/store.ts, the star count in src/useGithubStars.ts), so a change to
- * what any of those send has to change this page too.
+ * src/share/store.ts), so a change to what either sends has to change this
+ * page too.
  */
 
 const UPDATED = '12 November 2026';
@@ -109,16 +109,10 @@ export function renderPrivacyPage(): string {
         </li>
       </ul>
 
-      <h2>The one outside request</h2>
-      <ul>
-        <li>
-          To show the source project's star count, the page asks GitHub's
-          public API for it, so GitHub receives that request and your IP
-          address. The count is cached in local storage, so this happens at
-          most once every five minutes.
-        </li>
-      </ul>
-      <p>Nothing is shared for advertising, and no data is sold.</p>
+      <p>
+        Apart from a short link you choose to make, nothing leaves your
+        device. Nothing is shared for advertising, and no data is sold.
+      </p>
 
       <h2>Contact</h2>
       <p>

@@ -29,10 +29,10 @@ export function EmptyCanvas({ actions }: EmptyCanvasProps) {
       <p className="cv-empty-lead">Nothing here yet</p>
       <p className="cv-empty-body">
         <span className="cv-empty-wide">
-          Drag a client, a service and a database in from the left.
+          Drag in incoming work, a team and a decision maker from the left.
         </span>
         <span className="cv-empty-phone">
-          Open Build to add a client, a service and a database.
+          Open Build to add incoming work, a team and a decision maker.
         </span>
       </p>
       {actions && (
@@ -42,7 +42,7 @@ export function EmptyCanvas({ actions }: EmptyCanvasProps) {
             className="btn btn-primary btn-sm"
             onClick={actions.onStartSimple}
           >
-            Start with one server
+            Start with one team
           </button>
           <button
             type="button"

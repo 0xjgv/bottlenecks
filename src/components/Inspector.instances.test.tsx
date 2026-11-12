@@ -136,29 +136,29 @@ describe('the fleet in the inspector', () => {
         />,
       ),
     );
-    const instances = labelled('Instances');
+    const instances = labelled('People');
     expect(instances?.value).toBe('3');
-    expect(labelled('Lock wait per concurrent write')).not.toBeNull();
+    expect(labelled('Wait per conflicting decision')).not.toBeNull();
   });
 
   it('offers Crash one instance on a node with more than one machine', () => {
     const engine = mount(3);
-    const crashOne = button('Crash one instance');
-    if (!crashOne) throw new Error('no Crash one instance button');
+    const crashOne = button('One person out');
+    if (!crashOne) throw new Error('no One person out button');
     expect(crashOne.getAttribute('aria-disabled')).toBe('false');
     press(crashOne);
     expect(engine.faultSchedule()).toEqual([
       { atMs: 2000, action: 'inject', nodeId: 'db', kind: 'crash-instance' },
     ]);
-    expect(container.textContent).toContain('One instance crashed at');
-    expect(button('Crash one instance')?.getAttribute('aria-disabled')).toBe('true');
+    expect(container.textContent).toContain('One person out sick since');
+    expect(button('One person out')?.getAttribute('aria-disabled')).toBe('true');
     // The ceiling counts the machines still up.
-    expect(container.textContent).toContain('2 running instances x 12 slots');
+    expect(container.textContent).toContain('2 working people x 12 tasks');
   });
 
   it('does not offer it on a node with one machine, where it would be Crash', () => {
     mount(1);
-    expect(button('Crash')).not.toBeNull();
-    expect(button('Crash one instance')).toBeNull();
+    expect(button('Take out')).not.toBeNull();
+    expect(button('One person out')).toBeNull();
   });
 });

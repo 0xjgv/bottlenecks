@@ -9,7 +9,6 @@ import {
 } from '../content/preferences';
 import type { Preferences, ThemeChoice } from '../content/preferences';
 import { resolveSystemTheme } from '../theme/applyTheme';
-import { VENDORS } from '../content/vendors';
 import './Settings.css';
 
 /* ==========================================================================
@@ -335,7 +334,7 @@ export function Settings({
                       <span className="st-hint">
                         One file with every saved design, your settings and the canvas
                         you have open. This is how you move to another browser or
-                        machine.
+                        computer.
                       </span>
                     </span>
                   </button>
@@ -355,38 +354,6 @@ export function Settings({
               </div>
             </section>
           )}
-
-          <section className="st-group">
-            <h3 className="st-group-title">Naming</h3>
-            <div
-              className="st-choices"
-              role="radiogroup"
-              aria-labelledby="st-vendor-label"
-            >
-              <span id="st-vendor-label" className="st-row-label">
-                Component names
-              </span>
-              <div className="st-segmented st-segmented-4">
-                {VENDORS.map((v) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={prefs.vendor === v.id}
-                    className={`st-seg st-seg-4${prefs.vendor === v.id ? ' is-active-4' : ''}`}
-                    onClick={() => setPreference('vendor', v.id)}
-                  >
-                    {v.label}
-                  </button>
-                ))}
-              </div>
-              <p className="st-hint">
-                {prefs.vendor === 'generic'
-                  ? 'Components keep their plain names. Learn the idea first; the product names are easier afterwards.'
-                  : 'Components are named after this vendor’s products, and you can pick a real instance size. The published specs are cited; how they map to capacity is our own estimate.'}
-              </p>
-            </div>
-          </section>
 
           <section className="st-group">
             <h3 className="st-group-title">Canvas</h3>

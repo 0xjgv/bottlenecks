@@ -126,15 +126,15 @@ export function faultStatus(fault: ActiveFailure | null): string {
   const since = formatElapsed(fault.sinceMs / 1000);
   switch (fault.kind) {
     case 'crash':
-      return `Crashed at ${since}. Every request sent to it fails until you fix it.`;
+      return `Out since ${since}. Every task sent here fails until you fix it.`;
     case 'slow':
-      return `Running ${formatFactor(fault.factor ?? 1)} slower since ${since}. Requests wait longer for it, and the line behind it grows.`;
+      return `Working ${formatFactor(fault.factor ?? 1)} slower since ${since}. Work waits longer here, and the backlog behind it grows.`;
     case 'errors':
-      return `Failing ${formatPct(fault.rate ?? 1)} of requests since ${since}. It stays up, so callers keep sending it work.`;
+      return `Bouncing back ${formatPct(fault.rate ?? 1)} of its work since ${since}. Still working, so others keep sending it tasks.`;
     case 'partition':
-      return `Cut off from the network since ${since}. Anything sent over its cut cables fails until you fix it, and the cables below show which ones.`;
+      return `Cut off from everyone since ${since}. Anything passed over its broken handoffs fails until you fix it, and the handoffs below show which ones.`;
     case 'crash-instance':
-      return `One instance crashed at ${since}. The work it held was lost, and the others carry its share with fewer slots until you fix it. If it was the only one, nothing is serving.`;
+      return `One person out sick since ${since}. The work they held was lost, and the others carry their share with less room until you fix it. If they were the only one, nobody is doing this work.`;
   }
 }
 

@@ -79,7 +79,7 @@ const names: Names = {
   node: (id) => t.nodes.find((n) => n.id === id)?.label ?? id,
   edge: (id) => {
     const e = t.edges.find((x) => x.id === id);
-    return e ? `the cable from ${names.node(e.from)} to ${names.node(e.to)}` : id;
+    return e ? `the handoff from ${names.node(e.from)} to ${names.node(e.to)}` : id;
   },
 };
 const goal: Goal = { metric: 'errorRate', max: 1 };
@@ -151,10 +151,10 @@ describe('BreakPanel', () => {
     show(fake({ status: 'picking' }));
     const text = container.textContent ?? '';
     expect(text).toContain('Can you break it?');
-    expect(text).toContain('Keep everyone up');
+    expect(text).toContain('Keep work getting done');
     expect(text).toContain('Stay fast');
     expect(text).toContain(
-      'Every request from Client has to pass through API Server, Database and the cable from API Server to Database.',
+      'All work from Client has to pass through API Server, Database and the handoff from API Server to Database.',
     );
     expect(container.querySelector('fieldset legend')?.textContent).toBe(
       'What has to hold',
@@ -263,8 +263,8 @@ describe('BreakPanel', () => {
     expect(heading?.textContent).toBe('Broke it.');
     expect(document.activeElement).toBe(heading);
     const text = container.textContent ?? '';
-    expect(text).toContain('Slow Database 5x at 10s for 5s.');
-    expect(text).toContain('of requests failed');
+    expect(text).toContain('Slow Database 5x at week 10 for 5wk.');
+    expect(text).toContain('of work items failed');
     expect(text).toContain('The goal was 1% or less.');
     const byText = (s: string) =>
       [...container.querySelectorAll('button')].find((b) => b.textContent === s);
@@ -319,7 +319,7 @@ describe('break copy', () => {
     const behind = { ...broke.run, outcome: 'falling-behind' as const, keptUp: 0.969 };
     const loose: Goal = { metric: 'errorRate', max: 50 };
     expect(effectSentence(behind, loose, names)).toBe(
-      'Between 5s and 35s, requests piled up faster than they finished: 96.9% got an answer and the rest were still waiting.',
+      'Between week 5 and week 35, work items piled up faster than they finished: 96.9% got done and the rest were still waiting.',
     );
     expect(goalLine(loose, behind)).toBe(
       'A backlog that keeps growing fails everything in the end, so this counts as broken whatever the goal.',
@@ -354,9 +354,9 @@ describe('break copy', () => {
         goal,
         names,
       ),
-    ).toMatch(/Requests started to pile up\.$/);
+    ).toMatch(/Work started to pile up\.$/);
     expect(lines[0]).toBe(
-      'Crash Database at 10s for 0.5s and cut the cable from API Server to Database at 10s, then make API Server fail 50% of requests at 12s for 2s, then take down one machine of API Server at 15s.',
+      "Take out Database at week 10 for 2.5d and break the handoff from API Server to Database at week 10, then make 50% of API Server's work bounce back at week 12 for 2wk, then send one person from API Server home sick at week 15.",
     );
   });
 });

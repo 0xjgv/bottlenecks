@@ -151,7 +151,7 @@ function setLoss(): HTMLButtonElement {
 
 function lossSelect(): HTMLSelectElement {
   const label = [...container.querySelectorAll('label')].find(
-    (l) => l.textContent === 'Requests lost on the way',
+    (l) => l.textContent === 'Work lost on the way',
   );
   const el = label && document.getElementById(label.getAttribute('for') ?? '');
   if (!(el instanceof HTMLSelectElement)) throw new Error('no loss select');
@@ -173,10 +173,10 @@ describe('packet loss control', () => {
   it('is offered for one selected connection, and not for a node', () => {
     mount();
     press(hit('node', 'payments'));
-    expect(container.textContent).not.toContain('Requests lost on the way');
+    expect(container.textContent).not.toContain('Work lost on the way');
     press(hit('edge', 'breaker->payments'));
     expect(lossSelect().value).toBe(String(DEFAULT_LOSS_RATE));
-    expect(container.textContent).toContain('Delivers every request sent across it.');
+    expect(container.textContent).toContain('Every item handed over here arrives.');
   });
 
   it('Set loss writes the edge and the engine drops at that rate', () => {
@@ -185,9 +185,7 @@ describe('packet loss control', () => {
     choose(lossSelect(), 0.25);
     press(setLoss());
     expect(lossOn('breaker->payments')).toBe(0.25);
-    expect(container.textContent).toContain(
-      'Losing 25% of the requests sent across it.',
-    );
+    expect(container.textContent).toContain('Losing 25% of the work handed over here.');
     for (let i = 0; i < 30; i++) engine.advance(100);
     expect(engine.snapshot().failuresByReason['packet-loss']).toBeGreaterThan(0);
     // A press that would change nothing is inert and keeps focus.

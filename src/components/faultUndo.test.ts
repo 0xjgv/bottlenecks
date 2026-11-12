@@ -98,7 +98,7 @@ describe('undoing a fault control', () => {
     r.run(1500);
     r.actions.onInject('svc', 'crash');
     r.run(1500);
-    expect(r.undo()).toBe('crash');
+    expect(r.undo()).toBe('take out');
     expect(nodeFault(r.engine, 'svc')).toBeNull();
     expect(r.schedule()).toEqual(['inject crash svc@1500', 'clear svc@3000']);
     r.run(2000);
@@ -113,7 +113,7 @@ describe('undoing a fault control', () => {
     r.actions.onInject('svc', 'crash');
     r.engine.reset();
     r.run(800);
-    expect(r.undo()).toBe('crash');
+    expect(r.undo()).toBe('take out');
     expect(r.schedule()).toEqual([]);
     r.run(2000);
     expect(nodeFault(r.engine, 'svc')).toBeNull();
@@ -124,7 +124,7 @@ describe('undoing a fault control', () => {
     r.actions.onInject('svc', 'crash');
     r.run(500);
     r.engine.reset();
-    expect(r.undo()).toBe('crash');
+    expect(r.undo()).toBe('take out');
     expect(r.schedule()).toEqual([]);
     r.run(500);
     expect(nodeFault(r.engine, 'svc')).toBeNull();
@@ -137,7 +137,7 @@ describe('undoing a fault control', () => {
     r.run(1000);
     r.actions.onInject('svc', 'crash');
     r.run(1000);
-    expect(r.undo()).toBe('crash');
+    expect(r.undo()).toBe('take out');
     expect(nodeFault(r.engine, 'svc')).toEqual({ kind: 'slow', factor: 5 });
     expect(r.undo()).toBe('slow down');
     expect(nodeFault(r.engine, 'svc')).toBeNull();
@@ -148,10 +148,10 @@ describe('undoing a fault control', () => {
     r.run(1000);
     r.actions.onCut('client->svc');
     r.run(1000);
-    expect(r.undo()).toBe('cable cut');
+    expect(r.undo()).toBe('handoff break');
     expect(r.engine.activeCuts()).toEqual([]);
     r.run(1000);
-    expect(r.redo()).toBe('cable cut');
+    expect(r.redo()).toBe('handoff break');
     expect(r.engine.activeCuts()).toEqual(['client->svc']);
     expect(r.schedule()).toEqual([
       'cut client->svc@1000',
@@ -182,9 +182,9 @@ describe('undoing a fault control', () => {
     r.run(500);
     r.actions.onInject('svc', 'crash-instance');
     r.run(500);
-    expect(r.undo()).toBe('crash one instance');
+    expect(r.undo()).toBe('one person out');
     expect(r.engine.activeFailures()[0]).toMatchObject({ kind: 'errors', rate: 0.5 });
-    expect(r.undo()).toBe('glitch');
+    expect(r.undo()).toBe('bounce work');
     expect(r.engine.activeFailures()).toEqual([]);
   });
 
@@ -206,7 +206,7 @@ describe('undoing a fault control', () => {
     r.engine.reset();
     r.run(500);
     r.undo();
-    expect(r.redo()).toBe('crash');
+    expect(r.redo()).toBe('take out');
     expect(nodeFault(r.engine, 'svc')?.kind).toBe('crash');
     expect(r.schedule()).toEqual(['inject crash svc@500']);
   });
@@ -301,10 +301,10 @@ describe('fault entries in the history', () => {
     r.run(1000);
     r.history.commit('move', snap(t));
     r.actions.onInject('svc', 'crash');
-    expect(r.undo()).toBe('crash');
+    expect(r.undo()).toBe('take out');
     expect(nodeFault(r.engine, 'svc')).toBeNull();
     expect(r.history.undoDepth).toBe(1);
-    expect(r.redo()).toBe('crash');
+    expect(r.redo()).toBe('take out');
     expect(nodeFault(r.engine, 'svc')?.kind).toBe('crash');
   });
 

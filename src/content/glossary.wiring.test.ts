@@ -87,13 +87,17 @@ describe('glossary wiring', () => {
     )?.[1];
     expect(inspector, 'Inspector.tsx not in the glob').toBeTruthy();
     expect(inspector).toMatch(
-      /Each cache rolls its own hit chance, independently of the others/,
+      /Each playbook rolls its own chance, independently of the others/,
     );
-    expect(inspector).toMatch(/treating later caches as filters on earlier misses/);
-    expect(inspector).toMatch(/rolled independently of every other cache on the path/);
-    expect(inspector).toMatch(/Each cache or CDN rolls this chance on its own/);
+    expect(inspector).toMatch(/a second one is not a net for what the first missed/);
     expect(inspector).toMatch(
-      /Two at 80% leave about 4% of traffic for whatever is behind them/,
+      /rolled independently of every other playbook on the way/,
+    );
+    expect(inspector).toMatch(
+      /Each playbook or help center rolls this chance on its own/,
+    );
+    expect(inspector).toMatch(
+      /Two at 80% leave about 4% of asks for the people behind them/,
     );
   });
 });

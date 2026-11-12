@@ -1,6 +1,8 @@
 import { memo, useMemo } from 'react';
 import { Term } from './Tooltip';
 import type { RequestTrace } from '../sim/types';
+import { formatMs } from './format';
+import { FAILURE_WORDS } from './routeHealth';
 import './Trace.css';
 
 /* ==========================================================================
@@ -40,8 +42,6 @@ function scaleOf(trace: RequestTrace): number {
   return max;
 }
 
-const fmt = (ms: number) => (ms >= 100 ? ms.toFixed(0) : ms.toFixed(1));
-
 export const Trace = memo(function Trace({ trace, nameOf, idleText }: TraceProps) {
   const totals = useMemo(() => {
     if (!trace) return null;
@@ -56,13 +56,12 @@ export const Trace = memo(function Trace({ trace, nameOf, idleText }: TraceProps
 
   if (!trace || !totals) {
     return (
-      <section className="tr" aria-label="Request trace">
+      <section className="tr" aria-label="One work item's path">
         <header className="mx-head">
-          <span className="label mx-eyebrow">One request</span>
+          <span className="label mx-eyebrow">One work item</span>
         </header>
         <p className="tr-empty">
-          {idleText ??
-            'Waiting for a request to finish. Press play, or raise the load.'}
+          {idleText ?? 'Waiting for an item to finish. Press play, or send more work.'}
         </p>
       </section>
     );
@@ -74,29 +73,30 @@ export const Trace = memo(function Trace({ trace, nameOf, idleText }: TraceProps
   // bar lengths.
   const verdict =
     queued > service * 1.5
-      ? 'Most of this request was spent waiting, not working.'
+      ? 'Most of this item sat waiting, not being worked on. More hands at the step it waited longest for would shorten that.'
       : queued < service * 0.25
-        ? 'Almost all of this was real work. Nothing was queueing.'
-        : 'Waiting and working are close. Raise the load to see that change.';
+        ? 'Almost all of this was hands-on work. Nothing sat in a backlog.'
+        : 'Waiting and working are close. Send more work and waiting takes over.';
 
   return (
-    <section className="tr" aria-label="Request trace">
+    <section className="tr" aria-label="One work item's path">
       <header className="mx-head">
-        <span className="label mx-eyebrow">One request</span>
+        <span className="label mx-eyebrow">One work item</span>
         <span className="mx-head-right">
           <span className="mx-readout-wrap">
             <span className={`num num-lg mx-readout${trace.ok ? '' : ' is-danger'}`}>
-              {fmt(trace.totalMs)}
+              {formatMs(trace.totalMs)}
             </span>
-            <span className="unit mx-unit">ms</span>
+            <span className="unit mx-unit">start to finish</span>
           </span>
         </span>
       </header>
 
       {!trace.ok && (
         <p className="tr-failed">
-          This one did not finish: <strong>{trace.reason}</strong>. The hops below are
-          how far it got.
+          This one did not finish: it was{' '}
+          <strong>{trace.reason ? FAILURE_WORDS[trace.reason] : 'lost'}</strong>. The
+          steps below show how far it got.
         </p>
       )}
 
@@ -122,7 +122,7 @@ export const Trace = memo(function Trace({ trace, nameOf, idleText }: TraceProps
                   style={{ width: `${pct(h.serviceMs)}%` }}
                 />
               </span>
-              <span className="num tr-ms">{fmt(total)}</span>
+              <span className="num tr-ms">{formatMs(total)}</span>
             </li>
           );
         })}
@@ -131,11 +131,11 @@ export const Trace = memo(function Trace({ trace, nameOf, idleText }: TraceProps
       <footer className="tr-foot">
         <span className="tr-key">
           <span className="tr-swatch tr-queued" />
-          <Term id="queue">waiting</Term> {fmt(queued)}ms
+          <Term id="queue">waiting</Term> {formatMs(queued)}
         </span>
         <span className="tr-key">
           <span className="tr-swatch tr-service" />
-          working {fmt(service)}ms
+          working {formatMs(service)}
         </span>
       </footer>
       <p className="tr-verdict">{verdict}</p>
