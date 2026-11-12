@@ -21,23 +21,23 @@ export function suggestionFor(kind: NodeKind): string | null {
       // for the same serviceMs: hit rate changes what this node FORWARDS,
       // never what arrives at it. When the cache itself is over its ceiling,
       // raising hit rate moves nothing here -- it relieves what is behind it.
-      return 'Add instances, or more slots per instance. Hit rate will not help here, because a hit and a miss occupy a slot for the same time. It changes what this cache forwards, not what it has to get through.';
+      return 'Add people to keep the playbook, or let each take more at once. Hit rate will not help here, because an ask the playbook answers and one it passes on take the same time to check. Hit rate changes what it passes on, not what it has to get through.';
     case 'db':
       // Deliberately not "add capacity" -- bigger databases do not always
       // help, and a wrong-sounding suggestion is worse than none. Point at
       // reducing what reaches it instead.
-      return 'A database rarely gets faster by being made bigger. Look at what is reaching it instead. A cache in front of it with a higher hit rate, or fewer retries piling on load, will do more than resizing this node.';
+      return 'A decision maker rarely gets faster by adding helpers, because the decisions still conflict and queue. Look at what is reaching it instead. A playbook in front that answers more asks, or fewer people chasing the same ask twice, will do more than adding headcount here.';
     case 'lb':
       // A load balancer being the bottleneck is unusual; its own limit is
       // rarely the real story.
-      return 'A load balancer saturating is uncommon. Check the components behind it are not the actual limit before adding capacity here.';
+      return 'A dispatcher running full is uncommon. Check the teams it hands work to are not the real constraint before adding people here.';
     case 'sidecar':
       // Every hop through a sidecar pays its tax; retries multiply it.
-      return 'Each hop pays this proxy a tax. Check retries and timeouts before adding capacity; a retry storm here costs more than the base load does.';
+      return 'Every item pays this step a tax. Check how often people chase and how long they wait before adding people; a wave of chasing here costs more than the work itself.';
     case 'apigateway':
-      return 'This is a stateless front door, so add instances to spread the load across more of them.';
+      return 'The front desk only checks and routes, so add people to spread the asks across more of them.';
     case 'worker':
-      return 'Workers drain a queue at their own pace. Add instances to drain it faster.';
+      return 'The crew pulls from the backlog at its own pace. Add people to clear it faster.';
     case 'service':
     case 'objectstore':
     case 'coldstorage':
@@ -47,7 +47,7 @@ export function suggestionFor(kind: NodeKind): string | null {
       // The remaining ceiling kinds run the same slot discipline with no
       // sharper lever than the obvious one: more parallel slots, or less
       // time per request.
-      return 'Add instances for more parallel slots, or lower service time if the work itself can be made faster.';
+      return 'Protect its time: take work off it that someone else can do, cut the hands-on time per task, or add people.';
     default:
       return null;
   }

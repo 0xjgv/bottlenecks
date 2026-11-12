@@ -1,13 +1,10 @@
 {
-  "name": "breakscale",
+  "name": "bottlenecks",
   "private": true,
   "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:links": "bun run --cwd worker dev & VITE_SHARE_API=http://localhost:8787 vite; kill 0",
-    "build:webview": "vite build --config vite.webview.config.ts",
-    "build:extension": "bun run build:webview && bun run --cwd extension build",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -43,11 +40,7 @@
     "vitest": "^5.1.0"
   },
   "license": "MIT",
-  "description": "Build a system, load it until it breaks, and watch why",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/workersio/breakscale.git"
-  },
+  "description": "Map how work flows through your startup and find what slows it down",
   "lint-staged": {
     "*.{ts,tsx,css,json,md}": "prettier --write"
   }

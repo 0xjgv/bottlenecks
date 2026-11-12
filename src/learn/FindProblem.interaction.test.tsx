@@ -142,7 +142,7 @@ describe('Find the problem', () => {
 
     press(button('Find the problem'));
     expect(status()?.textContent).toMatch(
-      /^Database: all 6 slots busy, \d+ waiting in line/,
+      /^Database is the constraint: all 6 task slots busy, \d+ tasks waiting/,
     );
     expect(ring()).not.toBeNull();
     expect(ring()?.textContent).toBe('Here');
@@ -186,7 +186,7 @@ describe('Find the problem', () => {
     const run = loaded('single-server', 1, 10);
     act(() => root.render(<Harness {...run} />));
     press(button('Find the problem'));
-    expect(status()?.textContent).toMatch(/^Nothing is struggling right now\./);
+    expect(status()?.textContent).toMatch(/^Nothing is piling up right now\./);
     expect(ring()).toBeNull();
   });
 

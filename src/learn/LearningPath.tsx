@@ -141,7 +141,8 @@ export function LearningPath({
               Learning path
             </h2>
             <p className="ex-sub">
-              Every example and challenge in an order that builds up. You have done{' '}
+              Every example and challenge in an order that builds up, from finding one
+              constraint to keeping work flowing through a whole company. You have done{' '}
               <span className="lp-num">
                 {done} of {total}
               </span>
@@ -173,13 +174,13 @@ export function LearningPath({
             </div>
           ) : (
             <p className="lp-next lp-all-done">
-              You have done every step. Try a challenge again without hints, or build a
-              design of your own and break it.
+              You have done every step. Try a challenge again without hints, or map how
+              work flows through your own team and find its constraint.
             </p>
           )}
           <p className="lp-rule">
             An example counts as done once you run it at twice its starting load for 10
-            seconds. A challenge counts once you pass it.
+            working weeks. A challenge counts once you pass it.
           </p>
 
           {LEARNING_PATH.map((track) => {
