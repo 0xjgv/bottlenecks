@@ -126,8 +126,7 @@ ${entries.map(entryHtml).join('\n')}
       property="og:description"
       content="${GLOSSARY.length} terms for how work flows through a startup, explained in plain language, each with why it matters."
     />
-    <meta property="og:image" content="${SITE}/og.png" />
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:card" content="summary" />
 
     <script type="application/ld+json">
 ${jsonLd()}

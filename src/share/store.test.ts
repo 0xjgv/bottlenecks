@@ -25,7 +25,7 @@ import type { Topology } from '../sim/types';
  * given each answer, not that the Worker produces them.
  * ------------------------------------------------------------------ */
 
-const BASE = 'https://breakscale.tech/';
+const BASE = 'https://bottlenecks.test/';
 const SIMPLE: Topology = PRESETS[0]!.topology;
 
 /** Real bytes of a real design, so decode is exercised rather than faked. */

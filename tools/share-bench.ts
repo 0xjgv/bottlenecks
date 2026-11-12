@@ -18,7 +18,7 @@
  *   bin       generation 3 wire bytes, uncompressed
  *   bin+z     the same, deflated
  *   d3        generation 3 link body: flag byte + best of bin/bin+z, base64url
- *   url       the full share URL for the production origin
+ *   url       the full share URL for the default origin
  */
 
 import { PRESETS, defaultConfig } from '../src/sim/presets.ts';
@@ -26,7 +26,7 @@ import type { Topology } from '../src/sim/types.ts';
 import { MAX_SHARE_URL_CHARS, SHARE_VERSION, encodeTopology } from '../src/share.ts';
 import { WIRE_SCHEMA, packTopology } from '../src/share/wire.ts';
 
-const ORIGIN = 'https://breakscale.vercel.app/';
+const ORIGIN = 'http://localhost:5174/';
 
 /* ---------------- helpers ---------------- */
 

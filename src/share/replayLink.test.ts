@@ -21,7 +21,7 @@ import { fetchStored, setEndpointForTests } from './store';
 
 const FRAME = 1000 / 60;
 const FRAMES = 600;
-const BASE = 'https://breakscale.tech/';
+const BASE = 'https://bottlenecks.test/';
 
 function preset(id: string): Topology {
   const p = PRESETS.find((x) => x.id === id);

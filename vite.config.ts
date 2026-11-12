@@ -5,7 +5,7 @@ import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { renderGlossaryPage } from './tools/glossary-page.ts';
 import { renderPrivacyPage } from './tools/privacy-page.ts';
-import { SITE_ORIGIN } from './tools/site.ts';
+import { DEFAULT_ORIGIN, SITE_ORIGIN } from './tools/site.ts';
 
 /**
  * Emit a static HTML page at `/<name>`, rendered at build time.
@@ -21,7 +21,7 @@ import { SITE_ORIGIN } from './tools/site.ts';
 function staticPage(name: string, render: () => string): Plugin {
   const route = `/${name}`;
   return {
-    name: `breakscale-${name}-page`,
+    name: `bottlenecks-${name}-page`,
     apply: () => true,
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
@@ -36,9 +36,9 @@ function staticPage(name: string, render: () => string): Plugin {
     generateBundle() {
       this.emitFile({
         type: 'asset',
-        // `glossary.html` rather than `glossary/index.html`: Vercel serves
-        // the clean URL for either, and one file is easier to reason about
-        // than a directory holding one thing.
+        // `glossary.html` rather than `glossary/index.html`: static hosts
+        // serve the clean URL for either, and one file is easier to reason
+        // about than a directory holding one thing.
         fileName: `${name}.html`,
         source: render(),
       });
@@ -54,18 +54,18 @@ function staticPage(name: string, render: () => string): Plugin {
  * be relative. Hand-editing them meant fourteen strings across seven files and
  * one of them silently left behind on the next move.
  *
- * They keep the production origin as their literal text, so the files are
+ * They keep the default origin as their literal text, so the files are
  * readable and correct as they sit in the repo. This only substitutes when the
  * build is running somewhere else, which is what stops a preview deployment
  * publishing a canonical that claims to be production.
  */
 function siteOrigin(): Plugin {
-  const PLACEHOLDER = 'https://breakscale.vercel.app';
+  const PLACEHOLDER = DEFAULT_ORIGIN;
   const swap = (text: string) =>
     SITE_ORIGIN === PLACEHOLDER ? text : text.split(PLACEHOLDER).join(SITE_ORIGIN);
 
   return {
-    name: 'breakscale-site-origin',
+    name: 'bottlenecks-site-origin',
     apply: 'build',
     transformIndexHtml: swap,
     generateBundle(_options, bundle) {

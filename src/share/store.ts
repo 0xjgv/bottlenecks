@@ -13,7 +13,7 @@ import { hasCrypto, open, seal } from './crypto';
  * A stored link fixes the length by moving the bytes rather than
  * shrinking them:
  *
- *   https://breakscale.tech/?s=<id>#k=<key>
+ *   https://<origin>/?s=<id>#k=<key>
  *
  * The id names an encrypted blob in the store. The key opens it and
  * rides in the fragment, which the browser never sends anywhere, so the

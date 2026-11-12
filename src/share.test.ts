@@ -90,7 +90,7 @@ const LARGEST = PRESETS.reduce((a, b) =>
 ).topology;
 
 /** The production origin; what a copied link actually starts with. */
-const ORIGIN = 'https://breakscale.vercel.app/';
+const ORIGIN = 'https://bottlenecks.test/';
 
 /**
  * A link regenerates ids, so two designs are the same design when they

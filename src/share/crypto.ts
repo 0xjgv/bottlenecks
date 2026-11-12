@@ -5,7 +5,7 @@ import type { Bytes } from '../share';
  *
  * A stored link splits into two halves that travel by different routes:
  *
- *   https://breakscale.tech/?s=<id>#k=<key>
+ *   https://<origin>/?s=<id>#k=<key>
  *                              │       └── fragment: the browser NEVER
  *                              │           sends this to a server
  *                              └────────── query: the server sees only

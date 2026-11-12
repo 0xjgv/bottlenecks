@@ -318,7 +318,7 @@ describe('replay links', () => {
         return new Response(stored, { status: 200 });
       }),
     );
-    const url = new URL(await storeTopology(t, 'https://breakscale.tech/'));
+    const url = new URL(await storeTopology(t, 'https://bottlenecks.test/'));
     const r = await fetchStored(url.search, url.hash);
     expect(r).toEqual({ status: 'ok', topology: t });
   });

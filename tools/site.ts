@@ -12,18 +12,12 @@
  * never needs to know its own address, only the metadata generated around it
  * does. Nothing here reaches the browser bundle.
  *
- * SITE_ORIGIN is the environment variable when set, so a preview deployment
- * can name itself instead of claiming to be production. Vercel exposes the
- * deployment host as VERCEL_URL without a scheme, hence the prefix.
+ * SITE_ORIGIN is the environment variable when set, so a deployment can name
+ * itself. Otherwise the dev server's origin.
  */
-function fromEnv(): string | undefined {
-  if (process.env.SITE_ORIGIN) return process.env.SITE_ORIGIN;
-  if (process.env.VERCEL_ENV === 'production') return undefined;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return undefined;
-}
+export const DEFAULT_ORIGIN = 'http://localhost:5174';
 
-export const SITE_ORIGIN = fromEnv() ?? 'http://localhost:5174';
+export const SITE_ORIGIN = process.env.SITE_ORIGIN || DEFAULT_ORIGIN;
 
 /** An absolute URL for a path, for metadata that cannot take a relative one. */
 export function siteUrl(path = '/'): string {
