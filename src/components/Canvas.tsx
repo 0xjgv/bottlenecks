@@ -132,13 +132,13 @@ export const NODE_W = 184;
 export const NODE_H = 88;
 
 /** One word per palette group, for the footer's "what it is made of" line. */
-const GROUP_SHORT: Record<string, string> = {
-  traffic: 'sources',
-  compute: 'teams',
-  data: 'decisions',
-  stores: 'records',
-  messaging: 'handoffs',
-  control: 'policies',
+const GROUP_SHORT: Record<string, readonly [string, string]> = {
+  traffic: ['source', 'sources'],
+  compute: ['team', 'teams'],
+  data: ['decision point', 'decision points'],
+  stores: ['record', 'records'],
+  messaging: ['handoff', 'handoffs'],
+  control: ['policy', 'policies'],
 };
 
 /** Radii come from the design scale (3/4/6). The node body is the 6. */
@@ -5881,7 +5881,7 @@ export default function Canvas({
   }, [topology.nodes]);
 
   /**
-   * What the design is made of, by category: "2 sources, 7 teams, 3 decisions".
+   * What the design is made of, by category: "2 sources, 7 teams, 1 decision point".
    *
    * The total says how big a diagram is; the breakdown says what kind of
    * system it is, which is what a reader is trying to work out about a
@@ -5902,7 +5902,11 @@ export default function Canvas({
       if (group) counts.set(group.id, (counts.get(group.id) ?? 0) + 1);
     }
     return KIND_GROUPS.filter((g) => counts.has(g.id))
-      .map((g) => `${counts.get(g.id)} ${GROUP_SHORT[g.id] ?? g.id}`)
+      .map((g) => {
+        const n = counts.get(g.id) ?? 0;
+        const word = GROUP_SHORT[g.id]?.[n === 1 ? 0 : 1] ?? g.id;
+        return `${n} ${word}`;
+      })
       .join(', ');
   }, [topology.nodes]);
 
