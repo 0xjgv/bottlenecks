@@ -8,9 +8,9 @@ import type { NodeKind } from '../sim/types';
  * the same words under its meter instead, each explained from the glossary.
  *
  * Keyed by the exact label `readoutFor` returns. Most words mean the same
- * thing on every kind; the few that do not ("refused" is a rate limiter's
- * throttling but a breaker's open circuit) are resolved per kind first. A
- * label with no entry here is plain enough to need none ("in", "out").
+ * thing on every kind; the few that do not ("refused" is an intake limit's
+ * throttling but a stop-the-line rule's open circuit) are resolved per kind
+ * first. A label with no entry here is plain enough to need none ("in", "out").
  */
 const BY_LABEL: Readonly<Record<string, string>> = {
   busy: 'utilisation',
@@ -21,32 +21,31 @@ const BY_LABEL: Readonly<Record<string, string>> = {
   sent: 'offered',
   ok: 'goodput',
   failing: 'error-rate',
-  hit: 'hit-rate',
+  covered: 'hit-rate',
   stale: 'stale-read',
-  lock: 'lock-contention',
-  origin: 'origin-fetch',
-  tokens: 'tokens',
-  circuit: 'breaker',
-  trips: 'breaker',
-  'dep fails': 'error-rate',
+  conflict: 'lock-contention',
+  escalated: 'origin-fetch',
+  room: 'tokens',
+  line: 'breaker',
+  stops: 'breaker',
   fails: 'error-rate',
-  range: 'range-query',
-  lag: 'consumer-lag',
+  reports: 'range-query',
+  unread: 'consumer-lag',
   lost: 'retention',
   'fan-out': 'fan-out',
-  conns: 'connection-slot',
-  slots: 'connection-slot',
-  upstream: 'outlier-ejection',
-  pool: 'bulkhead',
-  dead: 'dead-letter',
-  retry: 'redelivery',
-  'at edge': 'edge-share',
+  'in room': 'connection-slot',
+  seats: 'connection-slot',
+  partner: 'outlier-ejection',
+  reserved: 'bulkhead',
+  'given up': 'dead-letter',
+  redo: 'redelivery',
+  fixed: 'edge-share',
   'at risk': 'dirty-write',
   watching: 'utilisation',
-  pods: 'instances',
-  serving: 'region',
-  failover: 'region',
-  healthy: 'region',
+  people: 'instances',
+  'on duty': 'region',
+  handover: 'region',
+  available: 'region',
   'back in': 'region',
   'per job': 'service-time',
   'shed low': 'deprioritized',
@@ -57,17 +56,17 @@ const BY_LABEL: Readonly<Record<string, string>> = {
 
 const BY_KIND: Partial<Record<NodeKind, Readonly<Record<string, string>>>> = {
   shard: { hot: 'hot-key', cold: 'shard' },
-  lambda: { cold: 'cold-start', warm: 'cold-start', refused: 'throttled' },
+  lambda: { ramping: 'cold-start', ready: 'cold-start', refused: 'throttled' },
   searchindex: { stale: 'stale-search' },
-  graphdb: { query: 'traversal-depth' },
-  vectordb: { query: 'recall' },
+  graphdb: { 'per ask': 'traversal-depth' },
+  vectordb: { 'per ask': 'recall' },
   ratelimiter: { refused: 'throttled' },
   breaker: { refused: 'rejected' },
   websocket: { refused: 'conn-refused' },
   bulkhead: { refused: 'bulkhead-full' },
   sidecar: { refused: 'outlier-ejection' },
   objectstore: { refused: 'prefix-ceiling' },
-  coldstorage: { restore: 'coldstorage', refused: 'throttled' },
+  coldstorage: { 'dig out': 'coldstorage', refused: 'throttled' },
 };
 
 /** Glossary id for a word on a node's box, or undefined when it needs none. */

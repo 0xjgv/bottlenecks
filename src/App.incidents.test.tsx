@@ -147,9 +147,9 @@ describe('a real incident', () => {
     expect(caption()).toBeNull();
     press(must('Watch it happen'));
     expect(canvasIds()).toEqual(s3.scene.nodes.map((n) => n.id));
-    expect(caption()).toBe(`0s: ${s3.captions[0]!.text}`);
+    expect(caption()).toBe(`week 0: ${s3.captions[0]!.text}`);
     advance(21_000);
-    expect(caption()).toBe(`20s: ${s3.captions[1]!.text}`);
+    expect(caption()).toBe(`week 20: ${s3.captions[1]!.text}`);
 
     press(must('Undo'));
     expect(canvasIds()).toEqual(['mine-client', 'mine-svc']);
@@ -176,7 +176,7 @@ describe('a real incident', () => {
     expect(live?.textContent).toBe('');
     press(must('Watch it happen'));
     expect(panel()?.querySelector('[aria-live="polite"]')).toBe(live);
-    expect(live?.textContent).toBe(`0s: ${s3.captions[0]!.text}`);
+    expect(live?.textContent).toBe(`week 0: ${s3.captions[0]!.text}`);
   });
 });
 

@@ -643,6 +643,26 @@ export function heldShare(s: NodeStats, cfg: NodeConfig, util: number): number {
   return Math.max(util, clamp((s.inFlight + waiting) / slots, 0, 1));
 }
 
+/** An injected fault, as the startup event it stands for. */
+const FAULT_WORD: Readonly<Record<FailureKind, string>> = {
+  crash: 'everyone out',
+  'crash-instance': 'one person out',
+  slow: 'slowed down',
+  errors: 'work bouncing back',
+  partition: 'handoff cut',
+};
+
+/** The hiring plan's phase, in the word a founder would use for it. */
+const PHASE_WORD: Readonly<
+  Record<NonNullable<NodeStats['scalePhase']> | 'idle', string>
+> = {
+  observing: 'watching',
+  warming: 'onboarding',
+  cooldown: 'holding',
+  steady: 'steady',
+  idle: 'idle',
+};
+
 /**
  * What the three numbers on a node MEAN, per kind.
  *
@@ -771,7 +791,7 @@ export function readoutFor(
       // A cache's meter shows misses: an empty bar is a cache doing its job.
       const miss = 1 - hit;
       return {
-        primary: { value: formatPct(hit), label: 'hit' },
+        primary: { value: formatPct(hit), label: 'covered' },
         a: p99Cell(s),
         b: { value: formatRate(s.throughput), label: 'served' },
         load: miss,
@@ -882,8 +902,8 @@ export function readoutFor(
       const phase = s.scalePhase ?? 'idle';
       return {
         primary: { value: formatPct(watched), label: 'watching' },
-        a: { value: `${have}/${want}`, label: 'pods' },
-        b: { value: '', label: phase },
+        a: { value: `${have}/${want}`, label: 'people' },
+        b: { value: '', label: PHASE_WORD[phase] },
         load: drift,
         health: healthOfLoad(drift),
         spark: watched,
@@ -917,7 +937,7 @@ export function readoutFor(
         primary: { value: formatPct(util), label: 'busy' },
         a: p99Cell(s),
         b: contended
-          ? { value: formatMs(lockWait), label: 'lock' }
+          ? { value: formatMs(lockWait), label: 'conflict' }
           : { value: formatCount(s.queued), label: 'waiting' },
         load: util,
         health:
@@ -988,9 +1008,9 @@ export function readoutFor(
       const err = clamp(s.errorRate, 0, 1);
       return {
         primary: dark
-          ? { value: 'dark', label: 'failover' }
-          : { value: `R${s.activeRegion ?? 0}`, label: 'serving' },
-        a: { value: `${healthy}/${total}`, label: 'healthy' },
+          ? { value: 'out', label: 'handover' }
+          : { value: `#${(s.activeRegion ?? 0) + 1}`, label: 'on duty' },
+        a: { value: `${healthy}/${total}`, label: 'available' },
         b: dark
           ? { value: formatMs(s.failoverRemainingMs), label: 'back in' }
           : { value: formatRate(s.throughput), label: 'served' },
@@ -1008,8 +1028,8 @@ export function readoutFor(
       const hit = clamp(s.hitRate, 0, 1);
       const miss = 1 - hit;
       return {
-        primary: { value: formatPct(hit), label: 'hit' },
-        a: { value: formatRate(s.originFetchRate), label: 'origin' },
+        primary: { value: formatPct(hit), label: 'covered' },
+        a: { value: formatRate(s.originFetchRate), label: 'escalated' },
         b: { value: formatRate(s.throughput), label: 'served' },
         load: miss,
         health: healthOfLoad(miss),
@@ -1029,7 +1049,7 @@ export function readoutFor(
       return {
         primary: { value: formatRate(throttled), label: 'refused' },
         a: { value: formatRate(admitted), label: 'passed' },
-        b: { value: formatCount(s.tokens), label: 'tokens' },
+        b: { value: formatCount(s.tokens), label: 'room' },
         // A drained bucket is a limiter working hard; a full one is idle.
         load: 1 - frac(s.tokens ?? 0, burst),
         health: throttled <= 0 ? 'ok' : throttled < admitted ? 'warn' : 'danger',
@@ -1050,15 +1070,15 @@ export function readoutFor(
       return {
         primary:
           state === 'open'
-            ? { value: 'OPEN', label: 'circuit' }
+            ? { value: 'STOPPED', label: 'line' }
             : state === 'half-open'
-              ? { value: 'probing', label: 'circuit' }
-              : { value: 'closed', label: 'circuit' },
-        a: { value: formatPct(errRate), label: 'dep fails' },
+              ? { value: 'testing', label: 'line' }
+              : { value: 'flowing', label: 'line' },
+        a: { value: formatPct(errRate), label: 'fails' },
         b:
           state === 'open'
             ? { value: formatRate(rejected), label: 'refused' }
-            : { value: formatCount(s.breakerTrips), label: 'trips' },
+            : { value: formatCount(s.breakerTrips), label: 'stops' },
         load: strain,
         health:
           state === 'open'
@@ -1078,8 +1098,8 @@ export function readoutFor(
       const stale = clamp(s.staleSearchRate ?? 0, 0, 1);
       return {
         primary: { value: formatPct(stale), label: 'stale' },
-        a: { value: formatRate(s.searchRate), label: 'search' },
-        b: { value: formatRate(s.indexWriteRate), label: 'index' },
+        a: { value: formatRate(s.searchRate), label: 'lookups' },
+        b: { value: formatRate(s.indexWriteRate), label: 'filed' },
         load: util,
         health: worstHealth(healthOfLoad(util), stale > 0.2 ? 'warn' : 'ok'),
         spark: stale,
@@ -1092,8 +1112,8 @@ export function readoutFor(
     case 'timeseriesdb':
       return {
         primary: { value: formatPct(util), label: 'busy' },
-        a: { value: formatRate(s.appendRate), label: 'append' },
-        b: { value: formatRate(s.rangeQueryRate), label: 'range' },
+        a: { value: formatRate(s.appendRate), label: 'logged' },
+        b: { value: formatRate(s.rangeQueryRate), label: 'reports' },
         load: util,
         health: healthOfLoad(util),
         spark: util,
@@ -1104,7 +1124,7 @@ export function readoutFor(
     /* The depth multiplier, measured: what one traversal actually costs. */
     case 'graphdb':
       return {
-        primary: { value: formatMs(s.traversalCostMs), label: 'query' },
+        primary: { value: formatMs(s.traversalCostMs), label: 'per ask' },
         a: { value: formatPct(util), label: 'busy' },
         b: { value: formatRate(s.throughput), label: 'served' },
         load: util,
@@ -1121,7 +1141,7 @@ export function readoutFor(
     case 'coldstorage': {
       const denied = s.throttledRate ?? 0;
       return {
-        primary: p99Cell(s, 'restore'),
+        primary: p99Cell(s, 'dig out'),
         a: { value: formatPct(util), label: 'busy' },
         b:
           denied > 0
@@ -1138,7 +1158,7 @@ export function readoutFor(
     /* The recall slider read backwards: measured cost per query. */
     case 'vectordb':
       return {
-        primary: { value: formatMs(s.queryCostMs), label: 'query' },
+        primary: { value: formatMs(s.queryCostMs), label: 'per ask' },
         a: { value: formatPct(util), label: 'busy' },
         b: { value: formatRate(s.throughput), label: 'served' },
         load: util,
@@ -1156,12 +1176,12 @@ export function readoutFor(
       const dropRate = s.retentionDropRate ?? 0;
       const fill = frac(lag, s.queueLimit);
       return {
-        primary: { value: formatCount(lag), label: 'lag' },
+        primary: { value: formatCount(lag), label: 'unread' },
         a:
           dropRate > 0
             ? { value: formatRate(dropRate), label: 'lost' }
-            : { value: formatRate(s.deliveryRate), label: 'deliver' },
-        b: { value: formatRate(s.throughput), label: 'publish' },
+            : { value: formatRate(s.deliveryRate), label: 'read' },
+        b: { value: formatRate(s.throughput), label: 'posted' },
         load: fill,
         health: dropRate > 0 ? 'danger' : healthOfLoad(fill),
         spark: lag,
@@ -1193,12 +1213,12 @@ export function readoutFor(
       const refused = s.connectionRejectRate ?? 0;
       const fill = frac(open, max);
       return {
-        primary: { value: formatCount(open), label: 'conns' },
-        a: { value: formatCount(max), label: 'slots' },
+        primary: { value: formatCount(open), label: 'in room' },
+        a: { value: formatCount(max), label: 'seats' },
         b:
           refused > 0
             ? { value: formatRate(refused), label: 'refused' }
-            : { value: formatRate(s.connectRate), label: 'new' },
+            : { value: formatRate(s.connectRate), label: 'joining' },
         load: fill,
         health: refused > 0 ? 'danger' : healthOfLoad(fill),
         spark: fill,
@@ -1237,10 +1257,10 @@ export function readoutFor(
       return {
         primary:
           state === 'open'
-            ? { value: 'EJECTED', label: 'upstream' }
+            ? { value: 'PAUSED', label: 'partner' }
             : state === 'half-open'
-              ? { value: 'probing', label: 'upstream' }
-              : { value: 'proxying', label: '' },
+              ? { value: 'testing', label: 'partner' }
+              : { value: 'flowing', label: '' },
         a: { value: formatRate(fails), label: 'fails' },
         b:
           state === 'open'
@@ -1267,12 +1287,12 @@ export function readoutFor(
       const throttled = s.throttledRate ?? 0;
       const fill = frac(running, cap);
       return {
-        primary: { value: formatPct(cold), label: 'cold' },
+        primary: { value: formatPct(cold), label: 'ramping' },
         a: { value: `${formatCount(running)}/${formatCount(cap)}`, label: 'running' },
         b:
           throttled > 0
             ? { value: formatRate(throttled), label: 'refused' }
-            : { value: formatCount(s.warmIdle), label: 'warm' },
+            : { value: formatCount(s.warmIdle), label: 'ready' },
         load: fill,
         health:
           throttled > 0
@@ -1314,7 +1334,7 @@ export function readoutFor(
       return {
         primary: {
           value: `${formatCount(inUse)}/${formatCount(limit)}`,
-          label: 'pool',
+          label: 'reserved',
         },
         a: { value: formatRate(refused), label: 'refused' },
         b: p99Cell(s),
@@ -1334,9 +1354,9 @@ export function readoutFor(
       const redeliver = s.redeliveryRate ?? 0;
       const fill = frac(s.queued, s.queueLimit);
       return {
-        primary: { value: formatCount(dead), label: 'dead' },
-        a: { value: formatRate(s.deliveredRate), label: 'deliver' },
-        b: { value: formatRate(redeliver), label: 'retry' },
+        primary: { value: formatCount(dead), label: 'given up' },
+        a: { value: formatRate(s.deliveredRate), label: 'done' },
+        b: { value: formatRate(redeliver), label: 'redo' },
         load: fill,
         health:
           deadRate > 0
@@ -1355,8 +1375,8 @@ export function readoutFor(
       const passed = s.passedThroughRate ?? 0;
       const share = frac(handled, handled + passed);
       return {
-        primary: { value: formatPct(share), label: 'at edge' },
-        a: { value: formatRate(passed), label: 'origin' },
+        primary: { value: formatPct(share), label: 'fixed' },
+        a: { value: formatRate(passed), label: 'escalated' },
         b: p99Cell(s),
         // The meter shows what still reaches the origin; its own small pool
         // can also melt, which health tracks separately.
@@ -1374,8 +1394,8 @@ export function readoutFor(
       const failRate = s.flushFailRate ?? 0;
       return {
         primary: { value: formatCount(s.dirtyWrites), label: 'at risk' },
-        a: { value: formatRate(s.flushedRate), label: 'flushed' },
-        b: { value: formatRate(s.throughput), label: 'acked' },
+        a: { value: formatRate(s.flushedRate), label: 'recorded' },
+        b: { value: formatRate(s.throughput), label: 'promised' },
         // Utilisation here genuinely means buffer fill (measured 0.146 with
         // 44 dirty writes), so the meter keeps it.
         load: util,
@@ -1399,7 +1419,7 @@ export function readoutFor(
         b:
           highShed > 0
             ? { value: formatRate(highShed), label: 'shed high' }
-            : { value: formatCount(s.tokens), label: 'tokens' },
+            : { value: formatCount(s.tokens), label: 'room' },
         load: 1 - frac(s.tokens ?? 0, burst),
         health: highShed > 0 ? 'danger' : lowShed > 0 ? 'warn' : 'ok',
         spark: lowShed + highShed,
@@ -1911,7 +1931,7 @@ const EdgeView = memo(function EdgeView({
       */}
       {showLabel && control && (
         <text className="cv-edge-label is-control" x={midX} y={midY - 6 + labelDy}>
-          scales
+          hires
         </text>
       )}
 
@@ -2939,16 +2959,18 @@ export const NodeView = memo(function NodeView({
              the whole point of this pass. Said in words rather than as a
              count alone: "4 partitions" beats "4x". */
         badge
-          ? node.kind === 'shard' || node.kind === 'streambroker'
-            ? `${stats?.instances} partitions`
-            : node.kind === 'replica'
-              ? `primary plus ${(stats?.instances ?? 1) - 1} read replicas`
-              : `${stats?.instances} instances`
+          ? node.kind === 'shard'
+            ? `${stats?.instances} owners`
+            : node.kind === 'streambroker'
+              ? `${stats?.instances} threads`
+              : node.kind === 'replica'
+                ? `owner plus ${(stats?.instances ?? 1) - 1} deputies`
+                : `${stats?.instances} people`
           : null,
-        pending > 0 ? `${pending} warming up` : null,
+        pending > 0 ? `${pending} onboarding` : null,
         // The fault is announced, not just drawn: a screen-reader user has
         // no access to the square mark in the corner.
-        fault ? `faulted: ${fault}` : null,
+        fault ? `problem: ${FAULT_WORD[fault]}` : null,
         breakMark === undefined
           ? null
           : breakMark > 0

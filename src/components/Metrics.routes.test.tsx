@@ -63,7 +63,7 @@ function show(topology: Topology, slow?: string) {
 
 function chart(): Element | null {
   return container.querySelector(
-    '[aria-label="Each traffic source over the last 60 seconds"]',
+    '[aria-label="Each source of work over the last 60 weeks"]',
   );
 }
 

@@ -61,10 +61,10 @@ export type FaultDirection = 'undo' | 'redo';
 
 /** Toast words, read after "Undid" or "Redid". */
 const INJECT_LABEL: Record<'crash' | 'crash-instance' | 'slow' | 'errors', string> = {
-  crash: 'crash',
-  'crash-instance': 'crash one instance',
+  crash: 'take out',
+  'crash-instance': 'one person out',
   slow: 'slow down',
-  errors: 'glitch',
+  errors: 'bounce work',
 };
 
 function nodeFaultOf(f: ActiveFailure | undefined): NodeFault | null {
@@ -257,8 +257,8 @@ export function undoableFaultActions(
     onInject: (id, kind, opts) =>
       node(INJECT_LABEL[kind], id, () => actions.onInject(id, kind, opts)),
     onFix: (id) => node('fix', id, () => actions.onFix(id)),
-    onCut: (id) => edge('cable cut', id, () => actions.onCut(id)),
-    onRestore: (id) => edge('cable restore', id, () => actions.onRestore(id)),
+    onCut: (id) => edge('handoff break', id, () => actions.onCut(id)),
+    onRestore: (id) => edge('handoff restore', id, () => actions.onRestore(id)),
     onForget: () => {
       const before = engine.faultSchedule();
       actions.onForget();

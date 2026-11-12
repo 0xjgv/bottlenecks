@@ -30,7 +30,7 @@ interface TourProps {
 const SETTLE_MS = 4000;
 
 /** The field step 3 points at, found by its label as the student reads it. */
-const SLOTS_LABEL = 'Slots per instance';
+const SLOTS_LABEL = 'Tasks each person juggles at once';
 
 /** The control a stage points at, or null. Read from the DOM: it belongs to other components. */
 function targetFor(kind: string, fieldShown: boolean): Element | null {

@@ -34,8 +34,8 @@ describe('break_it', () => {
   it('says what broke it, by how much, against what goal', async () => {
     const text = await said(preset('single-server'), { goal: UP });
     expect(text).toContain('Broke it with one fault');
-    expect(text).toContain("Slow Database (id 'db') 5x at 10s for 5s.");
-    expect(text).toContain('Between 5s and 35s, 2.2% of requests failed.');
+    expect(text).toContain("Slow Database (id 'db') 5x at week 10 for 5wk.");
+    expect(text).toContain('Between week 5 and week 35, 2.2% of work items failed.');
     expect(text).toContain('The goal was 1% or less.');
     expect(text).toContain('No smaller schedule breaks it.');
   });
@@ -115,7 +115,7 @@ describe('break_it', () => {
       { goal: UP, kinds: ['crash'], maxFaults: 1, includeSinglePoints: true },
       HOSTED_BREAK,
     );
-    expect(text).toContain("Crash API Server (id 'api')");
+    expect(text).toContain("Take out API Server (id 'api')");
     expect(text).not.toContain('never crashed');
   });
 

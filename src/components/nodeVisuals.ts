@@ -493,22 +493,26 @@ export interface KindGroup {
 }
 
 export const KIND_GROUPS: KindGroup[] = [
-  { id: 'traffic', title: 'Traffic', kinds: ['client', 'lb', 'cdn', 'edgecompute'] },
+  {
+    id: 'traffic',
+    title: 'Where work comes from',
+    kinds: ['client', 'lb', 'cdn', 'edgecompute'],
+  },
   {
     id: 'compute',
-    title: 'Compute',
+    title: 'People and teams',
     kinds: ['service', 'worker', 'queue', 'retryqueue', 'transcoder'],
   },
   {
     id: 'data',
-    title: 'Data',
+    title: 'Knowledge and decisions',
     kinds: ['db', 'cache', 'writebehind', 'replica', 'shard'],
   },
   {
     // The polyglot-persistence shelf: each of these exists because putting
     // its workload in the main database is the mistake it teaches against.
     id: 'stores',
-    title: 'Specialised stores',
+    title: 'Records and lookups',
     kinds: [
       'objectstore',
       'searchindex',
@@ -522,12 +526,12 @@ export const KIND_GROUPS: KindGroup[] = [
     // How services talk when it is not one request calling one server:
     // logs, topics, sockets, functions and jobs on a clock.
     id: 'messaging',
-    title: 'Messaging',
+    title: 'Handoffs',
     kinds: ['streambroker', 'pubsub', 'websocket', 'lambda', 'cron'],
   },
   {
     id: 'control',
-    title: 'Control',
+    title: 'Policies',
     kinds: [
       'ratelimiter',
       'loadshedder',

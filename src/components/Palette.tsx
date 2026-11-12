@@ -44,39 +44,80 @@ import './Palette.css';
  * where the student is already looking once they have chosen.
  */
 const KIND_HINT: Record<NodeKind, string> = {
-  client: 'Sends requests at the rate you set',
-  lb: 'Spreads requests across several servers',
-  service: 'Handles a request, calls what it needs',
-  cache: 'Answers repeat reads without the database',
-  db: 'Stores the data. Usually saturates first',
-  queue: 'Holds work so the sender does not wait',
-  worker: 'Drains the queue in the background',
-  replica: 'Scales reads, but they can be stale',
-  shard: 'Splits data by key. A hot key ruins it',
-  autoscaler: 'Adds capacity when load rises, after a delay',
-  region: 'Fails traffic over to another region',
-  cdn: 'Serves most requests before they reach you',
-  ratelimiter: 'Refuses excess traffic cheaply, at the door',
-  breaker: 'Stops calling a dependency that is failing',
-  objectstore: 'Blobs: slow per request, near-unlimited',
-  searchindex: 'Fast search, but writes index late',
-  timeseriesdb: 'Swallows metrics; range queries cost',
-  graphdb: 'Relationships. Depth multiplies the cost',
-  coldstorage: 'Archive tier: cheap, and takes seconds',
-  vectordb: 'Similarity search. Recall costs latency',
-  streambroker: 'A replayable log; consumers fall behind',
-  pubsub: 'One publish becomes N deliveries',
-  websocket: 'Holds connections; they run out, not rps',
-  apigateway: 'Auth, rate limits and routing at the door',
-  sidecar: 'A proxy tax on every hop, buying retries',
-  lambda: 'Scales instantly, but cold starts cost',
-  cron: 'Dumps a burst of work on a schedule',
-  bulkhead: 'Caps calls to one dependency; contains it',
-  retryqueue: 'Redelivers failures; dead-letters the rest',
-  transcoder: 'Grinds long CPU jobs pulled off a queue',
-  edgecompute: 'Answers what it can at the edge itself',
-  writebehind: 'Acks writes fast; a crash loses the buffer',
-  loadshedder: 'Under load, drops low-priority traffic first',
+  client: 'Customers, sales or the roadmap, asking at the rate you set',
+  lb: 'A lead handing work out across several people',
+  service: 'People who do the work and wait on what they ask others for',
+  cache: 'Docs, templates and FAQs that answer repeat asks for free',
+  db: 'The founder or approver everyone waits on. Usually the bottleneck',
+  queue: 'Holds work so the sender can move on',
+  worker: 'People pulling tickets from a backlog at their own pace',
+  replica: 'Answer for the owner, but their context can be stale',
+  shard: 'Accounts split between owners. One huge customer swamps one',
+  autoscaler: 'Hires when a team runs hot. Help arrives after onboarding',
+  region: 'Takes over when the owner is out, after a handover',
+  cdn: 'Self-serve answers before an ask reaches anyone',
+  ratelimiter: 'Takes a set number a week and refuses the rest',
+  breaker: 'Stops sending work to a partner who keeps failing',
+  objectstore: 'Slow to search, but never runs out of room',
+  searchindex: 'Finding past work is quick; filing it lands late',
+  timeseriesdb: 'Logging a number is cheap; a report costs a lot',
+  graphdb: 'Every extra team you ask multiplies the cost',
+  coldstorage: 'Cheap to keep, slow to dig out',
+  vectordb: 'Answers by similarity. Better answers take longer',
+  streambroker: 'Posts are instant; each reader falls behind at their own pace',
+  pubsub: 'One message becomes work for every team that hears it',
+  websocket: 'Holds people in the room for the whole meeting',
+  apigateway: 'Checks, limits and routes each ask to the right team',
+  sidecar: 'A tax on every item: status updates, sign-offs, compliance',
+  lambda: 'Scale up on demand, but each new one needs ramp-up time',
+  cron: 'Planning or reporting dropped all at once on a schedule',
+  bulkhead: "Caps work waiting on one partner, so they cannot eat everyone's time",
+  retryqueue: 'Failed work comes back later; what always fails is dropped',
+  transcoder: 'Long specialist jobs: design, video, content',
+  edgecompute: 'Frontline resolves what it can at first contact',
+  writebehind: 'Say yes now, write it down later. If they leave, it is lost',
+  loadshedder: 'When swamped, drops low-priority work first',
+};
+
+/**
+ * Extra words search matches, so someone who types the problem finds the
+ * piece. Startup words first; the engineering names after, so a reader who
+ * knows the system-design term still finds it.
+ */
+const KIND_KEYWORDS: Record<NodeKind, string> = {
+  client: 'customers sales roadmap leads demand inbound client traffic requests',
+  lb: 'lead manager triage assign dispatch load balancer',
+  service: 'team people engineers staff headcount service api server',
+  cache: 'docs faq templates playbook knowledge base wiki cache',
+  db: 'founder ceo approval approver sign-off decision bottleneck database db',
+  queue: 'backlog inbox handoff async to-do queue',
+  worker: 'tickets support crew backlog worker consumer',
+  replica: 'deputies delegate stale context read replica',
+  shard: 'accounts owners territory big customer hot key shard partition',
+  autoscaler: 'hiring recruiting headcount onboarding grow autoscaler scaling',
+  region: 'backup owner cover vacation handover failover region',
+  cdn: 'help center self-serve faq docs deflect cdn',
+  ratelimiter: 'intake limit refuse cap wip rate limiter',
+  breaker: 'stop the line partner vendor failing circuit breaker',
+  objectstore: 'shared drive files folders storage object store blob s3',
+  searchindex: 'search find docs wiki index elasticsearch',
+  timeseriesdb: 'metrics kpi report dashboard time series',
+  graphdb: 'cross-team dependencies org chart graph',
+  coldstorage: 'archive old records cold storage glacier',
+  vectordb: 'ai assistant llm chatbot similarity vector',
+  streambroker: 'channel slack chat updates stream kafka log',
+  pubsub: 'announcement all-hands broadcast newsletter pubsub topic',
+  websocket: 'meeting standup sync calendar websocket connections',
+  apigateway: 'front desk reception intake routing gateway',
+  sidecar: 'process status update compliance sign-off sidecar proxy',
+  lambda: 'contractors freelancers agency outsource lambda serverless cold start',
+  cron: 'ritual planning reporting payroll meeting batch cron schedule',
+  bulkhead: 'reserved capacity partner isolate bulkhead',
+  retryqueue: 'rework redo bugs returns retry dead letter',
+  transcoder: 'design video content studio specialist transcoder cpu jobs',
+  edgecompute: 'frontline first contact support edge compute',
+  writebehind: 'paperwork records admin deferred write-behind buffer',
+  loadshedder: 'priority triage drop overload load shedder',
 };
 
 /**
@@ -143,9 +184,8 @@ const ANN_ROWS: {
 /**
  * Does `kind` match the typed query?
  *
- * Matches the display name, the one-line hint and the group title, so
- * "melting" finds the Control group's contents and "stale" finds read
- * replicas. Searching only the names would fail exactly the student this
+ * Matches the display name, the one-line hint, the keywords and the group
+ * title, so "approval" finds the decision maker and "stale" finds deputies. Searching only the names would fail exactly the student this
  * is for: someone who knows the problem they have but not what the
  * component is called.
  *
@@ -165,6 +205,7 @@ function matchesKind(
     // even though the concept is what the rail is organised by.
     nameFor(kind, vendor).toLowerCase().includes(needle) ||
     KIND_HINT[kind].toLowerCase().includes(needle) ||
+    KIND_KEYWORDS[kind].includes(needle) ||
     group.title.toLowerCase().includes(needle)
   );
 }
@@ -483,7 +524,7 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
               Nothing matches {'\u201c'}
               {query.trim()}
               {'\u201d'}. Searching what a component does works too, like {'\u201c'}
-              stale{'\u201d'} or {'\u201c'}refuse{'\u201d'}.
+              approval{'\u201d'} or {'\u201c'}hiring{'\u201d'}.
             </p>
           )}
 

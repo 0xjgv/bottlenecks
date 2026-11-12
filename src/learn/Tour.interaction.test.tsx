@@ -120,12 +120,12 @@ describe('the first-visit tour', () => {
 
   it('sets the load it asks for through the real slider path', () => {
     mount();
-    expect(slider()?.getAttribute('aria-valuetext')).toBe('50 requests per second');
+    expect(slider()?.getAttribute('aria-valuetext')).toBe('50 items per week');
     press(button('Set it to 300'), 'touch');
-    expect(slider()?.getAttribute('aria-valuetext')).toBe('300 requests per second');
+    expect(slider()?.getAttribute('aria-valuetext')).toBe('300 items per week');
     // Undo takes it back, so the tour's change is an ordinary one.
     press(button('Undo'));
-    expect(slider()?.getAttribute('aria-valuetext')).toBe('50 requests per second');
+    expect(slider()?.getAttribute('aria-valuetext')).toBe('50 items per week');
   });
 
   it('walks load, break, fix and done on the running engine', () => {
@@ -149,7 +149,7 @@ describe('the first-visit tour', () => {
     press(button('Show me the fix'), 'touch');
     expect(title()).toBe('Give it more room');
     const row = document.querySelector('[data-tour-ring]');
-    expect(row?.textContent).toContain('Slots per instance');
+    expect(row?.textContent).toContain('Tasks each person juggles at once');
     const input = row?.querySelector('input');
     if (!input) throw new Error('no slots field');
     act(() => {
@@ -233,10 +233,10 @@ describe('the load slider from the keyboard', () => {
     key('ArrowLeft');
     seen.push(s.getAttribute('aria-valuetext') ?? '');
     expect(seen).toEqual([
-      '55 requests per second',
-      '60 requests per second',
-      '65 requests per second',
-      '60 requests per second',
+      '55 items per week',
+      '60 items per week',
+      '65 items per week',
+      '60 items per week',
     ]);
   });
 });

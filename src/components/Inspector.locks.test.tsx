@@ -88,7 +88,7 @@ describe('during a challenge', () => {
         />,
       ),
     );
-    expect(control('Slots per instance')?.disabled).toBe(false);
+    expect(control('Tasks each person juggles at once')?.disabled).toBe(false);
     const fixed = container.querySelector('.is-locked');
     expect(fixed).not.toBeNull();
     expect(fixed?.querySelector('input')?.disabled).toBe(true);
@@ -112,7 +112,7 @@ describe('during a challenge', () => {
     expect(rows.length).toBeGreaterThanOrEqual(3);
     for (const row of rows) {
       expect(row.querySelector('input')?.disabled).toBe(true);
-      expect(row.textContent).toContain('how the people sending requests behave');
+      expect(row.textContent).toContain('how the people sending the work behave');
     }
   });
 
@@ -129,8 +129,8 @@ describe('during a challenge', () => {
         />,
       ),
     );
-    expect(control('Retries')?.disabled).toBe(false);
-    expect(control('Timeout')?.disabled).toBe(false);
+    expect(control('Times they chase it')?.disabled).toBe(false);
+    expect(control('Requester gives up after')?.disabled).toBe(false);
     expect(container.querySelector('.is-locked')).not.toBeNull();
   });
 
@@ -169,7 +169,7 @@ describe('during a challenge', () => {
     for (const row of container.querySelectorAll('.is-locked')) {
       expect(row.querySelector('input')?.disabled).toBe(true);
     }
-    expect(control('Slots per instance')?.disabled).toBe(false);
+    expect(control('Tasks each person juggles at once')?.disabled).toBe(false);
   });
 
   it('offers no suggested fix, which would be the answer', () => {

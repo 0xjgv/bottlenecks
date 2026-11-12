@@ -95,7 +95,7 @@ export function Challenges({
               Challenges
             </h2>
             <p className="ex-sub">
-              A system that does not meet its requirement. Work out why, and fix it.
+              A workflow that misses its goal. Work out why, and fix it.
             </p>
           </div>
           <button type="button" className="btn" onClick={onClose}>

@@ -43,7 +43,7 @@ const GROUPS: Group[] = [
     title: 'Simulation',
     rows: [
       { keys: ['Space'], does: 'Play or pause' },
-      { keys: ['S'], does: 'Step one tick (pauses first)' },
+      { keys: ['S'], does: 'Step half a working day (pauses first)' },
       { keys: ['F'], does: 'Can you break it?' },
     ],
   },

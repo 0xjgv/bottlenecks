@@ -1,6 +1,11 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { HARDER_BUDGET } from '../sim/breakit';
+import {
+  BREAK_END_MS,
+  BREAK_WARMUP_MS,
+  FAULT_STARTS_MS,
+  HARDER_BUDGET,
+} from '../sim/breakit';
 import type { AttackKind, BreakOptions, SearchProgress } from '../sim/breakit';
 import type { Goal } from '../sim/challenge';
 import type { SimNode } from '../sim/types';
@@ -15,14 +20,17 @@ import {
   scheduleSentence,
   singlePointLines,
   triedLine,
+  secs,
 } from './breakCopy';
 import type { Names } from './breakCopy';
+import { hoursToMs, msToHours } from './format';
 import './Challenge.css';
 import './BreakIt.css';
 
 /**
- * "Can you break it?": pick what has to hold, and Breakscale throws faults
- * at the design until it gives way or runs out of tries.
+ * "Can you break it?": pick what has to hold, and Bottlenecks throws the
+ * things that halt a startup at the design until it gives way or runs out
+ * of tries.
  *
  * Docks where a brief does and uses its panel, sheet on a phone included,
  * because the canvas has to stay in view: the parts under attack are marked
@@ -47,11 +55,11 @@ export interface BreakPanelProps {
 }
 
 const KIND_LABEL: Record<AttackKind, string> = {
-  crash: 'Crashes',
-  'crash-instance': 'Losing one machine',
-  slow: 'Slowdowns',
-  errors: 'Glitches (errors)',
-  cut: 'Cut cables',
+  crash: 'A team is out',
+  'crash-instance': 'Someone is out sick',
+  slow: 'Someone slows down',
+  errors: 'Quality slips',
+  cut: 'A handoff breaks',
 };
 
 /** A template's name in the radio group. */
@@ -59,14 +67,14 @@ function templateLabel(goal: Goal, names: Names): string {
   const who = goal.route === undefined ? null : names.node(goal.route);
   switch (goal.metric) {
     case 'errorRate':
-      return who ? `Keep ${who} up` : 'Keep everyone up';
+      return who ? `Keep work from ${who} getting done` : 'Keep work getting done';
     case 'p99':
     case 'p95':
       return who ? `Keep ${who} fast` : 'Stay fast';
     case 'lostWrites':
-      return 'No lost writes';
+      return 'No lost records';
     case 'lostJobs':
-      return 'No lost jobs';
+      return 'No dropped tasks';
     case 'queueDepth':
       return '';
   }
@@ -79,20 +87,24 @@ function templateSentence(goal: Goal): { before: string; after: string; unit: st
     case 'errorRate':
       return {
         before: 'Fewer than',
-        after: `% of ${their}requests fail.`,
+        after: `% of ${their}work items fail.`,
         unit: 'percent',
       };
     case 'p99':
     case 'p95':
       return {
-        before: `99 in 100 ${their}requests finish within`,
-        after: 'ms.',
-        unit: 'milliseconds',
+        before: `99 in 100 ${their}work items finish within`,
+        after: 'working hours.',
+        unit: 'working hours',
       };
     case 'lostWrites':
-      return { before: 'At most', after: 'saved writes are lost.', unit: 'writes' };
+      return {
+        before: 'At most',
+        after: 'promised records are lost.',
+        unit: 'records',
+      };
     default:
-      return { before: 'At most', after: 'accepted jobs fail.', unit: 'jobs' };
+      return { before: 'At most', after: 'accepted tasks fail later.', unit: 'tasks' };
   }
 }
 
@@ -421,11 +433,12 @@ function Picking({
   return (
     <>
       <p className="chal-brief">
-        Pick what has to hold. Breakscale throws faults at your design until it fails,
-        or until it runs out of tries.
+        Pick what has to hold. Bottlenecks throws what halts a startup at your design
+        (people out, slowdowns, quality slips, broken handoffs) until it breaks, or
+        until it runs out of tries.
       </p>
       {search.goalGone ? (
-        <p className="chal-note">That traffic source is gone. Pick another goal.</p>
+        <p className="chal-note">That source of work is gone. Pick another goal.</p>
       ) : null}
       <fieldset className="brk-goals">
         <legend className="label chal-block-title">What has to hold</legend>
@@ -433,6 +446,8 @@ function Picking({
           const on = t.id === search.goalId;
           const s = templateSentence(t.goal);
           const inputId = `brk-max-${t.id}`;
+          // Time goals are held in engine milliseconds and edited in working hours.
+          const timed = t.goal.metric === 'p99' || t.goal.metric === 'p95';
           return (
             <div key={t.id} className={`brk-goal${on ? ' is-on' : ''}`}>
               <label className="brk-goal-head">
@@ -449,10 +464,10 @@ function Picking({
                   <label htmlFor={inputId}>{s.before}</label>{' '}
                   <GoalNumber
                     id={inputId}
-                    value={search.maxOf(t.id)}
+                    value={timed ? msToHours(search.maxOf(t.id)) : search.maxOf(t.id)}
                     describedBy={baselineId}
                     label={`${s.before} how many ${s.unit}`}
-                    onCommit={(v) => search.setMax(t.id, v)}
+                    onCommit={(v) => search.setMax(t.id, timed ? hoursToMs(v) : v)}
                   />{' '}
                   {s.after}
                 </p>
@@ -463,7 +478,7 @@ function Picking({
       </fieldset>
       <p id={baselineId} className="chal-note">
         {base
-          ? `${baselineSentence(base.worst, search.goal, names)} That is the worst of three runs of traffic.`
+          ? `${baselineSentence(base.worst, search.goal, names)} That is the worst of three runs with different luck.`
           : 'Measuring it with no faults…'}
       </p>
 
@@ -476,9 +491,9 @@ function Picking({
             ))}
           </ul>
           <p className="chal-note">
-            Each of these is a single point of failure: lose one and that traffic has
-            nowhere to go, which breaks any goal. So the search only slows them and
-            takes down single machines.
+            Each of these is a single point of failure: lose one and that work has
+            nowhere to go, which breaks any goal. So the search only slows them down and
+            sends single people home sick.
           </p>
           <label className="brk-check">
             <input
@@ -486,7 +501,7 @@ function Picking({
               checked={opts.includeSinglePoints}
               onChange={(e) => set({ includeSinglePoints: e.currentTarget.checked })}
             />
-            Crash and cut them too
+            Take them out and break their handoffs too
           </label>
         </div>
       ) : null}
@@ -698,8 +713,10 @@ function Verdict({
           Held across {r.tried} fault {r.tried === 1 ? 'schedule' : 'schedules'}.
         </p>
         <p className="chal-note">
-          {triedLine(r.bySize)} Each landed between 10s and 15s, and the goal was
-          measured from 5s to 35s on three runs of traffic.
+          {triedLine(r.bySize)} Each struck between {secs(FAULT_STARTS_MS[0])} and{' '}
+          {secs(FAULT_STARTS_MS[FAULT_STARTS_MS.length - 1])}, and the goal was measured
+          from {secs(BREAK_WARMUP_MS)} to {secs(BREAK_END_MS)} on three runs with
+          different luck.
         </p>
         <p className="chal-note">{closestLine(r.closest, view.goal, names)}</p>
         {fixed > 0 ? (
@@ -746,7 +763,7 @@ function Verdict({
           : r.shrinkTried > 0
             ? `Found on try ${r.foundAt}, then made smaller in ${r.shrinkTried} more.`
             : `Found on try ${r.foundAt}.`}{' '}
-        It broke on this run of traffic and on another one too.
+        It broke on this run and on another with different luck too.
       </p>
       <div className="chal-actions brk-actions">
         <button type="button" className="btn btn-sm btn-primary" onClick={onWatch}>
