@@ -101,3 +101,12 @@ The fault controls and the stress test are the "what could go wrong" tool.
 | errors         | Quality slips: work bounces back                            |
 | cut            | A handoff breaks: messages get lost between two teams       |
 | traffic spike  | A launch, a big customer, a press hit                       |
+
+## Seeing ahead
+
+"What if we grow?" (`src/learn/growth.ts`) plays the design for 20 weeks at 1x, 1.5x, 2x, 3x and
+4x today's incoming work and measures, per multiple, work finished a week, the share lost (dropped,
+given up on, or promised and then lost), the slowest 1 in 100 cycle time, and the constraint. The
+constraint is the step "Find the problem" names, so the two never disagree; when nothing is piling
+up, the busiest step stands in as the likely next constraint. A multiple counts as broken when more
+than 2 in 100 items are lost or the slowest cycle time more than doubles.
