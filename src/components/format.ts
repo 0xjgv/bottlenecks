@@ -75,10 +75,19 @@ export const healthOfErr = (e: number | null | undefined): Health => {
   return v === null ? 'ok' : v >= 0.05 ? 'danger' : v >= 0.005 ? 'warn' : 'ok';
 };
 
-/** End-to-end latency in ms. */
+/**
+ * End-to-end cycle time in engine ms. The slowest items taking over two
+ * working days is worth noticing; over a week is trouble.
+ */
 export const healthOfLatency = (ms: number | null | undefined): Health => {
   const v = finite(ms);
-  return v === null ? 'ok' : v >= 1000 ? 'danger' : v >= 200 ? 'warn' : 'ok';
+  return v === null
+    ? 'ok'
+    : v >= MS_PER_WEEK
+      ? 'danger'
+      : v >= 2 * MS_PER_DAY
+        ? 'warn'
+        : 'ok';
 };
 
 /**

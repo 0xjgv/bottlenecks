@@ -105,7 +105,7 @@ export function IncidentPanel({
     >
       <header className="chal-head">
         <div className="chal-head-text">
-          <p className="label chal-kicker">Real incident, {incident.date}</p>
+          <p className="label chal-kicker">Startup scenario, {incident.date}</p>
           <h2 id={headingId} ref={headingRef} className="chal-name" tabIndex={-1}>
             {incident.name}
           </h2>
@@ -169,8 +169,8 @@ export function IncidentPanel({
 
       <div id={bodyId} className="chal-body" hidden={collapsed}>
         <p className="inc-model">
-          A simplified model. Times and numbers here are from the simulator, not the
-          real event. {incident.simNote}
+          A composite of what happens at many startups. Times and numbers here are from
+          the simulator. {incident.simNote}
         </p>
         <p className="chal-brief inc-story">{incident.story.join(' ')}</p>
         <p className="inc-source">

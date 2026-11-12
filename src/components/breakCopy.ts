@@ -45,7 +45,7 @@ export function faultPhrase(a: Attack, names: Names): string {
     case 'slow':
       return `slow ${names.node(a.target)} ${a.factor}x`;
     case 'errors':
-      return `make ${pct(a.rate)} of ${names.node(a.target)}'s work bounce back`;
+      return `make ${pct(a.rate)} of the work at ${names.node(a.target)} bounce back`;
     case 'cut':
       return `break ${names.edge(a.target)}`;
   }

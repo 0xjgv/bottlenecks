@@ -357,7 +357,7 @@ describe('break copy', () => {
       ),
     ).toMatch(/Work started to pile up\.$/);
     expect(lines[0]).toBe(
-      "Take out Founder sign-off at week 10 for 2.5d and break the handoff from Engineers to Founder sign-off at week 10, then make 50% of Engineers's work bounce back at week 12 for 2wk, then send one person from Engineers home sick at week 15.",
+      'Take out Founder sign-off at week 10 for 2.5d and break the handoff from Engineers to Founder sign-off at week 10, then make 50% of the work at Engineers bounce back at week 12 for 2wk, then send one person from Engineers home sick at week 15.',
     );
   });
 });
