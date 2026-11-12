@@ -1,0 +1,57 @@
+/* ==========================================================================
+   "What if we grow?"
+
+   Uses the brief's panel (Challenge.css) for its frame and place on the
+   canvas. Only the table is its own.
+   ========================================================================== */
+
+.grw-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+.grw-table th,
+.grw-table td {
+  padding: var(--sp-1) var(--sp-2);
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border);
+}
+
+.grw-table thead th {
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.grw-table tbody tr.is-broken {
+  background: var(--danger-soft);
+}
+
+.grw-mult,
+.grw-who {
+  display: block;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.grw-sub {
+  display: block;
+  color: var(--text-dim);
+}
+
+.grw-progress {
+  height: 6px;
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.grw-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
