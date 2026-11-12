@@ -1,7 +1,7 @@
 /* ==========================================================================
    The learning path.
 
-   Every example and every challenge, in an order a student can follow. The
+   Every example and every challenge, in an order a reader can follow. The
    Examples gallery is a flat grid and the challenges are grouped by
    difficulty; neither says what to open first, or what a challenge builds
    on. Here each track pairs the examples that show an idea with the
@@ -37,102 +37,90 @@ const ch = (id: string, learn: string): PathStep => ({ kind: 'challenge', id, le
 export const LEARNING_PATH: readonly PathTrack[] = [
   {
     id: 'bottlenecks',
-    title: 'First bottlenecks',
-    about: 'A system is only as fast as the part that fills up first.',
+    title: 'Find the constraint',
+    about: 'A team ships only as fast as the step that fills up first.',
     steps: [
-      ex('single-server', 'Find the one part that fills up first.'),
+      ex('single-server', 'Find the one person everything waits on.'),
       ex(
         'load-balanced',
-        'See why more servers do not help when they share one database.',
+        'See why more engineers do not help when one person reviews.',
       ),
-      ch('hold-the-line', 'Find the line requests wait in, and make room there.'),
-      ch('nothing-looks-busy', 'Spot a part that is full while it looks half idle.'),
+      ch('hold-the-line', 'Find the line work waits in, and make room there.'),
+      ch('nothing-looks-busy', 'Spot a team that is full while it looks half idle.'),
+      ex('drum-buffer-rope', 'Pace new work to the constraint so nothing piles up.'),
     ],
   },
   {
     id: 'caching',
-    title: 'Caching',
-    about: 'Answer most requests before they reach the slow part.',
+    title: 'Answers without a person',
+    about: 'Docs and self-serve answer most asks before they reach anyone.',
     steps: [
-      ex('cache-aside', 'See how the database only feels the reads the cache misses.'),
-      ex('cdn-origin', 'See how much traffic an edge cache keeps away from you.'),
-      ch('keep-it-warm', "Size a database for the cache's misses, not the whole load."),
-      ch(
-        'not-everyones-problem',
-        'Stop one slow dependency from slowing every request.',
-      ),
+      ex('cache-aside', 'See how support only feels the questions the docs miss.'),
+      ex('cdn-origin', 'See how many signups never need a person at all.'),
+      ch('keep-it-warm', 'Size support for what the docs miss, not every question.'),
+      ch('not-everyones-problem', 'Stop one slow person from slowing every ask.'),
     ],
   },
   {
     id: 'async',
-    title: 'Queues and async',
+    title: 'Backlogs and handoffs',
     about: 'Say "got it" now, and do the work later.',
     steps: [
-      ex('async-workers', 'Watch a backlog grow when workers fall behind.'),
-      ch(
-        'buying-time',
-        'Learn why a queue only buys time, and what fixes the shortfall.',
-      ),
-      ex('event-driven', 'Read consumer lag, fan-out and cold starts on one system.'),
-      ex('whatsapp', 'Watch messages wait in line instead of failing.'),
+      ex('async-workers', 'Watch a backlog grow when the crew falls behind.'),
+      ch('buying-time', 'Learn why a backlog only buys time, and what fixes it.'),
+      ex('event-driven', 'Watch one announcement become work for every team.'),
+      ex('ai-agency', 'See rework quietly eat a team of contractors.'),
     ],
   },
   {
     id: 'saying-no',
     title: 'Saying no under load',
-    about: 'Turning some work away early can serve more people.',
+    about: 'Turning some work away early ships more of what matters.',
     steps: [
-      ex('retry-storm', 'See retries multiply the overload that caused them.'),
-      ch('five-seconds', 'Make a system recover once a short slowdown ends.'),
-      ex('rate-limited-api', 'See how a limit at the door keeps answers fast.'),
-      ch('say-no-fast', 'Serve more people by refusing some of them right away.'),
+      ex('retry-storm', 'See follow-ups multiply the overload that caused them.'),
+      ch('five-seconds', 'Make support recover once a bad stretch ends.'),
+      ex('rate-limited-api', 'See how a limit at intake keeps cycle time short.'),
+      ch('say-no-fast', 'Ship more by refusing some work right away.'),
     ],
   },
   {
     id: 'failures',
-    title: 'Surviving failures',
-    about: 'Machines and whole regions die. Plan for the day they do.',
+    title: 'When people are out',
+    about: 'People leave, get sick and go on holiday. Plan for the day they do.',
     steps: [
-      ex(
-        'circuit-breaker',
-        'Watch a breaker stop calling a dependency that is failing.',
-      ),
-      ch(
-        'lose-a-machine',
-        'Spread slots across machines so one crash is not an outage.',
-      ),
-      ex('multi-region', 'Measure what switching to a standby region really costs.'),
-      ch('lose-a-region', 'Size a standby region for the day you need it.'),
+      ex('circuit-breaker', 'Watch a rule stop sending work to a failing partner.'),
+      ch('lose-a-machine', 'Spread sign-off so one absence is not a stop.'),
+      ex('multi-region', 'Measure what a handover to the backup really costs.'),
+      ch('lose-a-region', 'Size the backup owner for the day you need them.'),
       ex('resilient-delivery', 'Choose which work fails, and where failed work goes.'),
-      ch('saved-then-lost', 'Find saves that vanish while the error rate stays clean.'),
+      ch('saved-then-lost', 'Find promises that vanish while nothing reads as failed.'),
     ],
   },
   {
     id: 'data',
-    title: 'Data at scale',
-    about: 'What to do when one database is not enough.',
+    title: 'Owners and deputies',
+    about: 'What to do when one owner is not enough.',
     steps: [
-      ex('read-replicas', 'See how copies add room for reads but not for writes.'),
-      ch('checkout-rush', 'Fix a rush of writes that extra copies cannot help.'),
-      ex('sharded-database', 'Watch one popular key overload a single shard.'),
-      ch('one-hot-key', 'Cool a hot shard while the average looks calm.'),
-      ex('specialised-stores', 'See which store fills first when each does one job.'),
+      ex('read-replicas', 'See how deputies add answers but not decisions.'),
+      ch('checkout-rush', 'Fix a crunch of decisions that deputies cannot help.'),
+      ex('sharded-database', 'Watch one whale customer swamp their account manager.'),
+      ch('one-hot-key', 'Cool the whale account while the average looks calm.'),
+      ex('specialised-stores', 'See which tool fills first when each does one job.'),
     ],
   },
   {
     id: 'real-systems',
-    title: 'Real systems',
-    about: 'Put it all together, then take apart systems you have heard of.',
+    title: 'Whole companies',
+    about: 'Put it together, then find the constraint in a company like yours.',
     steps: [
-      ex('autoscaling-service', 'See why new servers arrive after they were needed.'),
-      ex('full-stack', 'Find the first part to break when every tier runs at once.'),
-      ch('loud-and-quiet', 'Fix a slow path and a silent backlog at the same time.'),
-      ex('discord', 'See connections, not requests, run out first.'),
-      ex('uber', 'Watch a stream fall behind without a single error users see.'),
-      ex('netflix', 'See why streaming barely touches the cloud, and what does break.'),
-      ex('spotify', 'Watch a batch job make the slowest requests rise and fall.'),
-      ex('twitter', 'See one celebrity post turn into a flood of writes.'),
-      ex('stripe', 'See why a payment system refuses work rather than charge twice.'),
+      ex('autoscaling-service', 'See why new hires arrive after they were needed.'),
+      ex('full-stack', 'Find the first team to run out when everyone is busy.'),
+      ch('loud-and-quiet', 'Fix slow answers and a silent backlog at the same time.'),
+      ex('seed-saas', 'See every yes in a seed company wait on the founders.'),
+      ex('series-a-saas', 'Find the step that caps a Series A delivery line.'),
+      ex('marketplace-ops', 'See trust and safety cap how fast supply can grow.'),
+      ex('devtools-oss', 'See two maintainers set the pace of every pull request.'),
+      ex('fintech-compliance', 'See a check on every item set the pace of everything.'),
     ],
   },
 ];
