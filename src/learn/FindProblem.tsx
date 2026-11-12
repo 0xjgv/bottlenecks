@@ -87,7 +87,7 @@ export function FindProblem({
         className="btn btn-sm fp-trigger"
         onClick={find}
         disabled={!snapshot}
-        title="Find what is holding the system back"
+        title="Find the one step limiting your output"
       >
         <ScanSearch size={16} strokeWidth={1.75} aria-hidden="true" />
         Find the problem

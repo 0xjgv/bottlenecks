@@ -16,14 +16,14 @@ import {
  * The first-visit walkthrough: load it, see what breaks, fix it.
  *
  * Each stage moves on from what the engine measures, never from a timer, so
- * the student cannot be told "the database is full" before it is. The tour
+ * the student cannot be told "this step is the constraint" before it is. The tour
  * runs on the first example only, the one a first visit opens on.
  */
 
 export const TOUR_KEY = 'bottlenecks.tour.v1';
 /** The session key App writes; its presence means this is not a first visit. */
 const SESSION_KEY = 'bottlenecks.session.v1';
-/** The load step 1 asks for. Single server runs out near 200 a second. */
+/** The load step 1 asks for. The first example runs out near 200 a week. */
 export const TOUR_RPS = 300;
 /** System error rate a fixed design must be back under. */
 const RECOVERED_ERRORS = 0.01;
@@ -168,7 +168,7 @@ export function tourSpotlight(stage: TourStage): string | null {
   return stage.kind === 'broken' || stage.kind === 'fix' ? stage.nodeId : null;
 }
 
-/** "Database is full: all 6 slots busy, 34 waiting in line." */
+/** "Database is the constraint: all 6 task slots busy, 34 tasks waiting." */
 export function brokenText(
   topology: Topology,
   snapshot: SimSnapshot,
@@ -177,10 +177,10 @@ export function brokenText(
   const at = readingOf(topology, snapshot, nodeId);
   if (!at) return null;
   const clause = stateClause(at.r, at.byId, topology);
-  return clause ? `${at.r.node.label} is full: ${clause}.` : null;
+  return clause ? `${at.r.node.label} is the constraint: ${clause}.` : null;
 }
 
-/** "Database has room again: 65% busy with 12 slots." */
+/** "Database has room again: 65% busy with 12 task slots." */
 export function fixedText(
   topology: Topology,
   snapshot: SimSnapshot,
@@ -190,10 +190,10 @@ export function fixedText(
   if (!at) return null;
   const { r } = at;
   const slots = slotsOf(r.node, r.s);
-  return `${r.node.label} has room again: ${formatPct(r.fill)} busy${slots !== null ? ` with ${slots} slots` : ''}.`;
+  return `${r.node.label} has room again: ${formatPct(r.fill)} busy${slots !== null ? ` with ${slots} task slots` : ''}.`;
 }
 
-/** p99 as the hero shows it, or null with nothing completing. */
+/** Cycle time (p99) as the hero shows it, or null with nothing completing. */
 export function p99Text(snapshot: SimSnapshot): string | null {
   const p99 = p99OrNull(snapshot);
   return p99 === null ? null : formatMs(p99);

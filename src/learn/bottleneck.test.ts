@@ -77,33 +77,37 @@ describe('findBottleneck', () => {
     expect(wrong).toEqual([]);
   }, 60_000);
 
-  it('names the database in the single server example at 270 a second', () => {
+  it('names the database as the constraint in the single server example at 270 a week', () => {
     const run = runFor(scaled(preset('single-server'), 5.4), 10);
     const db = idOf(run.topology, 'Database');
     expect(problemAt(run)).toBe(db);
     const s = run.snapshot.nodes[db];
-    expect(run.verdict.text).toContain('Database: all 6 slots busy');
-    // The line in the sentence is the snapshot's own number.
-    expect(run.verdict.text).toContain(`${formatCount(s?.queued)} waiting in line`);
-    expect(run.verdict.text).toMatch(
-      /API Server is stuck behind it, with \d+ requests waiting on its calls\./,
+    expect(run.verdict.text).toContain(
+      'Database is the constraint: all 6 task slots busy',
     );
+    // The backlog in the sentence is the snapshot's own number.
+    expect(run.verdict.text).toContain(`${formatCount(s?.queued)} tasks waiting`);
+    expect(run.verdict.text).toMatch(
+      /API Server is not the problem; it is stuck behind it, with \d+ tasks blocked waiting on it\./,
+    );
+    // A Goal-style next step closes the verdict.
+    expect(run.verdict.text).toMatch(/Protect its time: .+\.$/);
   });
 
   it('names the workers, not the queue, when async jobs pile up', () => {
     const run = runFor(scaled(preset('async-workers'), 3), 6);
     expect(problemAt(run)).toBe(idOf(run.topology, 'Workers'));
     expect(run.verdict.text).toMatch(
-      /^Workers: all 10 slots taken, \d+ working and \d+ waiting on its calls, [\d,]+ waiting in Message Queue\./,
+      /^Workers is the constraint: all 10 task slots taken, \d+ in progress and \d+ blocked waiting on others, [\d,]+ tasks waiting in Message Queue\./,
     );
     // Its slots are full only with held ones counted, so the sentence splits
     // them the way the box does rather than calling all ten busy.
     const s = run.snapshot.nodes[idOf(run.topology, 'Workers')];
     expect(run.verdict.text).toContain(
-      `${formatCount(s?.inFlight)} working and ${formatCount(s?.waitingOnDownstream)} waiting on its calls`,
+      `${formatCount(s?.inFlight)} in progress and ${formatCount(s?.waitingOnDownstream)} blocked waiting on others`,
     );
     expect(run.verdict.text).toMatch(
-      /Message Queue takes in \d+ a second but only \d+ a second get done, so the line keeps growing\.$/,
+      /Message Queue takes in \d+ a week but only \d+ a week get done, so the backlog keeps growing\. Protect its time: /,
     );
   });
 
@@ -111,7 +115,7 @@ describe('findBottleneck', () => {
     const run = runFor(scaled(preset('retry-storm'), 2), 10);
     expect(problemAt(run)).toBe(idOf(run.topology, 'Database'));
     expect(run.verdict.text).toMatch(
-      /API Server is giving up on it, \d+ timeouts a second\./,
+      /API Server is giving up on it, \d+ items a week\./,
     );
   });
 
@@ -119,7 +123,7 @@ describe('findBottleneck', () => {
     const run = runFor(scaled(preset('rate-limited-api'), 3), 10);
     expect(run.verdict.kind).toBe('on-purpose');
     expect(run.verdict.text).toMatch(
-      /^Nothing is full\. Rate Limiter is turning away \d+ a second on purpose/,
+      /^Nothing is full\. Rate Limiter is turning away \d+ items a week on purpose/,
     );
   });
 
@@ -132,7 +136,7 @@ describe('findBottleneck', () => {
     });
     expect(problemAt(slowed)).toBe(idOf(slowed.topology, 'Database'));
     expect(slowed.verdict.text).toMatch(
-      /^Database: you slowed it 5x\. Now all 6 slots busy/,
+      /^Database: you slowed it 5x\. Now it is the constraint: all 6 task slots busy/,
     );
 
     const crashed = runFor(preset('single-server'), 6, {
@@ -141,18 +145,18 @@ describe('findBottleneck', () => {
       kind: 'crash',
     });
     expect(crashed.verdict.text).toBe(
-      'Database: you crashed it, so everything sent to it fails.',
+      'Database: you took the whole team out, so nothing sent to it gets done.',
     );
   });
 
-  it('says a part that lost a machine is coping when it is', () => {
+  it('says a team with one person out sick is coping when it is', () => {
     const run = runFor(preset('load-balanced'), 8, {
       at: 3,
       label: 'API 1',
       kind: 'crash-instance',
     });
     expect(run.verdict.text).toBe(
-      'API 1: you crashed one of its machines, and it is keeping up for now.',
+      'API 1: you sent one of its people home sick, and it is keeping up for now.',
     );
   });
 
@@ -160,7 +164,7 @@ describe('findBottleneck', () => {
     const run = runFor(preset('single-server'), 10);
     expect(run.verdict.kind).toBe('healthy');
     expect(run.verdict.text).toMatch(
-      /^Nothing is struggling right now\. The busiest part is Database at \d+%\.$/,
+      /^Nothing is piling up right now\. The busiest step is Database at \d+%; if work grows, it is the likely constraint\.$/,
     );
   });
 

@@ -149,7 +149,7 @@ describe('hover', () => {
     pointer(trigger('rps'), 'pointerenter');
     tick(0);
     expect(panel()).not.toBeNull();
-    expect(panel()?.textContent).toContain('Requests per second');
+    expect(panel()?.textContent).toContain('Work items arriving per week');
   });
 
   it('holds open while the pointer travels into the panel', () => {
@@ -417,7 +417,7 @@ describe('content and wiring', () => {
     tick(0);
     const text = panel()?.textContent ?? '';
     expect(text).toContain('p99');
-    expect(text).toContain('The slowest 1 in 100 requests');
+    expect(text).toContain('The slowest 1 in 100 tasks');
     expect(text).toContain('The number to watch');
   });
 
@@ -434,7 +434,7 @@ describe('content and wiring', () => {
     act(() => trigger().focus());
     tick(0);
     const links = panel()?.querySelectorAll('.tip-see-link') ?? [];
-    expect(links.length).toBe(3); // p50, utilisation, queue-time
+    expect(links.length).toBe(4); // p50, utilisation, queue-time, cycle-time
   });
 
   it('a see-also link closes the tooltip and reports the id', () => {
@@ -466,7 +466,7 @@ describe('content and wiring', () => {
     act(() => trigger('rps').focus());
     tick(0);
     expect(document.querySelectorAll('[role="tooltip"]').length).toBe(1);
-    expect(panel()?.textContent).toContain('Requests per second');
+    expect(panel()?.textContent).toContain('Work items arriving per week');
   });
 
   it('renders unknown ids as plain children with no affordance', () => {
@@ -502,7 +502,7 @@ describe('accessibility wiring', () => {
     // the explanation exists without having to trigger it.
     const node = document.getElementById('term-desc-p99');
     expect(node).not.toBeNull();
-    expect(node?.textContent).toContain('The slowest 1 in 100 requests');
+    expect(node?.textContent).toContain('The slowest 1 in 100 tasks');
   });
 
   it('does not fold the description into the accessible name', () => {

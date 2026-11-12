@@ -26,11 +26,14 @@ interface TourProps {
   onOpenPath: () => void;
 }
 
-/** How long a line may take to clear after a fix before "try more" is fair. */
+/** How long a backlog may take to clear after a fix before "try more" is fair. */
 const SETTLE_MS = 4000;
 
-/** The field step 3 points at, found by its label as the student reads it. */
-const SLOTS_LABEL = 'Slots per instance';
+/**
+ * The field step 3 points at, found by the glossary term its label carries
+ * rather than by the label's wording, which the inspector owns.
+ */
+const SLOTS_TERM = 'capacity';
 
 /** The control a stage points at, or null. Read from the DOM: it belongs to other components. */
 function targetFor(kind: string, fieldShown: boolean): Element | null {
@@ -43,12 +46,8 @@ function targetFor(kind: string, fieldShown: boolean): Element | null {
       : load;
   }
   if (kind !== 'fix' || !fieldShown) return null;
-  for (const label of document.querySelectorAll('.ins label.row-k')) {
-    if (label.textContent?.trim() === SLOTS_LABEL) {
-      return label.closest('.ins-field-row, .ins-field');
-    }
-  }
-  return null;
+  const term = document.querySelector(`.ins label.row-k [data-term="${SLOTS_TERM}"]`);
+  return term?.closest('.ins-field-row, .ins-field') ?? null;
 }
 
 /**
@@ -117,11 +116,11 @@ export function Tour({
 
   switch (stage.kind) {
     case 'load':
-      title = 'Break it on purpose';
+      title = 'Push more work in';
       body = (
         <p>
-          This slider is how many requests your users send each second. Drag it up to
-          about {TOUR_RPS} and watch what happens.
+          This slider is how much work arrives each week. Drag it up to about {TOUR_RPS}{' '}
+          a week and watch where it piles up.
         </p>
       );
       actions =
@@ -131,25 +130,26 @@ export function Tour({
             className="btn btn-sm"
             onClick={() => onSetLoad(TOUR_RPS)}
           >
-            Set it to {TOUR_RPS}
+            Set it to {TOUR_RPS} a week
           </button>
         ) : null;
       break;
     case 'broken': {
       const state = snapshot ? brokenText(topology, snapshot, stage.nodeId) : null;
       const err = snapshot?.system.errorRate ?? 0;
-      // Refused work never waits, so "every request" is only true without it.
+      // Refused work never waits, so "every new item" is only true without it.
       const refusing =
         (snapshot ? readingOf(topology, snapshot, stage.nodeId)?.r.refused : 0) ?? 0;
-      title = 'Something filled up';
+      title = 'You found the constraint';
       body = (
         <p>
           {state ? `${state} ` : null}
           {refusing >= MIN_RATE
-            ? 'Requests now wait their turn there, or are turned away once the line is full'
-            : 'Every request now waits its turn there'}
-          {p99 ? `, so p99 is ${p99}` : ''}
-          {err >= 0.005 ? ` and ${formatPct(err)} of requests fail` : ''}.
+            ? 'New work now waits its turn there, or is turned away once the backlog is full'
+            : 'Every new item now waits its turn there'}
+          {p99 ? `, so the slowest 1 in 100 items take ${p99}` : ''}
+          {err >= 0.005 ? ` and ${formatPct(err)} of work fails` : ''}. Speeding up any
+          other step would only grow the pile in front of it.
         </p>
       );
       actions = (
@@ -167,7 +167,7 @@ export function Tour({
       const now = totalSlots(topology, stage.nodeId);
       const cfg = topology.nodes.find((n) => n.id === stage.nodeId)?.config;
       const at = snapshot ? readingOf(topology, snapshot, stage.nodeId) : null;
-      title = 'Give it more room';
+      title = 'Add capacity at the constraint';
       if (!fieldShown) {
         body = <p>Select {label} to see its settings.</p>;
         actions = (
@@ -182,8 +182,8 @@ export function Tour({
       } else if (now <= stage.slots) {
         body = (
           <p>
-            Each slot is one request {label} can work on at once. Raise {SLOTS_LABEL}{' '}
-            from {cfg?.capacity ?? 0} to {(cfg?.capacity ?? 0) * 2}.
+            Each slot is one task {label} can work on at once. Raise the highlighted
+            setting from {cfg?.capacity ?? 0} to {(cfg?.capacity ?? 0) * 2}.
           </p>
         );
         actions = null;
@@ -192,18 +192,19 @@ export function Tour({
         body =
           since < SETTLE_MS ? (
             <p>
-              {label} has {now} slots now. Give the line a few seconds to clear.
+              {label} has {now} task slots now. Give the backlog a few weeks to clear.
             </p>
           ) : (
             <p>
-              {label} has {now} slots now, but it is still full at this load. Try more.
+              {label} has {now} task slots now, but it is still the constraint at this
+              load. Try more.
             </p>
           );
         actions = null;
       } else {
         body = (
           <p>
-            That did it. Now watch p99 come back down as the line clears
+            That did it. Now watch cycle time come back down as the backlog clears
             {p99 ? `: ${p99}` : ''}.
           </p>
         );
@@ -218,11 +219,11 @@ export function Tour({
         <>
           <p>
             {state ? `${state} ` : null}
-            {p99 ? `p99 is back to ${p99}.` : null}
+            {p99 ? `Cycle time is back to ${p99}.` : null}
           </p>
           <p>
-            That is the whole loop: add load, find what breaks, fix it. The learning
-            path has what to try next.
+            That is the whole loop: push work in, find the constraint, add capacity
+            there, then look for the next one. The learning path has what to try next.
           </p>
         </>
       );
