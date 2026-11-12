@@ -70,7 +70,9 @@ describe('the tour on Single server', () => {
     expect(run.stage).toEqual({ kind: 'broken', nodeId: 'db', slots: 6 });
     expect(tourSpotlight(run.stage)).toBe('db');
     const text = brokenText(run.topology, run.engine.snapshot(), 'db');
-    expect(text).toMatch(/^Database is full: all 6 slots busy, \d+ waiting in line/);
+    expect(text).toMatch(
+      /^Database is the constraint: all 6 task slots busy, \d+ tasks waiting/,
+    );
   });
 
   it('moves to the fix only once the database is selected', () => {
@@ -99,7 +101,7 @@ describe('the tour on Single server', () => {
     expect(s.system.p99).toBeLessThan(200);
     expect(tourSpotlight(run.stage)).toBeNull();
     expect(fixedText(run.topology, s, 'db')).toMatch(
-      /^Database has room again: \d+% busy with 12 slots\.$/,
+      /^Database has room again: \d+% busy with 12 task slots\.$/,
     );
   });
 });

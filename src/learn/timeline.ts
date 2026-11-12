@@ -51,7 +51,7 @@ export interface TimelineEvent {
   readonly text: string;
   readonly tone: Tone;
   /**
-   * Trouble users feel straight away: requests failing, slow, refused or
+   * Trouble customers feel straight away: work failing, slow, refused or
    * given up on. A part merely running full is not loud on its own; some
    * examples run one part hot at their starting load by design.
    */
@@ -113,12 +113,12 @@ const NAMED_FIELDS: readonly {
   words: string;
   show: (v: number) => string;
 }[] = [
-  { key: 'instances', words: 'instances', show: formatCount },
-  { key: 'capacity', words: 'slots per instance', show: formatCount },
-  { key: 'serviceMs', words: 'service time', show: formatMs },
-  { key: 'queueLimit', words: 'room in its line', show: formatCount },
-  { key: 'timeoutMs', words: 'timeout', show: formatMs },
-  { key: 'retries', words: 'retries', show: formatCount },
+  { key: 'instances', words: 'people', show: formatCount },
+  { key: 'capacity', words: 'tasks per person', show: formatCount },
+  { key: 'serviceMs', words: 'hands-on time', show: formatMs },
+  { key: 'queueLimit', words: 'backlog limit', show: formatCount },
+  { key: 'timeoutMs', words: 'wait before giving up', show: formatMs },
+  { key: 'retries', words: 'times it chases', show: formatCount },
 ];
 
 export class Timeline {
@@ -246,7 +246,7 @@ export class Timeline {
   }
 
   private name(id: string): string {
-    return this.labels.get(id) ?? 'A removed part';
+    return this.labels.get(id) ?? 'A removed step';
   }
 
   /* ---------------- what the student did ---------------- */
@@ -360,7 +360,7 @@ export class Timeline {
     }
     for (const id of this.faults.keys()) {
       if (!now.has(id) && this.nodeIds.has(id)) {
-        this.push(t, `The fault on ${this.name(id)} was cleared.`, 'better');
+        this.push(t, `${this.name(id)} is back to normal.`, 'better');
       }
     }
     this.faults = now;
@@ -372,11 +372,11 @@ export class Timeline {
     }
     for (const id of cuts) {
       if (!this.cuts.has(id))
-        this.push(t, `The link ${this.link(id)} was cut.`, 'cause');
+        this.push(t, `The handoff ${this.link(id)} broke.`, 'cause');
     }
     for (const id of this.cuts) {
       if (!cuts.has(id) && id in snapshot.edgeState) {
-        this.push(t, `The link ${this.link(id)} was restored.`, 'better');
+        this.push(t, `The handoff ${this.link(id)} works again.`, 'better');
       }
     }
     this.cuts = cuts;
@@ -388,7 +388,7 @@ export class Timeline {
     const ends = this.edgeEnds.get(edgeId);
     return ends
       ? `from ${this.name(ends[0])} to ${this.name(ends[1])}`
-      : 'between two parts';
+      : 'between two steps';
   }
 
   /* ---------------- each part ---------------- */
@@ -436,10 +436,10 @@ export class Timeline {
           c === 'full'
             ? `${label}: ${stateClause(said ? { ...r, refused: 0 } : r, byId, topology)}.`
             : c === 'waiting'
-              ? `${label}: ${waitingClause(waiting, slotsOf(r.node, r.s))} waiting on its calls.`
+              ? `${label}: ${waitingClause(waiting, slotsOf(r.node, r.s))} blocked waiting on others.`
               : c === 'refusing'
-                ? `${label} started turning away ${formatRateBare(r.refused)} a second.`
-                : `${label} started giving up on slow calls, ${formatRateBare(r.gaveUp)} a second.`;
+                ? `${label} started turning away ${formatRateBare(r.refused)} items a week.`
+                : `${label} started giving up on slow handoffs, ${formatRateBare(r.gaveUp)} a week.`;
         this.push(t, text, 'trouble', c === 'refusing' || c === 'givingUp');
       }
       if (any) {
@@ -488,13 +488,13 @@ export class Timeline {
       this.errors.since ??= t;
       if (!this.errors.fired && t - this.errors.since >= HOLD_MS) {
         this.errors.fired = true;
-        this.push(t, `${formatPct(err)} of requests started failing.`, 'trouble', true);
+        this.push(t, `${formatPct(err)} of work started failing.`, 'trouble', true);
         this.worst = { event: null, rate: err };
       } else if (
         this.worst &&
         err >= this.worst.rate + (this.worst.event ? WORSE_BY : WORST_LINE)
       ) {
-        const text = `Worst so far: ${formatPct(err)} of requests failing.`;
+        const text = `Worst so far: ${formatPct(err)} of work failing.`;
         this.worst = {
           event: this.worst.event
             ? this.replace(this.worst.event, t, text)
@@ -513,8 +513,8 @@ export class Timeline {
           this.push(
             t,
             err > 0
-              ? `Requests are getting through again, only ${formatPct(err)} failing.`
-              : `Requests are getting through again, none failing.`,
+              ? `Work is getting through again, only ${formatPct(err)} failing.`
+              : `Work is getting through again, none failing.`,
             'better',
           );
         }
@@ -529,7 +529,7 @@ export class Timeline {
         this.slow.fired = true;
         this.push(
           t,
-          `p99 passed 1s: the slowest 1 in 100 requests took ${formatMs(p99)}.`,
+          `Cycle time passed ${formatMs(SLOW_P99_MS)}: the slowest 1 in 100 items took ${formatMs(p99)}.`,
           'trouble',
           true,
         );
@@ -541,7 +541,11 @@ export class Timeline {
         if (t - this.slowClearSince >= CLEAR_MS) {
           this.slow.fired = false;
           this.slowClearSince = null;
-          this.push(t, `p99 is back under 1s, at ${formatMs(p99)}.`, 'better');
+          this.push(
+            t,
+            `Cycle time is back under ${formatMs(SLOW_P99_MS)}, at ${formatMs(p99)}.`,
+            'better',
+          );
         }
       }
     }
@@ -550,7 +554,7 @@ export class Timeline {
 
 /* ---------------- sentences and small helpers ---------------- */
 
-/** "3.0s", the ledger's own clock format. */
+/** "3.0wk", the ledger's own clock format. */
 export function formatAt(ms: number): string {
   return formatElapsed(ms / 1000);
 }
@@ -563,13 +567,13 @@ function clientLoad(topology: Topology): number {
 
 function loadText(from: number, to: number): string {
   const dir = to > from ? 'raised' : 'lowered';
-  return `You ${dir} the load from ${formatRateBare(from)} to ${formatRateBare(to)} a second.`;
+  return `You ${dir} incoming work from ${formatRateBare(from)} to ${formatRateBare(to)} a week.`;
 }
 
 function waitingClause(waiting: number, slots: number | null): string {
   return slots === null
-    ? `${formatCount(waiting)} slots`
-    : `${formatCount(waiting)} of its ${formatCount(slots)} slots`;
+    ? `${formatCount(waiting)} tasks`
+    : `${formatCount(waiting)} of its ${formatCount(slots)} task slots`;
 }
 
 function faultKey(f: ActiveFailure): string {
@@ -579,16 +583,16 @@ function faultKey(f: ActiveFailure): string {
 function faultText(f: ActiveFailure, name: string): string {
   switch (f.kind) {
     case 'crash':
-      return `${name} crashed.`;
+      return `${name} is out: the whole team is away.`;
     case 'crash-instance':
-      return `One of ${name}'s machines crashed.`;
+      return `One of ${name}'s people is out sick.`;
     case 'slow':
       return `${name} slowed down ${formatFactor(f.factor ?? 1)}.`;
     case 'errors':
-      return `${name} started failing ${formatPct(f.rate ?? 0)} of its requests.`;
+      return `${name} started bouncing ${formatPct(f.rate ?? 0)} of its work.`;
     case 'partition': {
       const cut = f.edgeIds?.length ?? 0;
-      return `${name} was cut off from ${cut === 1 ? 'one of its links' : `${cut} of its links`}.`;
+      return `${name} lost ${cut === 1 ? 'one of its handoffs' : `${cut} of its handoffs`}.`;
     }
   }
 }

@@ -95,7 +95,7 @@ describe('the first-visit tour', () => {
     const c = card();
     expect(c?.getAttribute('role')).toBe('dialog');
     expect(document.getElementById('tour-title')?.textContent).toBe(
-      'Break it on purpose',
+      'Push more work in',
     );
     expect(document.activeElement).toBe(c);
     expect(document.querySelector('[data-tour-ring]')?.className).toBe('traffic-load');
@@ -121,7 +121,7 @@ describe('the first-visit tour', () => {
   it('sets the load it asks for through the real slider path', () => {
     mount();
     expect(slider()?.getAttribute('aria-valuetext')).toBe('50 requests per second');
-    press(button('Set it to 300'), 'touch');
+    press(button('Set it to 300 a week'), 'touch');
     expect(slider()?.getAttribute('aria-valuetext')).toBe('300 requests per second');
     // Undo takes it back, so the tour's change is an ordinary one.
     press(button('Undo'));
@@ -130,26 +130,28 @@ describe('the first-visit tour', () => {
 
   it('walks load, break, fix and done on the running engine', () => {
     mount();
-    press(button('Set it to 300'), 'touch');
+    press(button('Set it to 300 a week'), 'touch');
     const title = () => document.getElementById('tour-title')?.textContent;
-    for (let i = 0; i < 100 && title() !== 'Something filled up'; i += 1) {
+    for (let i = 0; i < 100 && title() !== 'You found the constraint'; i += 1) {
       act(() => {
         vi.advanceTimersByTime(100);
       });
     }
-    expect(title()).toBe('Something filled up');
-    expect(card()?.textContent).toMatch(/Database is full: all 6 slots busy/);
+    expect(title()).toBe('You found the constraint');
+    expect(card()?.textContent).toMatch(
+      /Database is the constraint: all 6 task slots busy/,
+    );
     // Turned-away requests do not wait, so the sentence only says every
     // request waits when none is being turned away.
     const said = card()?.textContent ?? '';
-    expect(said.includes('Every request now waits')).toBe(
+    expect(said.includes('Every new item now waits')).toBe(
       !said.includes('turning away'),
     );
     expect(document.querySelector('.cv-spotlight')).not.toBeNull();
     press(button('Show me the fix'), 'touch');
-    expect(title()).toBe('Give it more room');
+    expect(title()).toBe('Add capacity at the constraint');
     const row = document.querySelector('[data-tour-ring]');
-    expect(row?.textContent).toContain('Slots per instance');
+    expect(row?.querySelector('[data-term="capacity"]')).not.toBeNull();
     const input = row?.querySelector('input');
     if (!input) throw new Error('no slots field');
     act(() => {

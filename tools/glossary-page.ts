@@ -61,9 +61,9 @@ function jsonLd(): string {
     '@context': 'https://schema.org',
     '@type': 'DefinedTermSet',
     '@id': `${SITE}/glossary`,
-    name: 'System design glossary',
+    name: 'Flow of work glossary',
     description:
-      'Plain-language definitions of the terms used in distributed systems and system design, each with why it matters.',
+      'Plain-language definitions of the terms for how work flows through a startup and where it gets stuck, each with why it matters.',
     url: `${SITE}/glossary`,
     hasDefinedTerm: terms,
   });
@@ -110,21 +110,21 @@ ${entries.map(entryHtml).join('\n')}
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>System design glossary | Breakscale</title>
+    <title>Flow of work glossary | Bottlenecks</title>
     <meta
       name="description"
-      content="Plain-language definitions of ${GLOSSARY.length} system design terms: latency percentiles, throughput, queueing, backpressure, sharding and more. Each explains what it means and why it matters."
+      content="Plain-language definitions of ${GLOSSARY.length} terms for how work flows through a startup: the constraint, cycle time, throughput, backlogs, work in progress and more. Each explains what it means and why it matters."
     />
     <link rel="canonical" href="${SITE}/glossary" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
     <meta property="og:type" content="article" />
     <meta property="og:url" content="${SITE}/glossary" />
-    <meta property="og:site_name" content="Breakscale" />
-    <meta property="og:title" content="System design glossary" />
+    <meta property="og:site_name" content="Bottlenecks" />
+    <meta property="og:title" content="Flow of work glossary" />
     <meta
       property="og:description"
-      content="${GLOSSARY.length} system design terms explained in plain language, each with why it matters."
+      content="${GLOSSARY.length} terms for how work flows through a startup, explained in plain language, each with why it matters."
     />
     <meta property="og:image" content="${SITE}/og.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -190,12 +190,12 @@ ${jsonLd()}
   </head>
   <body>
     <main>
-      <h1>System design glossary</h1>
+      <h1>Flow of work glossary</h1>
       <p class="lede">
-        ${GLOSSARY.length} terms used in distributed systems, each explained in
-        plain language with why it matters. From
-        <a href="/">Breakscale</a>, a simulator where you build a system, load
-        it until it breaks, and watch why.
+        ${GLOSSARY.length} terms for how work flows through a startup, each
+        explained in plain language with why it matters. From
+        <a href="/">Bottlenecks</a>, where you map how work moves through your
+        team, push more in, and find the one step that limits your output.
       </p>
 
       <nav aria-label="Categories">
@@ -206,9 +206,9 @@ ${sections}
 
       <footer>
         <p>
-          These definitions are the same ones the simulator shows on hover.
-          <a href="/">Open the simulator</a> to see them against a system that
-          is actually running.
+          These definitions are the same ones the app shows on hover.
+          <a href="/">Open Bottlenecks</a> to see them against a flow of work
+          that is actually running.
         </p>
       </footer>
     </main>
