@@ -541,18 +541,19 @@ const fintechCompliance: Topology = {
  * Drum-buffer-rope (The Goal).
  *
  *   roadmap   16/wk feature requests, the requester waits up to 4 weeks
- *   rope      intake limit: 21 a week, up to 8 at once   <- the rope
- *   spec      2 PMs x 4 at once, 2h each            -> 160/wk own work
- *   build     5 engineers x 2 at once, 1 day each   ->  50/wk
+ *   rope      intake limit: 24 a week, up to 8 at once   <- the rope
+ *   spec      2 PMs x 8 at once, 2h each            -> 320/wk own work
+ *   build     5 engineers x 3 at once, 1 day each   ->  75/wk
+ *             (upstream steps hold a task until the next step takes it,
+ *             so they get the slots to outlast the wait)
  *   review    1 design lead x 2 at once, 3.2h each  ->  25/wk on paper,
- *             ~22.5/wk measured                         <- the drum
+ *             ~25/wk measured                           <- the drum
  *             with room for 10 waiting in front        <- the buffer
  *   The rope sits just under what the drum really finishes, so the buffer
- *   stays short. Ropes of 20 to 22 were tried: 22 lets cycle time drift to
- *   1.1-1.2 weeks at 2x and 4x, 20 gives up 1 more item a week.
- *   Measured at 3x: with the rope 20.9 done/wk, p50 2.4 days, p99 4.1 days;
- *   rope raised to 1000 or deleted: 22.5 done/wk, p50 8.3 days, p99 2
- *   weeks (scratch script, same runner).
+ *   stays short. Measured, seeds 1 and 2: rope 24 at 3x delivers 23.9 a
+ *   week, p50 2-2.3 days, p99 3.7-4.2 days; rope raised to 1000 or deleted:
+ *   25.1 a week, p50 8.9 days, p99 2.1 weeks. Ropes of 21 to 25 were
+ *   tried; 25 lets the slowest item reach a week at 2x.
  * ------------------------------------------------------------------ */
 
 const drumBufferRope: Topology = {
@@ -562,19 +563,19 @@ const drumBufferRope: Topology = {
       timeoutMs: 4000,
     }),
     node('rope', 'ratelimiter', 'Intake limit', COL(1), ROW(0), {
-      rateLimitRps: 21,
+      rateLimitRps: 24,
       burst: 8,
     }),
     node('spec', 'service', 'Spec writing', COL(2), ROW(0), {
       instances: 2,
-      capacity: 4,
+      capacity: 8,
       serviceMs: 50,
       serviceCv: 0.5,
       queueLimit: 30,
     }),
     node('build', 'service', 'Build', COL(3), ROW(0), {
       instances: 5,
-      capacity: 2,
+      capacity: 3,
       serviceMs: 200,
       serviceCv: 0.5,
       queueLimit: 30,
@@ -599,7 +600,7 @@ const drumBufferRope: Topology = {
       'dbr-note-lesson',
       40,
       184,
-      'Design review is the slowest step, about 22 a week: the drum. The intake limit, the rope, lets in 21 a week, so only a short buffer waits in front of review. Drag incoming work to 3x: 21 a week still come out and the slowest item takes 4 days. Now drag the intake limit up to 1000: every backlog fills, the slowest item takes 2 weeks, and output rises by less than two a week.',
+      'Design review is the slowest step, about 25 a week: the drum. The intake limit, the rope, lets in 24 a week, so only a short buffer waits in front of review. Drag incoming work to 3x: 24 a week still come out and the slowest item takes about 4 days. Now drag the intake limit up to 1000: every backlog fills, the slowest item takes 2 weeks, and output rises by about one a week.',
       380,
     ),
     note(

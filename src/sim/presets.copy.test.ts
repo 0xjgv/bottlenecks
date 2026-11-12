@@ -3,6 +3,7 @@ import { isNote } from './annotations';
 import { Engine } from './engine';
 import { PRESETS } from './presets';
 import type { NodeStats, Topology } from './types';
+import { forecastGrowth } from '../learn/growth';
 
 /**
  * Example copy, held to the engine.
@@ -149,5 +150,27 @@ describe('example copy agrees with the engine', () => {
       engine.advance(FRAME);
       expect(engine.snapshot().nodes.breaker.breakerState).not.toBe('closed');
     }
+  });
+});
+
+describe('drum-buffer-rope', () => {
+  it('cutting the rope piles work up while output barely moves', () => {
+    const text = noteText('drum-buffer-rope', 'dbr-note-lesson');
+    expect(text).toContain('24 a week still come out');
+    expect(text).toContain('about one a week');
+    const roped = preset('drum-buffer-rope').topology;
+    const cut = structuredClone(roped);
+    const rope = cut.nodes.find((n) => n.id === 'rope');
+    if (!rope) throw new Error('no rope');
+    rope.config.rateLimitRps = 1000;
+    rope.config.burst = 1000;
+    const [withRope] = forecastGrowth(roped, 1, [3]).steps;
+    const [noRope] = forecastGrowth(cut, 1, [3]).steps;
+    if (!withRope || !noRope) throw new Error('no forecast');
+    // Output rises by under two a week...
+    expect(noRope.deliveredPerWeek - withRope.deliveredPerWeek).toBeLessThan(2);
+    // ...while the slowest item goes from days to weeks.
+    expect(withRope.p99Ms ?? Infinity).toBeLessThan(1000);
+    expect(noRope.p99Ms ?? 0).toBeGreaterThan(1800);
   });
 });
