@@ -24,82 +24,85 @@ export const CHALLENGES: Challenge[] = [
   /* ---------------- tier 1 ---------------- */
   {
     id: 'hold-the-line',
-    version: 2,
+    version: 3,
     tier: 1,
     name: 'Hold the line',
     brief:
-      'Your server and its database get 200 requests a second, and the site feels slow. The team promised that the slowest 1 in 100 requests come back within 200ms. That measure is called p99. They also promised that no more than 1 in 100 requests get lost. Right now the slowest take well over a third of a second. Find what is holding them up.',
+      'Four engineers ship features, and the founder signs off on every one. 40 feature requests arrive a week, and work feels slow. The team promised that the slowest 1 in 100 features ship within three days. That measure is called p99. They also promised to drop no more than 1 in 100. Right now the slowest take more than a week. Find what is holding them up. You can add room for 4 more tasks at once, as more people or as more tasks each person juggles.',
     presetId: 'single-server',
-    loadRps: 200,
-    budget: 6,
+    loadRps: 40,
+    budget: 4,
     goals: [
-      { metric: 'p99', max: 200 },
+      { metric: 'p99', max: 600 },
       { metric: 'errorRate', max: 1 },
     ],
     hints: [
-      'Slow usually means waiting. Run it and find where requests stand in line.',
-      'The API server is barely working. Most of its slots are waiting for an answer from somewhere else. A slot is one request a part can work on at once.',
-      'Look at the database. How many requests can it work on at once? How long does each one take?',
+      'Slow usually means waiting. Run it and find where work stands in line.',
+      'The engineers are barely working. Most of the tasks they hold are finished and waiting on someone else.',
+      'Look at the founder. How many sign-offs can they work on at once? How long does each one take?',
     ],
     lesson:
-      'The database was not slow: each query took 30ms, however busy it got. It could work on only 6 at once, about 200 a second, and 200 a second were arriving, so requests waited in line. When a system is slow, find the line first, because the part with the line is the part to fix.',
+      'The founder was not slow: each sign-off took about two hours, however busy the week got. They could work on only 2 at once, about 40 a week, and 40 a week were arriving, so finished work waited in line. Hiring engineers only adds finished work to the same line. When work is slow, find the line first, because the step with the line is the step to fix.',
   },
   {
     id: 'keep-it-warm',
-    version: 2,
+    version: 3,
     tier: 1,
     name: 'Keep it warm',
     brief:
-      'A cache sits in front of the database. It answers 85 in 100 reads, so those never reach the database. That share is called the hit rate. Traffic has grown to 1,600 a second. Now requests are slow, and about 7 in 100 get lost. You can add only 2 slots, so the database can only grow a little. Keep the slowest 1 in 100 requests within 200ms, and lose no more than 1 in 100.',
+      'Help docs answer 80 in 100 customer questions, so those never reach a person. That share is called the hit rate. The support lead takes the rest. Questions have grown to 600 a week. Now answers are slow, and about 10 in 100 questions get dropped. You can add room for only 1 more question at once, so the support lead can only grow a little. Answer the slowest 1 in 100 questions within a day, and drop no more than 1 in 100.',
     presetId: 'cache-aside',
-    loadRps: 1600,
-    budget: 2,
+    loadRps: 600,
+    budget: 1,
     goals: [
       { metric: 'p99', max: 200 },
       { metric: 'errorRate', max: 1 },
     ],
     hints: [
-      'The cache is not the part that is full. Look at what sits behind it.',
-      'Work out how many of the 1,600 a second get past the cache. Compare that with what the database can take.',
-      "Look at the cache's hit rate. How high does it need to be before what gets past it fits in the database?",
+      'The docs are not the step that is full. Look at who sits behind them.',
+      'Work out how many of the 600 a week the docs do not answer. Compare that with what the support lead can handle.',
+      "Look at the docs' hit rate. How high does it need to be before what gets past the docs fits the support lead?",
     ],
     lesson:
-      'The database only sees the reads the cache misses, so it is sized by the misses, not by the traffic. Going from 85 to 95 hits in 100 cuts the misses from 240 a second to 80, and this database can do about 133. The catch is that the database now depends on the cache: if the cache restarts empty, the full load lands on a database sized for the misses.',
+      'The support lead only sees the questions the docs miss, so the lead is sized by the misses, not by every question. Going from 80 to 93 answered in 100 cuts the misses from 120 a week to 42, and this lead can handle about 60. The catch is that the lead now depends on the docs: if they go stale, the full load lands on someone sized for the misses.',
   },
   {
     id: 'nothing-looks-busy',
-    version: 1,
+    version: 2,
     tier: 1,
     name: 'Nothing looks busy',
     brief:
-      'At 250 requests a second, the API server keeps turning requests away. Yet it reads under half busy, and the database is about half busy too. Each database query takes 30ms. Keep the slowest 1 in 100 requests within 200ms, and lose no more than 1 in 100.',
+      'At 44 feature requests a week, work piles up at the engineers and about 1 in 10 gets turned away. Yet the engineers read about half busy, and the founder who signs off on their work is about half busy too. Each sign-off takes the founder half a day. Ship the slowest 1 in 100 features within a week, and drop no more than 1 in 100. You can add room for 8 more tasks at once.',
     presetId: 'single-server',
-    startOverrides: { api: { capacity: 14 }, db: { capacity: 16 } },
-    loadRps: 250,
-    budget: 16,
+    // Each engineer juggles 2 tasks, not 4, and the founder signs off 8 at
+    // once but takes half a day over each: a slow sign-off with room to
+    // spare.
+    startOverrides: { api: { capacity: 2 }, db: { capacity: 8, serviceMs: 100 } },
+    loadRps: 44,
+    budget: 8,
     goals: [
-      { metric: 'p99', max: 200 },
+      { metric: 'p99', max: 1000 },
       { metric: 'errorRate', max: 1 },
     ],
     hints: [
-      'Start where requests are being turned away, whatever its busy number says.',
-      'Busy only counts the work a part does itself. A slot can be taken while doing no work at all.',
-      'Look at the API server. How long does it hold a slot for each request? How many slots does 250 a second need at once?',
+      'Start where work waits or gets turned away, whatever its busy number says.',
+      'Busy only counts the work someone does themselves. A task can be held while nobody works on it.',
+      'Look at the engineers. How long do they hold each task? How many tasks does 44 a week need held at once?',
     ],
     lesson:
-      'The API server held each slot until the database answered, about 55ms, though only 25ms of that was its own work. The slots you need at once are arrivals times how long each is held: 250 a second for 55ms is about 14, every slot it had. Its busy number only counted its own work, so when a part waits on something slower, give it slots for the waiting too.',
+      'Each engineer held a task until the founder signed it off, about a day in all, though only half a day of that was their own work. The tasks held at once are arrivals times how long each is held: 44 a week for a fifth of a week is about 9, more than the 8 the team could hold. Their busy number only counted their own work, so when a team waits on someone else, give it room for the waiting too.',
   },
 
   /* ---------------- tier 2 ---------------- */
   {
     id: 'five-seconds',
-    version: 1,
+    version: 2,
     tier: 2,
-    name: 'Five seconds',
+    name: 'Five bad weeks',
     brief:
-      "This API and its database are fine at 80 requests a second. Ten seconds in, the database has a bad five seconds, and every query takes twice as long. Some requests will fail while it is slow, and that is fine. But last time, the site stayed down long after the database was back to normal. Make sure it comes back. From 25 seconds in, lose no more than 1 in 100 requests, and keep the slowest 1 in 100 within 250ms. You can't add slots.",
+      "This support engineer keeps up fine with 25 customer asks a week. In week 10 they hit a bad stretch, and for five weeks every ask takes them twice as long. Some asks will fail while they are slow, and that is fine. But last time, support stayed buried long after the engineer was back to normal. Make sure it recovers. From week 25, drop no more than 2 in 100 asks, and answer the slowest 1 in 100 within two and a half days. You can't add people.",
     presetId: 'retry-storm',
-    loadRps: 80,
+    loadRps: 25,
     warmupS: 25,
     windowS: 45,
     budget: 0,
@@ -114,29 +117,31 @@ export const CHALLENGES: Challenge[] = [
       { atMs: 15_000, action: 'clear', nodeId: 'db' },
     ],
     goals: [
-      { metric: 'errorRate', max: 1 },
-      { metric: 'p99', max: 250 },
+      { metric: 'errorRate', max: 2 },
+      { metric: 'p99', max: 500 },
     ],
     hints: [
-      'The database is back to full speed after five seconds. Watch what the rest of the system does after that.',
-      'Once things go wrong, compare how many requests a second the client sends with how many the database is asked for.',
-      'Look at what the API does when a database call takes too long. What happens to the load on the database when every call comes back late?',
+      'The support engineer is back to full speed after five weeks. Watch what everyone else does after that.',
+      'Once things go wrong, compare how many asks a week customers send with how many reach the support engineer.',
+      "Look at what the account managers do when an answer takes too long. What happens to the support engineer's load when every answer comes back late?",
     ],
     lesson:
-      'The slowdown started it, and retries kept it going: once queries took longer than the API would wait, each request became three. That kept the database overloaded long after it recovered, which is called a metastable failure, a system that stays broken after its cause is gone. The fix is to stop multiplying the load: retry less, wait longer than a slow answer takes, or turn work away early with a short queue.',
+      'The slow stretch started it, and chasing kept it going: once answers took longer than the account managers would wait, each ask arrived three times. That kept the support engineer buried long after they recovered, a failure that keeps going after its cause is gone. The fix is to stop multiplying the work: chase less, wait longer than a slow answer takes, or turn work away early with a short line.',
   },
   {
     id: 'not-everyones-problem',
-    version: 1,
+    version: 2,
     tier: 2,
     name: "Not everyone's problem",
     brief:
-      "Most pages here come straight from the cache and never touch the database. In this run, the database has a bad ten seconds, and every query takes three times as long. Last time, that slowed the whole site and turned many requests away, cached pages included. Requests that need the database may fail while it is slow, but the rest must not. Lose no more than 2 in 100 overall, and keep the slowest 1 in 100 within 300ms. You can't add slots.",
+      "Most questions here are answered by the help docs and never reach the support lead. In this run, the support lead has a bad ten weeks, and every question takes them three times as long. Last time, that slowed the whole support inbox and dropped many questions, the ones the docs answer included. Questions that need the lead may fail while they are slow, but the rest must not. Drop no more than 4 in 100 overall, and answer the slowest 1 in 100 within two days. You can't add people.",
     presetId: 'cache-aside',
-    startOverrides: { api: { capacity: 16 } },
-    loadRps: 400,
+    // An inbox that can hold 8 questions at once, not 64.
+    startOverrides: { api: { capacity: 8 } },
+    loadRps: 200,
     budget: 0,
-    // With a higher hit rate the misses get too rare to tie up the threads.
+    // With a higher hit rate the questions for the lead get too rare to tie
+    // up the inbox.
     locks: [{ kind: 'cache', field: 'hitRate' }],
     faults: [
       {
@@ -149,215 +154,219 @@ export const CHALLENGES: Challenge[] = [
       { atMs: 30_000, action: 'clear', nodeId: 'db' },
     ],
     goals: [
-      { metric: 'errorRate', max: 2 },
-      { metric: 'p99', max: 300 },
+      { metric: 'errorRate', max: 4 },
+      { metric: 'p99', max: 400 },
     ],
     hints: [
-      'Most requests never reach the database, yet they fail too. Watch what they are waiting for while it is slow.',
-      "Watch the API's slots during the slow ten seconds. What is each one doing?",
-      'Look at the path from the cache to the database. How many requests can be waiting down there at once? How many API slots does that tie up?',
+      'Most questions never reach the support lead, yet they fail too. Watch what they are waiting for while the lead is slow.',
+      'Watch the support inbox during the slow ten weeks. What is each question it holds doing?',
+      'Look at the path from the docs to the support lead. How many questions can be waiting on the lead at once? How much of the inbox does that tie up?',
     ],
     lesson:
-      "An API slot waiting on a slow call can't do anything else, so one slow database spread to every request, even ones that never touched it. Capping how many calls can wait on the database kept the other slots free for cached pages, and the extra calls failed fast instead of piling up. Give each thing you depend on a fixed share of your slots, so when one goes slow, only the requests that need it suffer.",
+      "A question the inbox holds while it waits on a slow lead can't make room for anything else, so one slow person spread to every question, even ones the docs answer. Capping how many questions can wait on the lead kept the rest of the inbox free, and the extra ones failed fast instead of piling up. Give each person you depend on a fixed share of your team's attention, so when one goes slow, only the work that needs them suffers.",
   },
   {
     id: 'say-no-fast',
-    version: 1,
+    version: 2,
     tier: 2,
     name: 'Say no fast',
     brief:
-      "Traffic has grown to 300 requests a second, and almost nobody gets an answer. Users wait two seconds, then give up. There's no money for more servers. Serve as many people as you can, quickly. Keep the slowest 1 in 100 within 200ms, and turn away no more than 3 in 10.",
+      "Feature requests have grown to 45 a week, and almost nothing ships in time. Customers wait three weeks, then give up and go elsewhere. There's no money to hire. Ship as much as you can, quickly. Ship the slowest 1 in 100 features within a week, and turn away no more than 4 in 10.",
     presetId: 'rate-limited-api',
-    // A limit raised for a launch day, and a queue made deep so that nothing
-    // gets dropped.
+    // An intake limit raised for a launch quarter, and a backlog made deep so
+    // that nothing gets dropped.
     startOverrides: {
       limiter: { rateLimitRps: 1000, burst: 1000 },
-      api: { queueLimit: 512 },
+      api: { queueLimit: 256 },
     },
-    loadRps: 300,
+    loadRps: 45,
     budget: 0,
     goals: [
-      // The API finishes about 240 of the 300 a second, so about 20 in 100
-      // is the least that can be lost.
-      { metric: 'errorRate', max: 30 },
-      { metric: 'p99', max: 200 },
+      // The team finishes about 35 of the 45 a week, so about 22 in 100 is
+      // the least that can be turned away. A limit of 28, as the preset
+      // ships, turns away 38 in 100.
+      { metric: 'errorRate', max: 40 },
+      { metric: 'p99', max: 1000 },
     ],
     hints: [
-      "Every one of the API's slots is taken the whole time, yet almost nothing succeeds. Follow one request from arriving to being served.",
-      "Watch the API's queue, the line of requests waiting for a slot. How long does the last one in line wait? How long will the user wait?",
-      'Look at the rate limiter at the front. How many requests a second can the API actually finish? How many does the limiter let in?',
+      'Every engineer is busy the whole time, yet almost nothing ships in time. Follow one feature from arriving to shipping.',
+      "Watch the engineering team's backlog, the line of work waiting for someone free. How long does the last one in line wait? How long will the customer wait?",
+      'Look at the intake limit at the front. How many features a week can the team actually finish? How many does the limit let in?',
     ],
     lesson:
-      "Past its limit, a server only makes people wait longer, and the deep queue let that wait grow until every answer arrived after the user had left. Turning away what it couldn't serve, right away and at the door, kept the line short enough for everyone else to be answered in time. A limit only helps if it sits below what the system can really finish, which is why one set for a bigger day did nothing.",
+      "Past what it can finish, a team only makes people wait longer, and the deep backlog let that wait grow until everything shipped after the customer had left. Saying no at intake to what it couldn't finish, right away, kept the line short enough for everything else to ship in time. A limit only helps if it sits below what the team can really finish, which is why one raised for a launch quarter did nothing.",
   },
   {
     id: 'buying-time',
-    version: 1,
+    version: 2,
     tier: 2,
     name: 'Buying time',
     brief:
-      'Uploads get a quick "got it" straight away, and the real work happens later in the background. They now arrive at 300 a second. For the first few seconds everything looks fine, then uploads start getting refused. Refuse no more than 1 in 100, and let none of the uploads you accepted fail later. Keep the slowest 1 in 100 answers within 100ms. You have 10 extra slots to spend.',
+      'Every support ticket gets a quick "got it" straight away, and the real work happens later, when the ticket crew pulls it from the backlog. Tickets now arrive at 160 a week. For the first ten weeks everything looks fine, then tickets start getting refused. Refuse no more than 1 in 100, and let none of the tickets you accepted fail later. Send the slowest 1 in 100 "got it" replies within two hours. You can add room for 6 more tickets at once, as more people or as more tickets each person juggles.',
     presetId: 'async-workers',
-    startOverrides: { queue: { queueLimit: 1000 } },
-    loadRps: 300,
-    budget: 10,
+    loadRps: 160,
+    budget: 6,
     locks: [
-      // A deeper queue only hides the shortfall for longer than the check runs.
+      // A deeper backlog only hides the shortfall for longer than the check
+      // runs.
       { kind: 'queue', field: 'queueLimit' },
-      // A 1ms worker timeout fails every job behind the ack, where no client
-      // hears of it, and drains the queue by throwing the work away.
+      // A crew that gives up on a ticket after 1ms fails every ticket behind
+      // the "got it", where no customer hears of it, and drains the backlog
+      // by throwing the work away.
       { kind: 'worker', field: 'timeoutMs' },
     ],
     goals: [
       { metric: 'errorRate', max: 1 },
-      { metric: 'p99', max: 100 },
-      // An upload that fails behind the ack is lost where no client sees it.
-      // Without this, starving the workers' database drains the queue by
-      // failing the jobs, and the refusals stop.
+      { metric: 'p99', max: 50 },
+      // A ticket that fails behind the "got it" is lost where no customer
+      // sees it. Without this, starving the refund approvals drains the
+      // backlog by failing the tickets, and the refusals stop.
       { metric: 'lostJobs', max: 0 },
     ],
     hints: [
-      'Nothing fails at the start. Watch which number keeps climbing before the first error.',
-      'Compare how fast uploads go into the queue with how fast they come out.',
-      'Look at the workers. How many jobs a second can they finish? What is each one waiting on?',
+      'Nothing fails at the start. Watch which number keeps climbing before the first refusal.',
+      'Compare how fast tickets go into the backlog with how fast they come out.',
+      'Look at the ticket crew. How many tickets a week can they close? What is each one waiting on?',
     ],
     lesson:
-      "A queue does not fix a shortfall; it only puts it off. Here 100 jobs a second more came in than the workers could finish, so the queue of 1,000 filled in about ten seconds and then started refusing uploads. The queue's size decides how long you can be wrong, but the workers decide whether you are, so watch how deep the queue is, not only the errors.",
+      "A backlog does not fix a shortfall; it only puts it off. Here about 40 tickets a week more came in than the crew could close, so the backlog of 400 filled in about ten weeks and then started refusing tickets. The backlog's size decides how long you can be wrong, but the crew decides whether you are, so watch how deep the backlog is, not only the refusals.",
   },
 
   /* ---------------- tier 3 ---------------- */
   {
     id: 'lose-a-machine',
-    version: 1,
+    version: 2,
     tier: 3,
-    name: 'Survive a dead machine',
+    name: 'The founder takes a holiday',
     brief:
-      'Your database runs on one big machine, and at 220 requests a second it copes easily. But machines fail. This one will die 25 seconds in and stay down for 20 seconds while it is replaced. Through all of that, lose no more than 1 in 100 requests, and keep the slowest 1 in 100 within 300ms. You can add up to 6 slots.',
+      'Every feature waits for the founder to sign off. About 30 arrive a week, and the founder clears up to 40, so there is room to spare and features ship within days. At week 25 the founder goes on holiday for six weeks, and nobody else can sign off. Through all of that, drop no more than 1 in 100 feature requests, and ship the slowest 1 in 100 within four days. You can add room for 6 more tasks at once, as more people or as more tasks each person juggles.',
     presetId: 'single-server',
-    startOverrides: { db: { capacity: 12 } },
-    loadRps: 220,
+    loadRps: 30,
     budget: 6,
     allowedNewKinds: ['cache'],
-    // A new cache is allowed, at the hit rate a cache gets by default. At
-    // 0.99 it hides the dead machine instead of surviving it.
+    // A new playbook is allowed, answering the share a playbook answers by
+    // default. At 0.99 it hides the absence instead of surviving it.
     locks: [{ kind: 'cache', field: 'hitRate' }],
     faults: [
       { atMs: 25_000, action: 'inject', nodeId: 'db', kind: 'crash-instance' },
-      { atMs: 45_000, action: 'clear', nodeId: 'db' },
+      { atMs: 31_000, action: 'clear', nodeId: 'db' },
     ],
     goals: [
+      // Six weeks with nobody signing off drop 12 to 15 in 100 of the 45.
       { metric: 'errorRate', max: 1 },
-      { metric: 'p99', max: 300 },
+      // Two people who each juggle one sign-off drop little, but the one
+      // left builds a line: their slowest take a week and a half or more.
+      { metric: 'p99', max: 800 },
     ],
     hints: [
-      'Run it and watch the 25 second mark. Which part takes everything down with it?',
-      'A bigger copy of the same machine still stops when that machine stops.',
-      'Look at the database. If one of its machines died, would the ones left have room for 220 a second?',
+      'Run it and watch week 25. Which step stops everything when it stops?',
+      'A founder who juggles more sign-offs is still one person, and still on holiday.',
+      'Look at who signs off. If one of the people signing off were away, could the people left clear 30 a week?',
     ],
     lesson:
-      'One machine is one failure away from zero, however big it is. Spread the same slots across several machines, and losing one costs you a share of your room, as long as the ones left can carry the whole load. This is called N+1 sizing: plan to lose your biggest machine, which is why two halves are not enough.',
+      'One person is one absence away from zero, however much they juggle. Spread sign-off across several people, and losing one costs a share of the room, as long as the people left can carry the whole load. This is called N+1: plan to lose your busiest person, which is why two people who each juggle one sign-off are not enough.',
   },
   {
     id: 'lose-a-region',
-    version: 1,
+    version: 2,
     tier: 3,
-    name: 'Lose a region',
+    name: 'The owner leaves',
     brief:
-      'You serve from the US, with Europe on standby. Europe is kept small to save money. At 25 seconds the US region goes dark and stays dark. The router takes 5 seconds to notice and switch, and nothing gets through while it does, so some loss is expected. Across the minute, lose no more than 10 in 100 requests, and keep the slowest 1 in 100 within 250ms. You can add up to 12 slots.',
+      'Customer escalations go to one owner, about 24 a week, with a backup owner on standby. To save money the backup was kept part-time, taking one escalation at a time. At week 25 the primary owner leaves for good. The handover takes a week, and every escalation in that week fails, so some loss is expected. Across the 60 weeks counted, drop no more than 4 in 100 escalations, and answer the slowest 1 in 100 within a day and a half. You can add room for 4 more tasks at once, as more people or as more tasks each person juggles.',
     presetId: 'multi-region',
-    startOverrides: { 'eu-api': { capacity: 6 }, 'eu-db': { capacity: 2 } },
-    loadRps: 250,
+    startOverrides: { 'eu-api': { capacity: 1 } },
+    loadRps: 24,
     windowS: 60,
-    budget: 12,
+    budget: 4,
     locks: [
-      // How fast the router notices is the brief's, and so is where it starts.
+      // How long the handover takes is the brief's, and so is who starts on duty.
       { kind: 'region', field: 'failoverMs' },
       { kind: 'region', field: 'activeRegion' },
     ],
-    // On the API, not its database: the router only watches the node at the
-    // end of each of its own connections.
+    // On the owner, not their specialist: the router only watches the node at
+    // the end of each of its own connections.
     faults: [{ atMs: 25_000, action: 'inject', nodeId: 'us-api', kind: 'crash' }],
     goals: [
-      // The 5 seconds of switching alone cost about 8 in 100 of a minute.
-      { metric: 'errorRate', max: 10 },
-      { metric: 'p99', max: 250 },
+      // The week of handover alone costs between 1 and 3 in 100 of the 60.
+      { metric: 'errorRate', max: 4 },
+      { metric: 'p99', max: 300 },
     ],
     hints: [
-      'Watch what Europe does in the seconds after the switch.',
-      'Making the US bigger does not help once the US is gone.',
-      "Look at Europe's API and Europe's database. Could each of them take all 250 a second on its own?",
+      'Watch what the backup owner does in the weeks after the handover.',
+      'Giving the primary owner more room does not help once they have left.',
+      'Look at the backup owner. How many escalations can they work on at once? How many does 24 a week need?',
     ],
     lesson:
-      'A standby region is only as good as the load it can carry on the day you need it. Keep it small to save money, and one outage becomes two: the first region fails, then the standby falls over under traffic it was never sized for. Size the standby for the full load, and remember the switch itself still costs seconds that no amount of room buys back.',
+      'A backup is only as good as the load they can carry on the day you need them. Keep them part-time to save money, and one loss becomes two: the primary leaves, then the backup drowns under work they were never sized for. Size the backup for the full load, and remember the handover itself still costs a week that no amount of room buys back.',
   },
   {
     id: 'checkout-rush',
-    version: 1,
+    version: 2,
     tier: 3,
-    name: 'Checkout rush',
+    name: 'Decisions pile up',
     brief:
-      "Last month pages were slow, so the team added a fourth read copy of the database, called a replica. Now a sale is on, and 4 in 10 requests are orders, which are writes. At 500 a second, checkout is crawling while the copies sit half idle. Keep the slowest 1 in 100 within 250ms, and lose no more than 1 in 100. You can't add a single slot.",
+      'Last quarter questions waited too long, so the CTO added a fourth deputy to answer them. Now it is crunch time: 180 asks a week, and 4 in 10 of them need a decision, which only the CTO can make. Decisions crawl while the deputies sit half idle. Answer the slowest 1 in 100 asks within a day, and drop no more than 1 in 100. There is no budget: you cannot add room for a single task.',
     presetId: 'read-replicas',
-    startOverrides: { replicas: { readFraction: 0.6, replicaCount: 4 } },
-    loadRps: 500,
+    startOverrides: { replicas: { readFraction: 0.6, replicaCount: 4, capacity: 3 } },
+    loadRps: 180,
     budget: 0,
-    // A cache here would answer orders as if they were reads, which no real
-    // cache does. With no slots to spend there is no room for one anyway.
+    // A playbook here would make decisions as if they were questions, which
+    // no playbook can. With no room to spend there is none for one anyway.
     locks: [{ kind: 'cache', field: 'hitRate' }],
     goals: [
-      { metric: 'p99', max: 250 },
+      { metric: 'p99', max: 200 },
       { metric: 'errorRate', max: 1 },
     ],
     hints: [
-      'Something here is full and something is idle. Find both.',
-      'Select the replica set. The first machine is the primary and the rest are copies. Compare how busy they are.',
-      'Look at the replica set. Where does every write go? What is a copy the reads do not need costing you?',
+      'Someone here is swamped and someone is idle. Find both.',
+      'Select the CTO and deputies. The first person is the CTO and the rest are deputies. Compare how busy they are.',
+      'Look at the CTO and deputies. Where does every decision go? What is a deputy the questions do not need costing you?',
     ],
     lesson:
-      'Read copies only ever add room for reads, because every write still lands on the one primary. The fix was to stop paying for a copy the reads did not need and put those slots into bigger machines, which raised what the primary could handle. When writes outgrow one primary, the next step is to split the data across several primaries, called sharding, not to add more copies.',
+      'Deputies only ever add room for answers, because every decision still lands on the one CTO. The CTO could make about 60 a week against 72 asked for. The fix was to stop paying for a deputy the questions did not need and put that time into more tasks each person juggles, which raised what the CTO could decide. When decisions outgrow one person, the next step is to split who decides what, by area or by customer, not to add more deputies.',
   },
 
   /* ---------------- tier 4 ---------------- */
   {
     id: 'one-hot-key',
-    version: 1,
+    version: 2,
     tier: 4,
-    name: 'One hot key',
+    name: 'One whale',
     brief:
-      'A celebrity just posted, and half of all reads are now for that one post. The store is split four ways, into parts called shards. The dashboard says it is about half busy, but 1 in 5 requests is failing. Lose no more than 1 in 100, and keep the slowest 1 in 100 within 150ms. You have 8 extra slots.',
+      "One customer has grown huge, and half of all asks are now theirs. Accounts are split across four account managers, so every one of the whale's asks lands on the same person. The team reads about half busy, yet 1 in 5 of the 48 asks a week is dropped. Drop no more than 1 in 100, and answer the slowest 1 in 100 within a day and a half. You can add room for 6 more tasks at once, as more people or as more tasks each person juggles.",
     presetId: 'sharded-database',
     startOverrides: { shards: { hotKeyFraction: 0.5 } },
-    loadRps: 400,
-    budget: 8,
+    loadRps: 48,
+    budget: 6,
     allowedNewKinds: ['cache'],
     locks: [
-      // What people want to read is not a design decision.
+      // Who the customers are is not a design decision.
       { kind: 'shard', field: 'hotKeyFraction' },
-      // Re-sharding is a migration, not a setting.
+      // Reassigning every account is a reorganisation, not a setting.
       { kind: 'shard', field: 'shardCount' },
       { kind: 'cache', field: 'hitRate' },
     ],
     goals: [
-      { metric: 'p99', max: 150 },
+      { metric: 'p99', max: 300 },
       { metric: 'errorRate', max: 1 },
     ],
     hints: [
-      'The store says it is about half busy. Look at its four parts one at a time, not at the average.',
-      "One shard is taking far more than its share. You can't change which post people want to read.",
-      'Making every shard bigger costs four slots for each one you add. Look at the line from the API to the store. How much of that traffic does the store actually need to see?',
+      'The team says it is about half busy. Look at the four account managers one at a time, not at the average.',
+      "One account manager is carrying far more than their share. You can't choose which customer asks.",
+      'Giving every account manager more room costs four tasks for each one you add. Look at the handoff from the support desk to the account managers. How many of those asks need a person at all?',
     ],
     lesson:
-      "Sharding splits the data, but it can't split a single key, so every read of that post landed on the same shard. A cache in front of the store answered most of those reads before they reached it, which brought the hot shard under its limit for a few slots. When a store is split, watch each part on its own, because the average can look calm while one part is falling over.",
+      "Splitting accounts spreads the customers, but it can't split one customer, so the whale's account manager was offered about 30 asks a week against the 20 they can clear. A playbook in front of the account managers answered most of those repeated asks before they reached anyone, which brought that person under their limit for a task or two of room. When work is split by owner, watch each owner on their own, because the average can look calm while one person drowns.",
   },
   {
     id: 'saved-then-lost',
-    version: 1,
+    version: 2,
     tier: 4,
-    name: 'Saved, then lost',
+    name: 'Promised, then lost',
     brief:
-      'Every save goes into a write-behind cache. It says "saved" in about a millisecond, then writes to the database a moment later. At 20 seconds, the database slows to a quarter of its speed for 10 seconds. Nobody sees an error, but a few hundred saves never reach the database. Lose none of them. Also keep the slowest 1 in 100 answers within 150ms, and lose no more than 1 in 100 requests. There\'s no budget for new machines.',
+      'Every customer ask comes with paperwork. Deferred paperwork says yes at once, then files it with ops records about a week later. At week 20, ops records slows to an eighth of its pace for ten weeks: about 20 a week cleared against the 40 still arriving. No customer sees a failure, yet over a hundred promises are never recorded. Lose none of them. Also answer the slowest 1 in 100 asks within a day and a half, and drop no more than 2 in 100. There is no budget: you cannot add room for a single task.',
     presetId: 'resilient-delivery',
-    loadRps: 240,
+    loadRps: 46,
     budget: 0,
     faults: [
       {
@@ -365,33 +374,37 @@ export const CHALLENGES: Challenge[] = [
         action: 'inject',
         nodeId: 'db',
         kind: 'slow',
-        opts: { factor: 4 },
+        opts: { factor: 8 },
       },
       { atMs: 30_000, action: 'clear', nodeId: 'db' },
     ],
     goals: [
-      { metric: 'p99', max: 150 },
-      { metric: 'errorRate', max: 1 },
+      { metric: 'p99', max: 300 },
+      // Some vendor work fails three times and is abandoned whatever the
+      // design, just under 1 in 100.
+      { metric: 'errorRate', max: 2 },
       { metric: 'lostWrites', max: 0 },
     ],
     hints: [
-      'The dashboard is green, so stop watching the client. Follow one save all the way to the database.',
-      "During the slowdown, the database can't keep up with the saves sent to it. Look at what it does with the ones it has no room for.",
-      'Taking out the write-behind cache makes every save wait on a slow database. Look at the database. Does a save sent later need an answer fast, or does it only need to get there?',
+      'No customer sees anything wrong, so stop watching them. Follow one piece of paperwork all the way to ops records.',
+      "During the slowdown, ops records can't keep up with the paperwork sent to it. Look at what it does with the pieces it has no room for.",
+      'Taking out the deferred paperwork makes every customer wait on a slow records team. Look at ops records. Does paperwork filed later need an answer fast, or does it only need to get there?',
     ],
     lesson:
-      'A write-behind cache says "saved" before the data is safe, so anything that goes wrong after that is silent, and the error rate stays clean while data disappears. Nobody was waiting on those writes, so the fix was to let them wait for the database instead of being turned away when its line filled up. Whenever you say yes before the work is done, the work behind it needs its own room to wait and its own alarm.',
+      'Deferred paperwork says yes before the promise is recorded, so anything that goes wrong after that is silent, and the drop rate stays clean while promises disappear. Nobody was waiting on that paperwork, so the fix was to let it wait in line for ops records instead of being turned away when the line filled up. Whenever you say yes before the work is done, the work behind it needs its own room to wait and its own alarm.',
   },
   {
     id: 'loud-and-quiet',
-    version: 1,
+    version: 2,
     tier: 4,
     name: 'Loud and quiet',
     brief:
-      'Launch night: 1,000 requests a second, and 60 in 100 of the requests that reach the store are about one product. Pages are slow. Behind the scenes, the job queue is thousands deep by the end. Keep the slowest 1 in 100 within 200ms, and lose no more than 1 in 100. Also have 100 jobs or fewer waiting in the queue by the end of the check. You have 6 extra slots.',
+      'Launch month: 640 customer asks a week, and one whale customer sends half of the asks that reach the account managers. Customers wait days for answers. Behind the scenes, every ticket also logs a feature ask, and the feature backlog is over a thousand deep by the end. Answer the slowest 1 in 100 asks within a day and a half, drop no more than 1 in 100, and leave 100 feature asks or fewer waiting at the end. You can add room for 6 more tasks at once, as more people or as more tasks each person juggles.',
     presetId: 'full-stack',
-    startOverrides: { shards: { hotKeyFraction: 0.6 } },
-    loadRps: 1000,
+    // The backlog is never full in this brief, so its depth is the quiet
+    // number and never turns into dropped work.
+    startOverrides: { shards: { hotKeyFraction: 0.5 }, queue: { queueLimit: 5000 } },
+    loadRps: 640,
     budget: 6,
     allowedNewKinds: ['cache'],
     locks: [
@@ -401,17 +414,17 @@ export const CHALLENGES: Challenge[] = [
       { kind: 'cdn', field: 'hitRate' },
     ],
     goals: [
-      { metric: 'p99', max: 200 },
+      { metric: 'p99', max: 300 },
       { metric: 'errorRate', max: 1 },
       { metric: 'queueDepth', max: 100 },
     ],
     hints: [
-      'There are two problems here, and only one of them shows up as slow pages.',
-      'One shard of the store is doing most of the work. Separately, count how many jobs reach the queue each second and how many the workers finish.',
-      "Six slots won't fix either problem the expensive way. Look at the store and the workers. What is the smallest change that gets each one under the load it actually gets?",
+      'There are two problems here, and only one of them shows up as slow answers.',
+      'One account manager is doing most of the work. Separately, count how many feature asks reach the backlog each week and how many the product engineers finish.',
+      "Room for six more tasks won't fix either problem the expensive way. Look at the account managers and the product engineers. What is the smallest change that gets each one under the work it actually gets?",
     ],
     lesson:
-      "A system can fail loudly and quietly at once: the hot shard made pages slow, while the workers fell a little further behind every second and the queue hid it. Fixing only the loud problem would meet the speed goals and still leave a backlog that never drains. Size each path for the load it really gets, and watch the queue's depth, because users won't report it.",
+      "A company can fail loudly and quietly at once: the whale made answers slow, while the product engineers, finishing about 160 feature asks a week against 190 logged, fell a little further behind every week and the backlog hid it. Fixing only the loud problem meets the speed goals and still leaves a backlog that never drains. Size each team for the work it really gets, and watch the backlog's depth, because customers won't report it.",
   },
 ];
 

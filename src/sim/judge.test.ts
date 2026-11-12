@@ -58,7 +58,7 @@ function runsOf(v: Verdict): RunResult[] {
 /** The start design of hold the line, with the database given room. */
 function heldLine(): Topology {
   const t = opened(brief('hold-the-line'));
-  node(t, 'db').config.capacity = 10;
+  node(t, 'db').config.capacity = 6;
   return t;
 }
 
@@ -185,7 +185,7 @@ describe('what the check holds still', () => {
     const cheat = opened(c);
     node(cheat, 'db').config.serviceMs = 1;
     const judged = judgedTopology(c, cheat).topology;
-    expect(node(judged, 'db').config.serviceMs).toBe(40);
+    expect(node(judged, 'db').config.serviceMs).toBe(50);
     expect(designKey(c, judged)).toBe(
       designKey(c, judgedTopology(c, opened(c)).topology),
     );
@@ -210,7 +210,7 @@ describe('what the check holds still', () => {
       ],
     };
     const judged = node(judgedTopology(c, replaced).topology, 'db2').config;
-    expect(judged.serviceMs).toBe(40);
+    expect(judged.serviceMs).toBe(50);
     expect(judged.lockMs).toBe(15);
     expect(judge(c, replaced).status).not.toBe('passed');
   });
@@ -233,7 +233,7 @@ describe('what the check holds still', () => {
     Object.assign(node(t, 'client').config, client);
     const judged = node(judgedTopology(c, t).topology, 'client').config;
     expect(judged.rps).toBe(c.loadRps);
-    expect(judged.timeoutMs).toBe(3000);
+    expect(judged.timeoutMs).toBe(4000);
     expect(judged.retries).toBe(0);
   });
 
@@ -298,22 +298,22 @@ describe('the slot budget', () => {
 
   it('counts capacity times instances added over the start, node by node', () => {
     const t = opened(c);
-    node(t, 'db').config.capacity = 10;
+    node(t, 'db').config.capacity = 6;
     expect(slotBudget(c, t)).toEqual({ used: 4, allowed: 4 });
     node(t, 'db').config.instances = 2;
-    expect(slotBudget(c, t)?.used).toBe(14);
+    expect(slotBudget(c, t)?.used).toBe(10);
   });
 
   it('does not refund slots taken from somewhere else', () => {
     const t = opened(c);
-    node(t, 'db').config.capacity = 10;
-    node(t, 'api').config.capacity = 8;
+    node(t, 'db').config.capacity = 6;
+    node(t, 'api').config.capacity = 2;
     expect(slotBudget(c, t)?.used).toBe(4);
   });
 
   it('fails over budget before running anything', () => {
     const t = opened(c);
-    node(t, 'db').config.capacity = 11;
+    node(t, 'db').config.capacity = 7;
     const v = judge(c, t);
     expect(v.status).toBe('over-budget');
     expect(v.budget).toEqual({ used: 5, allowed: 4 });
@@ -341,7 +341,7 @@ describe('the slot budget', () => {
       config: { ...scaler.config, maxCapacity: 3 },
     });
     scaled.edges.push({ id: 'as->db', from: 'as', to: 'db', weight: 1, control: true });
-    expect(extraSlots(scaled, start)).toBe(6 * 2);
+    expect(extraSlots(scaled, start)).toBe(2 * 2);
 
     const inverted = opened(c);
     inverted.nodes.push({
@@ -357,7 +357,7 @@ describe('the slot budget', () => {
       control: true,
     });
     // The controller runs a floor set above its ceiling at the floor.
-    expect(extraSlots(inverted, start)).toBe(6 * 3);
+    expect(extraSlots(inverted, start)).toBe(2 * 3);
   });
 
   it('counts a shard by its partitions and a replica set with its primary', () => {
@@ -474,10 +474,10 @@ describe('the start design', () => {
   it("is the preset with the brief's own changes applied", () => {
     const c = brief('nothing-looks-busy');
     const start = startDesign(c);
-    expect(node(start, 'api').config.capacity).toBe(14);
-    expect(node(start, 'db').config.capacity).toBe(16);
+    expect(node(start, 'api').config.capacity).toBe(2);
+    expect(node(start, 'db').config.capacity).toBe(8);
     const preset = PRESETS.find((p) => p.id === c.presetId);
-    expect(preset && node(preset.topology, 'api').config.capacity).toBe(64);
+    expect(preset && node(preset.topology, 'api').config.capacity).toBe(4);
     expect(startDesign(c)).toBe(start);
   });
 
@@ -807,22 +807,20 @@ function aroundEveryBrief(): Fixture[] {
 const FIXTURES: Record<string, BriefFixtures> = {
   'hold-the-line': {
     answers: [
-      fx('db capacity 9', set('db', { capacity: 9 })),
-      fx('db capacity 12', set('db', { capacity: 12 })),
-      fx('db instances 2', set('db', { instances: 2 })),
+      fx('db capacity 3', set('db', { capacity: 3 })),
+      fx('db capacity 4', set('db', { capacity: 4 })),
+      fx('db capacity 6', set('db', { capacity: 6 })),
+      fx('db instances 2, a second approver', set('db', { instances: 2 })),
     ],
     wrong: [
-      fx('db capacity 8, one short', set('db', { capacity: 8 })),
-      fx('api capacity 70, the wrong part', set('api', { capacity: 70 })),
+      fx('api instances 5, one more engineer', set('api', { instances: 5 })),
+      fx('api capacity 5, the wrong part', set('api', { capacity: 5 })),
       fx('a shorter db line', set('db', { queueLimit: 12 })),
       fx('a deeper db line', set('db', { queueLimit: 200 })),
-      fx(
-        'the budget split, db 8 and api 68',
-        all(set('db', { capacity: 8 }), set('api', { capacity: 68 })),
-      ),
+      fx('a deeper api line', set('api', { queueLimit: 200 })),
       fx('api gives up at 150ms', set('api', { timeoutMs: 150 })),
-      fx('api capacity 128, over budget', set('api', { capacity: 128 })),
-      fx('api instances 2, over budget', set('api', { instances: 2 })),
+      fx('db capacity 7, over budget', set('db', { capacity: 7 })),
+      fx('api instances 6, over budget', set('api', { instances: 6 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
@@ -855,28 +853,29 @@ const FIXTURES: Record<string, BriefFixtures> = {
 
   'keep-it-warm': {
     answers: [
+      fx('cache hit rate 0.93', set('cache', { hitRate: 0.93 })),
       fx('cache hit rate 0.95', set('cache', { hitRate: 0.95 })),
-      fx('cache hit rate 0.94', set('cache', { hitRate: 0.94 })),
       fx('cache hit rate 0.97', set('cache', { hitRate: 0.97 })),
       fx(
-        'hit rate 0.93 and db capacity 6',
-        all(set('cache', { hitRate: 0.93 }), set('db', { capacity: 6 })),
+        'hit rate 0.90 and db capacity 4',
+        all(set('cache', { hitRate: 0.9 }), set('db', { capacity: 4 })),
       ),
     ],
     wrong: [
-      fx('db capacity 6, the whole budget', set('db', { capacity: 6 })),
+      fx('db capacity 4, the whole budget', set('db', { capacity: 4 })),
       fx(
-        'cache capacity 66, cache slots taken for cache size',
-        set('cache', { capacity: 66 }),
+        'cache capacity 65, the budget spent on the docs',
+        set('cache', { capacity: 65 }),
       ),
-      fx('api capacity 66', set('api', { capacity: 66 })),
+      fx('api capacity 65', set('api', { capacity: 65 })),
+      fx('hit rate 0.85', set('cache', { hitRate: 0.85 })),
       fx('hit rate 0.90', set('cache', { hitRate: 0.9 })),
-      fx('hit rate 0.92', set('cache', { hitRate: 0.92 })),
       fx('a shorter db line', set('db', { queueLimit: 8 })),
       fx('a deeper db line', set('db', { queueLimit: 200 })),
       fx('cache capacity 256, over budget', set('cache', { capacity: 256 })),
       fx('cache instances 2, over budget', set('cache', { instances: 2 })),
       fx('db instances 2, over budget', set('db', { instances: 2 })),
+      fx('db capacity 5, over budget', set('db', { capacity: 5 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
@@ -902,30 +901,24 @@ const FIXTURES: Record<string, BriefFixtures> = {
   },
   'nothing-looks-busy': {
     answers: [
-      fx('api capacity 16', set('api', { capacity: 16 })),
-      fx('api capacity 18', set('api', { capacity: 18 })),
-      fx('api capacity 20', set('api', { capacity: 20 })),
-      fx('api capacity 24', set('api', { capacity: 24 })),
-      fx('api capacity 30', set('api', { capacity: 30 })),
-      fx('api instances 2', set('api', { instances: 2 })),
+      fx('api capacity 3', set('api', { capacity: 3 })),
+      fx('api capacity 4', set('api', { capacity: 4 })),
+      fx('api instances 5', set('api', { instances: 5 })),
+      fx('api instances 6', set('api', { instances: 6 })),
       fx(
-        'api 22 and db 24',
-        all(set('api', { capacity: 22 }), set('db', { capacity: 24 })),
+        'api 3 and db 12',
+        all(set('api', { capacity: 3 }), set('db', { capacity: 12 })),
       ),
     ],
     wrong: [
-      fx('api capacity 15, one short', set('api', { capacity: 15 })),
-      fx('db capacity 32, blaming the database', set('db', { capacity: 32 })),
+      fx('db capacity 16, blaming the founder', set('db', { capacity: 16 })),
       fx('db instances 2', set('db', { instances: 2 })),
       fx('a deeper api line', set('api', { queueLimit: 256 })),
-      fx('a shorter api line', set('api', { queueLimit: 16 })),
-      fx('api gives up on the database at 50ms', set('api', { timeoutMs: 50 })),
-      fx(
-        'the budget split, api 15 and db 31',
-        all(set('api', { capacity: 15 }), set('db', { capacity: 31 })),
-      ),
+      fx('a shorter api line', set('api', { queueLimit: 8 })),
+      fx('api gives up on the founder at 150ms', set('api', { timeoutMs: 150 })),
       fx('a shorter db line', set('db', { queueLimit: 8 })),
-      fx('api instances 3, over budget', set('api', { instances: 3 })),
+      fx('api capacity 5, over budget', set('api', { capacity: 5 })),
+      fx('api instances 9, over budget', set('api', { instances: 9 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
@@ -950,33 +943,38 @@ const FIXTURES: Record<string, BriefFixtures> = {
       fx('api does not retry', set('api', { retries: 0 })),
       fx('api waits 1000ms', set('api', { timeoutMs: 1000 })),
       fx('api waits as long as it takes', set('api', { timeoutMs: 0 })),
+      fx('db line of 4', set('db', { queueLimit: 4 })),
       fx('db line of 8', set('db', { queueLimit: 8 })),
-      fx('db line of 16', set('db', { queueLimit: 16 })),
       fx(
-        'a bulkhead of 12 in front of db',
-        between('api', 'db', 'bulkhead', { bulkheadMax: 12 }),
+        'a bulkhead of 6 in front of db',
+        between('api', 'db', 'bulkhead', { bulkheadMax: 6 }),
+      ),
+      fx(
+        'a bulkhead of 8 in front of db',
+        between('api', 'db', 'bulkhead', { bulkheadMax: 8 }),
       ),
     ],
     wrong: [
       fx('api retries once', set('api', { retries: 1 })),
       fx('api waits 500ms', set('api', { timeoutMs: 500 })),
+      fx('api waits 600ms, close', set('api', { timeoutMs: 600 })),
       fx('db line of 1', set('db', { queueLimit: 1 })),
-      fx('db line of 4, close', set('db', { queueLimit: 4 })),
+      fx('db line of 16, too deep', set('db', { queueLimit: 16 })),
       fx(
-        'a bulkhead of 8, close',
-        between('api', 'db', 'bulkhead', { bulkheadMax: 8 }),
+        'a bulkhead of 3, too tight',
+        between('api', 'db', 'bulkhead', { bulkheadMax: 3 }),
       ),
       fx('api capacity 16', set('api', { capacity: 16 })),
       fx(
-        'a rate limiter at 90 after the client',
-        afterClient('ratelimiter', { rateLimitRps: 90, burst: 90 }),
+        'a rate limiter at 28 after the client',
+        afterClient('ratelimiter', { rateLimitRps: 28, burst: 28 }),
       ),
       fx(
-        'a rate limiter at 100 in front of db',
-        between('api', 'db', 'ratelimiter', { rateLimitRps: 100, burst: 100 }),
+        'a rate limiter at 40 in front of db',
+        between('api', 'db', 'ratelimiter', { rateLimitRps: 40, burst: 40 }),
       ),
-      fx('db capacity 8, over budget', set('db', { capacity: 8 })),
-      fx('db capacity 6, over budget', set('db', { capacity: 6 })),
+      fx('db capacity 3, over budget', set('db', { capacity: 3 })),
+      fx('db capacity 4, over budget', set('db', { capacity: 4 })),
       fx('api capacity 256, over budget', set('api', { capacity: 256 })),
     ],
     exploits: [
@@ -1012,58 +1010,49 @@ const FIXTURES: Record<string, BriefFixtures> = {
   'not-everyones-problem': {
     answers: [
       fx(
-        'a bulkhead of 8 in front of db',
-        between('cache', 'db', 'bulkhead', { bulkheadMax: 8 }),
+        'a bulkhead of 5 in front of db',
+        between('cache', 'db', 'bulkhead', { bulkheadMax: 5 }),
       ),
       fx(
         'a bulkhead of 6 in front of db',
         between('cache', 'db', 'bulkhead', { bulkheadMax: 6 }),
       ),
-      fx(
-        'a bulkhead of 12 in front of db',
-        between('cache', 'db', 'bulkhead', { bulkheadMax: 12 }),
-      ),
-      fx('db line of 4', set('db', { queueLimit: 4 })),
-      fx('db line of 8', set('db', { queueLimit: 8 })),
-      fx(
-        'api waits 300ms and db line of 8',
-        all(set('api', { timeoutMs: 300 }), set('db', { queueLimit: 8 })),
-      ),
-      fx(
-        'api waits 300ms and a bulkhead of 8',
-        all(
-          set('api', { timeoutMs: 300 }),
-          between('cache', 'db', 'bulkhead', { bulkheadMax: 8 }),
-        ),
-      ),
+      fx('db line of 3', set('db', { queueLimit: 3 })),
     ],
     wrong: [
+      fx('api waits 100ms', set('api', { timeoutMs: 100 })),
       fx('api waits 200ms', set('api', { timeoutMs: 200 })),
-      fx('api waits 150ms', set('api', { timeoutMs: 150 })),
+      fx('api waits 300ms', set('api', { timeoutMs: 300 })),
       fx('api waits 500ms', set('api', { timeoutMs: 500 })),
       fx(
         'a bulkhead of 4, too tight',
         between('cache', 'db', 'bulkhead', { bulkheadMax: 4 }),
       ),
       fx(
-        'a bulkhead of 8 in front of the cache',
-        between('api', 'cache', 'bulkhead', { bulkheadMax: 8 }),
+        'a bulkhead of 7, too loose',
+        between('cache', 'db', 'bulkhead', { bulkheadMax: 7 }),
       ),
       fx(
-        'a bulkhead of 8 that waits',
-        between('cache', 'db', 'bulkhead', { bulkheadMax: 8, bulkheadMode: 'wait' }),
+        'a bulkhead of 6 in front of the cache',
+        between('api', 'cache', 'bulkhead', { bulkheadMax: 6 }),
+      ),
+      fx(
+        'a bulkhead of 6 that waits',
+        between('cache', 'db', 'bulkhead', { bulkheadMax: 6, bulkheadMode: 'wait' }),
       ),
       fx('a circuit breaker in front of db', between('cache', 'db', 'breaker')),
+      fx('no db line', set('db', { queueLimit: 0 })),
+      fx('db line of 4, too deep', set('db', { queueLimit: 4 })),
       fx('a shorter api line', set('api', { queueLimit: 8 })),
       fx('a deeper api line', set('api', { queueLimit: 512 })),
       fx('api retries twice', set('api', { retries: 2 })),
       fx(
-        'a rate limiter at 300 after the client',
-        afterClient('ratelimiter', { rateLimitRps: 300, burst: 300 }),
+        'a rate limiter at 150 after the client',
+        afterClient('ratelimiter', { rateLimitRps: 150, burst: 150 }),
       ),
-      fx('api capacity 64, over budget', set('api', { capacity: 64 })),
+      fx('api capacity 16, over budget', set('api', { capacity: 16 })),
       fx('api instances 2, over budget', set('api', { instances: 2 })),
-      fx('db capacity 8, over budget', set('db', { capacity: 8 })),
+      fx('db capacity 4, over budget', set('db', { capacity: 4 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
@@ -1080,35 +1069,35 @@ const FIXTURES: Record<string, BriefFixtures> = {
   },
   'say-no-fast': {
     answers: [
-      fx('limiter at 220', set('limiter', { rateLimitRps: 220, burst: 220 })),
+      fx('limiter at 30', set('limiter', { rateLimitRps: 30, burst: 30 })),
+      fx('limiter at 32', set('limiter', { rateLimitRps: 32, burst: 32 })),
       fx(
-        'limiter at 230 with a burst of 20',
-        set('limiter', { rateLimitRps: 230, burst: 20 }),
+        'limiter at 32 with a burst of 4',
+        set('limiter', { rateLimitRps: 32, burst: 4 }),
       ),
       fx('api line of 4', set('api', { queueLimit: 4 })),
       fx('api line of 8', set('api', { queueLimit: 8 })),
       fx('api line of 16', set('api', { queueLimit: 16 })),
       fx(
-        'a load shedder at 230 after the client',
-        afterClient('loadshedder', { rateLimitRps: 230, burst: 230 }),
+        'a load shedder at 32 after the client',
+        afterClient('loadshedder', { rateLimitRps: 32, burst: 32 }),
       ),
     ],
     wrong: [
-      fx('limiter at 240', set('limiter', { rateLimitRps: 240, burst: 240 })),
-      fx('limiter at 250', set('limiter', { rateLimitRps: 250, burst: 250 })),
-      fx('limiter at 260', set('limiter', { rateLimitRps: 260, burst: 260 })),
-      fx('limiter at 300', set('limiter', { rateLimitRps: 300, burst: 300 })),
+      fx('limiter at 34', set('limiter', { rateLimitRps: 34, burst: 34 })),
+      fx('limiter at 36', set('limiter', { rateLimitRps: 36, burst: 36 })),
+      fx('limiter at 40', set('limiter', { rateLimitRps: 40, burst: 40 })),
+      fx('limiter at 45', set('limiter', { rateLimitRps: 45, burst: 45 })),
       fx(
-        'limiter at 230 with a burst of 230',
-        set('limiter', { rateLimitRps: 230, burst: 230 }),
+        'limiter at 32 with a burst of 100',
+        set('limiter', { rateLimitRps: 32, burst: 100 }),
       ),
       fx(
-        'limiter at 230 with a burst of 2000',
-        set('limiter', { rateLimitRps: 230, burst: 2000 }),
+        'limiter at 32 with a burst of 1000',
+        set('limiter', { rateLimitRps: 32, burst: 1000 }),
       ),
-      fx('limiter at 200', set('limiter', { rateLimitRps: 200, burst: 200 })),
-      fx('limiter at 100', set('limiter', { rateLimitRps: 100, burst: 100 })),
-      fx('no api line', set('api', { queueLimit: 0 })),
+      fx('limiter at 26', set('limiter', { rateLimitRps: 26, burst: 26 })),
+      fx('limiter at 20', set('limiter', { rateLimitRps: 20, burst: 20 })),
       fx('api line of 32', set('api', { queueLimit: 32 })),
       fx('api line of 48, as the preset ships', set('api', { queueLimit: 48 })),
       fx('api gives up at 100ms', set('api', { timeoutMs: 100 })),
@@ -1117,14 +1106,14 @@ const FIXTURES: Record<string, BriefFixtures> = {
         'a bulkhead of 6 in front of db',
         between('api', 'db', 'bulkhead', { bulkheadMax: 6 }),
       ),
-      fx('api capacity 12, over budget', set('api', { capacity: 12 })),
-      fx('api instances 2, over budget', set('api', { instances: 2 })),
+      fx('api capacity 3, over budget', set('api', { capacity: 3 })),
+      fx('api instances 4, over budget', set('api', { instances: 4 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
       fx(
-        'limiter at 10, turning nearly everyone away',
-        set('limiter', { rateLimitRps: 10, burst: 10 }),
+        'limiter at 2, turning nearly everyone away',
+        set('limiter', { rateLimitRps: 2, burst: 2 }),
       ),
       fx('limiter deleted', all(remove('limiter'), connect('client', 'api'))),
       fx('api deleted', all(remove('api'), connect('limiter', 'db'))),
@@ -1135,25 +1124,26 @@ const FIXTURES: Record<string, BriefFixtures> = {
   },
   'buying-time': {
     answers: [
-      fx('worker instances 2', set('worker', { instances: 2 })),
-      fx('worker capacity 20', set('worker', { capacity: 20 })),
-      fx('worker capacity 16', set('worker', { capacity: 16 })),
+      fx('worker instances 6', set('worker', { instances: 6 })),
+      fx('worker instances 7', set('worker', { instances: 7 })),
+      fx('worker capacity 3', set('worker', { capacity: 3 })),
       fx(
-        'a second pool of 10 workers on the queue',
-        add('worker', 'worker2', { capacity: 10 }, ['queue'], ['db']),
+        'a second pool of 4 on the queue',
+        add('worker', 'worker2', { capacity: 4 }, ['queue'], ['db']),
       ),
     ],
     wrong: [
-      fx('worker capacity 14', set('worker', { capacity: 14 })),
-      fx('db capacity 18', set('db', { capacity: 18 })),
+      fx('worker instances 5, one short', set('worker', { instances: 5 })),
+      fx('db capacity 8', set('db', { capacity: 8 })),
       fx('db instances 2', set('db', { instances: 2 })),
-      fx('api capacity 34', set('api', { capacity: 34 })),
+      fx('api capacity 22', set('api', { capacity: 22 })),
       fx('no db line', set('db', { queueLimit: 0 })),
       fx(
-        'a rate limiter at 200 in front of the api',
-        afterClient('ratelimiter', { rateLimitRps: 200, burst: 200 }),
+        'a rate limiter at 120 in front of the api',
+        afterClient('ratelimiter', { rateLimitRps: 120, burst: 120 }),
       ),
-      fx('worker instances 3, over budget', set('worker', { instances: 3 })),
+      fx('worker instances 8, over budget', set('worker', { instances: 8 })),
+      fx('worker capacity 4, over budget', set('worker', { capacity: 4 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
@@ -1178,242 +1168,259 @@ const FIXTURES: Record<string, BriefFixtures> = {
   },
   'lose-a-machine': {
     answers: [
-      fx('db as 4 machines of 3', set('db', { capacity: 3, instances: 4 })),
-      fx('db as 3 machines of 4', set('db', { capacity: 4, instances: 3 })),
-      fx('db as 6 machines of 2', set('db', { capacity: 2, instances: 6 })),
-      fx('db as 4 machines of 4', set('db', { capacity: 4, instances: 4 })),
-      fx('db as 3 machines of 5', set('db', { capacity: 5, instances: 3 })),
-      fx('db as 5 machines of 3', set('db', { capacity: 3, instances: 5 })),
-      fx('db as 3 machines of 6', set('db', { capacity: 6, instances: 3 })),
+      fx('sign-off as 2 people of 2', set('db', { capacity: 2, instances: 2 })),
+      fx('sign-off as 3 people of 2', set('db', { capacity: 2, instances: 3 })),
+      fx('sign-off as 4 people of 2', set('db', { capacity: 2, instances: 4 })),
+      fx('sign-off as 3 people of 1', set('db', { capacity: 1, instances: 3 })),
+      fx('sign-off as 4 people of 1', set('db', { capacity: 1, instances: 4 })),
+      fx('sign-off as 2 people of 3', set('db', { capacity: 3, instances: 2 })),
       fx(
-        'db as 2 machines of 9, each enough alone',
-        set('db', { capacity: 9, instances: 2 }),
+        'sign-off as 2 people of 4, each enough alone',
+        set('db', { capacity: 4, instances: 2 }),
       ),
       fx(
-        'a cache of 4 in front of db as 2 machines of 6',
+        'a playbook of 4 in front of 2 people of 1',
         all(
-          set('db', { capacity: 6, instances: 2 }),
+          set('db', { capacity: 1, instances: 2 }),
           between('api', 'db', 'cache', { capacity: 4 }),
+        ),
+      ),
+      fx(
+        'a playbook of 2 in front of 2 people of 2',
+        all(
+          set('db', { capacity: 2, instances: 2 }),
+          between('api', 'db', 'cache', { capacity: 2 }),
         ),
       ),
     ],
     wrong: [
-      fx('db scaled up to 18 on one machine', set('db', { capacity: 18 })),
-      fx('db as 2 machines of 6, two halves', set('db', { capacity: 6, instances: 2 })),
-      fx('a deeper db line', set('db', { queueLimit: 400 })),
-      fx('a shorter db line', set('db', { queueLimit: 4 })),
-      fx('api retries 3 times', set('api', { retries: 3 })),
-      fx('api retries 3 times after 300ms', set('api', { retries: 3, timeoutMs: 300 })),
+      fx('the founder juggling 8 at once', set('db', { capacity: 8 })),
       fx(
-        'a cache of 4 in front of the one machine',
+        'sign-off as 2 people of 1, two halves',
+        set('db', { capacity: 1, instances: 2 }),
+      ),
+      fx('a deeper sign-off line', set('db', { queueLimit: 400 })),
+      fx('a shorter sign-off line', set('db', { queueLimit: 4 })),
+      fx('engineers chase 3 times', set('api', { retries: 3 })),
+      fx(
+        'engineers chase 3 times after 300ms',
+        set('api', { retries: 3, timeoutMs: 300 }),
+      ),
+      fx(
+        'a playbook of 4 in front of the one founder',
         between('api', 'db', 'cache', { capacity: 4 }),
       ),
-      fx('a load balancer and a second db beside the first', (t) => {
+      fx('a dispatcher and a second approver beside the founder', (t) => {
         unwire(t, 'api', 'db');
         add('lb', 'lb', { capacity: 2 }, ['api'], ['db'])(t);
-        add('db', 'db2', { capacity: 4 }, ['lb'], [])(t);
+        add('db', 'db2', { capacity: 2 }, ['lb'], [])(t);
       }),
       fx(
-        'db as 2 machines of 12, over budget',
-        set('db', { capacity: 12, instances: 2 }),
+        'sign-off as 2 people of 5, over budget',
+        set('db', { capacity: 5, instances: 2 }),
       ),
-      fx('api capacity 128, over budget', set('api', { capacity: 128 })),
-      fx('api instances 3, over budget', set('api', { instances: 3 })),
+      fx('engineers juggling 8 each, over budget', set('api', { capacity: 8 })),
+      fx('6 engineers, over budget', set('api', { instances: 6 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
       fx(
-        'an autoscaler on db, never below 3 and never above 1',
-        floorAboveCeiling('db', 3),
+        'a hiring plan on sign-off, never below 6 and never above 1',
+        floorAboveCeiling('db', 6),
       ),
       fx(
-        'three caches of 2 in a row in front of db',
+        'three playbooks of 2 in a row in front of sign-off',
         inARow('api', 'db', 'cache', 3, { capacity: 2 }),
       ),
       fx(
-        'a cache hitting 0.99 in front of db',
+        'a playbook answering 0.99 in front of sign-off',
         between('api', 'db', 'cache', { capacity: 4, hitRate: 0.99 }),
       ),
       fx(
-        'the dead machine cleared by the reader',
+        'the holiday cut short by the reader',
         userFault({ atMs: 25_001, action: 'clear', nodeId: 'db' }),
       ),
-      fx('db deleted', remove('db')),
+      fx('sign-off deleted', remove('db')),
       fx(
-        'db replaced under a new id',
-        all(remove('db'), add('db', 'db2', { capacity: 3, instances: 6 }, ['api'], [])),
+        'sign-off replaced under a new id',
+        all(remove('db'), add('db', 'db2', { capacity: 2, instances: 3 }, ['api'], [])),
       ),
-      fx('api to db cut', cut('api', 'db')),
+      fx('engineers to sign-off cut', cut('api', 'db')),
     ],
   },
   'lose-a-region': {
     answers: [
-      fx(
-        'Europe sized to 15 and 5',
-        all(set('eu-api', { capacity: 15 }), set('eu-db', { capacity: 5 })),
-      ),
-      fx(
-        'Europe sized to 12 and 5',
-        all(set('eu-api', { capacity: 12 }), set('eu-db', { capacity: 5 })),
-      ),
-      fx(
-        'Europe sized to 14 and 4',
-        all(set('eu-api', { capacity: 14 }), set('eu-db', { capacity: 4 })),
-      ),
-      fx(
-        'Europe sized to 15 and 4',
-        all(set('eu-api', { capacity: 15 }), set('eu-db', { capacity: 4 })),
-      ),
-      fx(
-        'Europe API as 2 machines of 6, db 5',
-        all(set('eu-api', { instances: 2 }), set('eu-db', { capacity: 5 })),
-      ),
+      fx('the backup juggling 3', set('eu-api', { capacity: 3 })),
+      fx('the backup juggling 4', set('eu-api', { capacity: 4 })),
+      fx('the backup juggling 5', set('eu-api', { capacity: 5 })),
+      fx('the backup as 3 people of 1', set('eu-api', { instances: 3 })),
     ],
     wrong: [
-      fx('the US made bigger', set('us-api', { capacity: 27 })),
-      fx('the US as 3 machines of 6', set('us-api', { capacity: 6, instances: 3 })),
-      fx("only Europe's API", set('eu-api', { capacity: 18 })),
-      fx("only Europe's database", set('eu-db', { capacity: 14 })),
+      fx('the primary juggling 5', set('us-api', { capacity: 5 })),
+      fx('the primary as 2 people of 3', set('us-api', { instances: 2 })),
+      fx("only the backup's specialist", set('eu-db', { capacity: 8 })),
+      fx('the backup juggling 2, one short', set('eu-api', { capacity: 2 })),
+      fx('the backup as 2 people of 1', set('eu-api', { instances: 2 })),
       fx(
-        'too little in both, 11 and 3',
-        all(set('eu-api', { capacity: 11 }), set('eu-db', { capacity: 3 })),
+        'room moved from the primary to the backup',
+        all(set('us-api', { capacity: 1 }), set('eu-api', { capacity: 3 })),
+      ),
+      fx('a long line at the backup', set('eu-api', { queueLimit: 1000 })),
+      fx('a short line at the backup', set('eu-api', { queueLimit: 4 })),
+      fx(
+        'the backup juggling 2 with a line of 4',
+        set('eu-api', { capacity: 2, queueLimit: 4 }),
       ),
       fx(
-        'slots moved from the US to Europe',
-        all(
-          set('us-api', { capacity: 6 }),
-          set('eu-api', { capacity: 15 }),
-          set('eu-db', { capacity: 5 }),
-        ),
-      ),
-      fx(
-        'long lines in Europe',
-        all(set('eu-api', { queueLimit: 1000 }), set('eu-db', { queueLimit: 1000 })),
-      ),
-      fx(
-        'short lines in Europe',
-        all(set('eu-api', { queueLimit: 4 }), set('eu-db', { queueLimit: 4 })),
-      ),
-      fx(
-        'both APIs retry twice after 300ms',
+        'both owners chase twice after 300ms',
         all(
           set('us-api', { retries: 2, timeoutMs: 300 }),
           set('eu-api', { retries: 2, timeoutMs: 300 }),
         ),
       ),
+      fx('the backup juggling 6, over budget', set('eu-api', { capacity: 6 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
-      fx('a router that switches at once', set('router', { failoverMs: 0 })),
-      fx('a router that starts in Europe', set('router', { activeRegion: 1 })),
+      fx('a handover that takes no time', set('router', { failoverMs: 0 })),
+      fx('the backup on duty from the start', set('router', { activeRegion: 1 })),
       fx(
-        'the outage cleared by the reader',
+        'the primary brought back by the reader',
         userFault({ atMs: 25_001, action: 'clear', nodeId: 'us-api' }),
       ),
-      fx('us-api deleted', remove('us-api')),
+      fx('the primary owner deleted', remove('us-api')),
       fx(
-        'a load balancer in place of the router',
+        'a dispatcher in place of the escalation owner',
         all(
-          set('eu-api', { capacity: 12 }),
-          set('eu-db', { capacity: 4 }),
+          set('eu-api', { capacity: 3 }),
           retype('router', 'lb'),
           set('router', { capacity: 2 }),
         ),
       ),
       fx(
-        'the US cut off, Europe sized',
-        all(
-          cut('router', 'us-api'),
-          set('eu-api', { capacity: 15 }),
-          set('eu-db', { capacity: 5 }),
-        ),
+        'the primary cut off, the backup sized',
+        all(cut('router', 'us-api'), set('eu-api', { capacity: 3 })),
       ),
     ],
   },
   'checkout-rush': {
     answers: [
-      fx('3 copies of 5', set('replicas', { capacity: 5, replicaCount: 3 })),
-      fx('2 copies of 6', set('replicas', { capacity: 6, replicaCount: 2 })),
-      fx('2 copies of 5', set('replicas', { capacity: 5, replicaCount: 2 })),
-      fx('1 copy of 10', set('replicas', { capacity: 10, replicaCount: 1 })),
+      fx(
+        '2 deputies, everyone juggling 5',
+        set('replicas', { capacity: 5, replicaCount: 2 }),
+      ),
+      fx(
+        '1 deputy, everyone juggling 7',
+        set('replicas', { capacity: 7, replicaCount: 1 }),
+      ),
     ],
     wrong: [
-      fx('5 smaller copies of 3', set('replicas', { capacity: 3, replicaCount: 5 })),
-      fx('no replication lag', set('replicas', { replicationLagMs: 0 })),
+      fx(
+        '2 deputies, everyone juggling 4, one short',
+        set('replicas', { capacity: 4, replicaCount: 2 }),
+      ),
+      fx('3 deputies of 3, one dropped', set('replicas', { replicaCount: 3 })),
+      fx('6 deputies juggling 2', set('replicas', { capacity: 2, replicaCount: 6 })),
+      fx(
+        '1 deputy, everyone juggling 5',
+        set('replicas', { capacity: 5, replicaCount: 1 }),
+      ),
+      fx('deputies never behind', set('replicas', { replicationLagMs: 0 })),
       fx('a deeper line', set('replicas', { queueLimit: 1000 })),
       fx('a shorter line', set('replicas', { queueLimit: 8 })),
-      fx('api retries twice after 200ms', set('api', { retries: 2, timeoutMs: 200 })),
-      fx('a fifth copy, over budget', set('replicas', { replicaCount: 5 })),
-      fx('eight copies, over budget', set('replicas', { replicaCount: 8 })),
-      fx('api capacity 400, over budget', set('api', { capacity: 400 })),
+      fx(
+        'engineers chase twice after 200ms',
+        set('api', { retries: 2, timeoutMs: 200 }),
+      ),
+      fx('a fifth deputy, over budget', set('replicas', { replicaCount: 5 })),
+      fx(
+        '3 deputies juggling 4, over budget',
+        set('replicas', { capacity: 4, replicaCount: 3 }),
+      ),
+      fx('engineers juggling 400, over budget', set('api', { capacity: 400 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
-      fx('reads raised to 95 in 100', set('replicas', { readFraction: 0.95 })),
+      fx('questions raised to 95 in 100', set('replicas', { readFraction: 0.95 })),
       fx(
-        'a cache in front of the replicas',
+        'a playbook in front of the CTO and deputies',
         between('api', 'replicas', 'cache', { capacity: 4 }),
       ),
-      fx('replica set deleted', remove('replicas')),
-      fx('api to replicas cut', cut('api', 'replicas')),
+      fx('CTO and deputies deleted', remove('replicas')),
+      fx('engineers to CTO and deputies cut', cut('api', 'replicas')),
     ],
   },
   'one-hot-key': {
     answers: [
       fx(
-        'a cache of 2 in front of the store',
+        'a playbook of 1 in front of the account managers',
+        between('api', 'shards', 'cache', { capacity: 1 }),
+      ),
+      fx(
+        'a playbook of 2 in front of the account managers',
         between('api', 'shards', 'cache', { capacity: 2 }),
       ),
       fx(
-        'a cache of 4 in front of the store',
+        'a playbook of 4 in front of the account managers',
         between('api', 'shards', 'cache', { capacity: 4 }),
       ),
       fx(
-        'a cache of 8 in front of the store',
-        between('api', 'shards', 'cache', { capacity: 8 }),
+        'a playbook of 6 in front of the account managers',
+        between('api', 'shards', 'cache', { capacity: 6 }),
       ),
       fx(
-        'a cache hitting 0.99, put back to 0.8',
-        between('api', 'shards', 'cache', { capacity: 8, hitRate: 0.99 }),
+        'a playbook answering 0.99, put back to 0.8',
+        between('api', 'shards', 'cache', { capacity: 4, hitRate: 0.99 }),
       ),
     ],
     wrong: [
-      fx('a cache of 1, too small', between('api', 'shards', 'cache', { capacity: 1 })),
-      fx('every shard 6 deep', set('shards', { shardCapacity: 6 })),
-      fx('six shards', set('shards', { shardCount: 6 })),
-      fx('a deeper shard line', set('shards', { queueLimit: 256 })),
+      fx('every account manager juggling 3', set('shards', { shardCapacity: 3 })),
+      fx('six account managers', set('shards', { shardCount: 6 })),
+      fx('a deeper line at the account managers', set('shards', { queueLimit: 256 })),
       fx(
-        'shards 6 deep with a line of 8',
-        set('shards', { shardCapacity: 6, queueLimit: 8 }),
+        'account managers juggling 3 with a line of 64',
+        set('shards', { shardCapacity: 3, queueLimit: 64 }),
       ),
       fx(
-        'shards 5 deep with a line of 64',
-        set('shards', { shardCapacity: 5, queueLimit: 64 }),
+        'account managers juggling 3 with a line of 4',
+        set('shards', { shardCapacity: 3, queueLimit: 4 }),
       ),
-      fx('api capacity 200', set('api', { capacity: 200 })),
-      fx('api retries twice after 100ms', set('api', { retries: 2, timeoutMs: 100 })),
-      fx('a second store behind a load balancer', (t) => {
+      fx(
+        'the support desk chases twice after 400ms',
+        set('api', { retries: 2, timeoutMs: 400 }),
+      ),
+      fx('a second account team behind a dispatcher', (t) => {
         unwire(t, 'api', 'shards');
         add('lb', 'lb', { capacity: 1 }, ['api'], ['shards'])(t);
-        add('shard', 'shards2', { shardCount: 1, shardCapacity: 4 }, ['lb'], [])(t);
+        add('shard', 'shards2', { shardCount: 1, shardCapacity: 2 }, ['lb'], [])(t);
       }),
-      fx('every shard 7 deep, over budget', set('shards', { shardCapacity: 7 })),
-      fx('a cache at its default size, over budget', between('api', 'shards', 'cache')),
+      fx(
+        'every account manager juggling 4, over budget',
+        set('shards', { shardCapacity: 4 }),
+      ),
+      fx('a support desk of 200, over budget', set('api', { capacity: 200 })),
+      fx(
+        'a playbook at its default size, over budget',
+        between('api', 'shards', 'cache'),
+      ),
     ],
     exploits: [
       ...aroundEveryBrief(),
-      fx('no hot key', set('shards', { hotKeyFraction: 0 })),
+      fx('no whale', set('shards', { hotKeyFraction: 0 })),
       fx(
-        'two caches of 1 in a row in front of the store',
+        'two playbooks of 1 in a row in front of the account managers',
         inARow('api', 'shards', 'cache', 2, { capacity: 1 }),
       ),
-      fx('shards shedding with a line of 2', set('shards', { queueLimit: 2 })),
-      fx('store deleted', remove('shards')),
       fx(
-        'store replaced with a database',
-        all(remove('shards'), add('db', 'db', { capacity: 8 }, ['api'], [])),
+        'account managers shedding with a line of 2',
+        set('shards', { queueLimit: 2 }),
       ),
-      fx('a load balancer sending 9 in 10 to a cache with nothing behind it', (t) => {
+      fx('account managers deleted', remove('shards')),
+      fx(
+        'account managers replaced with one decision maker',
+        all(remove('shards'), add('db', 'db', { capacity: 6 }, ['api'], [])),
+      ),
+      fx('a dispatcher sending 9 in 10 to a playbook with nothing behind it', (t) => {
         unwire(t, 'api', 'shards');
         add('lb', 'lb', { capacity: 1 }, ['api'], [])(t);
         t.edges.push({ id: 'lb->shards', from: 'lb', to: 'shards', weight: 1 });
@@ -1424,61 +1431,57 @@ const FIXTURES: Record<string, BriefFixtures> = {
   },
   'saved-then-lost': {
     answers: [
-      fx('db line of 750', set('db', { queueLimit: 750 })),
-      fx('db line of 1000', set('db', { queueLimit: 1000 })),
-      fx('db line of 2000', set('db', { queueLimit: 2000 })),
-      fx('db line of 4000', set('db', { queueLimit: 4000 })),
-      fx('db line of 100,000', set('db', { queueLimit: 100_000 })),
+      fx('a records line of 400', set('db', { queueLimit: 400 })),
+      fx('a records line of 600', set('db', { queueLimit: 600 })),
+      fx('a records line of 1000', set('db', { queueLimit: 1000 })),
+      fx('a records line of 4000', set('db', { queueLimit: 4000 })),
+      fx('a records line of 100,000', set('db', { queueLimit: 100_000 })),
     ],
     wrong: [
-      fx('flushed at once', set('writebuf', { flushDelayMs: 0 })),
-      fx('flushed after 500ms', set('writebuf', { flushDelayMs: 500 })),
-      fx('flushed after 1000ms', set('writebuf', { flushDelayMs: 1000 })),
-      fx('flushed after 2000ms', set('writebuf', { flushDelayMs: 2000 })),
-      fx('a deeper write-behind line', set('writebuf', { queueLimit: 4000 })),
+      fx('a records line of 100', set('db', { queueLimit: 100 })),
+      fx('a records line of 200, nearly', set('db', { queueLimit: 200 })),
+      fx('filed at once', set('writebuf', { flushDelayMs: 0 })),
+      fx('filed after 500ms', set('writebuf', { flushDelayMs: 500 })),
+      fx('filed after 2000ms', set('writebuf', { flushDelayMs: 2000 })),
+      fx('filed after 3000ms', set('writebuf', { flushDelayMs: 3000 })),
+      fx('a deeper paperwork line', set('writebuf', { queueLimit: 4000 })),
       fx(
-        'a bigger write-behind cache',
+        'more room for paperwork',
         set('writebuf', { capacity: 128, queueLimit: 2000 }),
       ),
-      fx(
-        'write-behind retries 3 times',
-        set('writebuf', { retries: 3, timeoutMs: 2000 }),
-      ),
-      fx(
-        'write-behind retries 5 times',
-        set('writebuf', { retries: 5, timeoutMs: 5000 }),
-      ),
-      fx('write-behind retries 8 times', set('writebuf', { retries: 8 })),
-      fx('db capacity 13, over budget', set('db', { capacity: 13 })),
-      fx('db instances 2, over budget', set('db', { instances: 2 })),
+      fx('paperwork resent 3 times', set('writebuf', { retries: 3, timeoutMs: 2000 })),
+      fx('paperwork resent 5 times', set('writebuf', { retries: 5, timeoutMs: 5000 })),
+      fx('paperwork resent 8 times', set('writebuf', { retries: 8 })),
+      fx('ops records juggling 5, over budget', set('db', { capacity: 5 })),
+      fx('ops records as 2 people, over budget', set('db', { instances: 2 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
-      fx('shedding at the front', set('shedder', { rateLimitRps: 190, burst: 190 })),
+      fx('triage admitting 32 a week', set('shedder', { rateLimitRps: 32, burst: 32 })),
       fx(
-        'a bigger low-priority share at 150',
-        set('shedder', { rateLimitRps: 150, burst: 150, lowPriorityShare: 0.5 }),
+        'triage admitting 24 a week, half of it low priority',
+        set('shedder', { rateLimitRps: 24, burst: 24, lowPriorityShare: 0.5 }),
       ),
-      fx('a write-behind line of 1', set('writebuf', { queueLimit: 1, capacity: 32 })),
-      fx('api line of 2', set('api', { queueLimit: 2 })),
-      fx('db deleted', remove('db')),
+      fx('a paperwork line of 1', set('writebuf', { queueLimit: 1, capacity: 32 })),
+      fx('customer success line of 2', set('api', { queueLimit: 2 })),
+      fx('ops records deleted', remove('db')),
       fx(
-        'write-behind pointed at recs',
+        'paperwork sent to the integrations team',
         all(cut('writebuf', 'db'), connect('writebuf', 'recs')),
       ),
       fx(
-        'write-behind pointed at a service with nothing behind it',
+        'paperwork sent to a team with nothing behind it',
         all(
           cut('writebuf', 'db'),
           add('service', 'sink', { capacity: 1 }, ['writebuf'], []),
         ),
       ),
       fx(
-        'a queue nobody drains in front of db',
+        'a backlog nobody drains in front of ops records',
         between('writebuf', 'db', 'queue', { queueLimit: 1_000_000 }),
       ),
       fx(
-        'write-behind taken out, api straight to db',
+        'deferred paperwork taken out, customer success straight to ops records',
         all(remove('writebuf'), connect('api', 'db')),
       ),
     ],
@@ -1486,75 +1489,95 @@ const FIXTURES: Record<string, BriefFixtures> = {
   'loud-and-quiet': {
     answers: [
       fx(
-        'shards 3 deep and 8 workers',
-        all(set('shards', { shardCapacity: 3 }), set('workers', { capacity: 8 })),
-      ),
-      fx(
-        'a small cache in front of the store and 8 workers',
+        'a playbook of 2 for the account managers and 10 product engineers',
         all(
           between('cache', 'shards', 'cache', { capacity: 2 }),
-          set('workers', { capacity: 8 }),
+          set('workers', { instances: 10 }),
         ),
       ),
       fx(
-        'shards 3 deep and a second pool of 2 workers',
+        'a playbook of 1 for the account managers and 10 product engineers',
         all(
-          set('shards', { shardCapacity: 3 }),
-          add('worker', 'workers2', { capacity: 2 }, ['queue'], []),
+          between('cache', 'shards', 'cache', { capacity: 1 }),
+          set('workers', { instances: 10 }),
         ),
       ),
       fx(
-        'shards 3 deep, 8 workers and a queue of 300',
+        'a playbook of 1 and a second crew of 5 people of 1',
         all(
-          set('shards', { shardCapacity: 3 }),
-          set('workers', { capacity: 8 }),
-          set('queue', { queueLimit: 300 }),
+          between('cache', 'shards', 'cache', { capacity: 1 }),
+          add('worker', 'workers2', { capacity: 1, instances: 5 }, ['queue'], []),
+        ),
+      ),
+      fx(
+        'a playbook of 2 and a second crew of 4 people of 1',
+        all(
+          between('cache', 'shards', 'cache', { capacity: 2 }),
+          add('worker', 'workers2', { capacity: 1, instances: 4 }, ['queue'], []),
         ),
       ),
     ],
     wrong: [
-      fx('shards 3 deep only', set('shards', { shardCapacity: 3 })),
-      fx('8 workers only', set('workers', { capacity: 8 })),
+      fx('account managers juggling 3 only', set('shards', { shardCapacity: 3 })),
       fx(
-        'shards 3 deep and 7 workers',
-        all(set('shards', { shardCapacity: 3 }), set('workers', { capacity: 7 })),
+        'a playbook of 2 for the account managers only',
+        between('cache', 'shards', 'cache', { capacity: 2 }),
       ),
+      fx('10 product engineers only', set('workers', { instances: 10 })),
+      fx('11 product engineers only', set('workers', { instances: 11 })),
       fx(
-        'a small cache and 7 workers',
+        'a playbook of 2 and 9 product engineers, one short',
         all(
           between('cache', 'shards', 'cache', { capacity: 2 }),
-          set('workers', { capacity: 7 }),
+          set('workers', { instances: 9 }),
         ),
       ),
-      fx('workers as 2 machines', set('workers', { instances: 2 })),
       fx(
-        'a deeper shard line and 8 workers',
-        all(set('shards', { queueLimit: 256 }), set('workers', { capacity: 8 })),
+        'account managers juggling 3 and 9 product engineers',
+        all(set('shards', { shardCapacity: 3 }), set('workers', { instances: 9 })),
       ),
       fx(
-        'more API threads',
-        all(set('api1', { capacity: 26 }), set('api2', { capacity: 26 })),
+        'a deeper line at the account managers and 10 product engineers',
+        all(set('shards', { queueLimit: 256 }), set('workers', { instances: 10 })),
       ),
       fx(
-        'cache hit rate 0.9 and 8 workers',
-        all(set('cache', { hitRate: 0.9 }), set('workers', { capacity: 8 })),
+        'the playbook answering 0.9 and 10 product engineers',
+        all(set('cache', { hitRate: 0.9 }), set('workers', { instances: 10 })),
       ),
-      fx('cache capacity 128, over budget', set('cache', { capacity: 128 })),
+      fx(
+        'account managers juggling 3 and 10 product engineers, over budget',
+        all(set('shards', { shardCapacity: 3 }), set('workers', { instances: 10 })),
+      ),
+      fx(
+        'bigger support pods and 10 product engineers, over budget',
+        all(
+          set('api1', { capacity: 5 }),
+          set('api2', { capacity: 5 }),
+          set('workers', { instances: 10 }),
+        ),
+      ),
+      fx('the playbook juggling 128, over budget', set('cache', { capacity: 128 })),
     ],
     exploits: [
       ...aroundEveryBrief(),
-      fx('a queue of 100 shedding jobs', set('queue', { queueLimit: 100 })),
+      fx('a backlog of 100 that drops the rest', set('queue', { queueLimit: 100 })),
       fx(
-        'shards 3 deep and a queue of 100',
-        all(set('shards', { shardCapacity: 3 }), set('queue', { queueLimit: 100 })),
+        'a playbook of 1 and a backlog of 100',
+        all(
+          between('cache', 'shards', 'cache', { capacity: 1 }),
+          set('queue', { queueLimit: 100 }),
+        ),
       ),
-      fx('a queue of 100,000', set('queue', { queueLimit: 100_000 })),
-      fx('CDN hit rate 0.9', set('cdn', { hitRate: 0.9 })),
+      fx('a backlog of 100,000', set('queue', { queueLimit: 100_000 })),
+      fx('help center answering 0.9', set('cdn', { hitRate: 0.9 })),
       fx(
-        'APIs straight to the workers',
+        'support pods straight to the product engineers',
         all(remove('queue'), connect('api1', 'workers'), connect('api2', 'workers')),
       ),
-      fx('APIs no longer send jobs', all(cut('api1', 'queue'), cut('api2', 'queue'))),
+      fx(
+        'support pods no longer log feature asks',
+        all(cut('api1', 'queue'), cut('api2', 'queue')),
+      ),
     ],
   },
 };
