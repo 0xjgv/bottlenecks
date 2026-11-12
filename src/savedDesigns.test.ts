@@ -22,8 +22,8 @@ import type { Topology } from './sim/types';
  */
 
 const topo = (): Topology => structuredClone(PRESETS[0]!.topology);
-const netflix = (): Topology =>
-  structuredClone(PRESETS.find((p) => p.id === 'netflix')!.topology);
+const seriesA = (): Topology =>
+  structuredClone(PRESETS.find((p) => p.id === 'series-a-saas')!.topology);
 
 beforeEach(() => localStorage.clear());
 
@@ -38,7 +38,7 @@ describe('saving', () => {
   });
 
   it('carries annotations through, since they are half the design', () => {
-    saveDesign('netflix', netflix());
+    saveDesign('series-a-saas', seriesA());
     const back = getDesign(listDesigns()[0]!.id);
     expect(back!.topology.annotations?.length).toBeGreaterThan(0);
   });
@@ -76,10 +76,10 @@ describe('saving', () => {
     // Pressing save twice with the same name means "update this", not
     // "keep two things called the same".
     saveDesign('Draft', topo());
-    saveDesign('Draft', netflix());
+    saveDesign('Draft', seriesA());
     const list = listDesigns();
     expect(list).toHaveLength(1);
-    expect(list[0]!.nodeCount).toBe(netflix().nodes.length);
+    expect(list[0]!.nodeCount).toBe(seriesA().nodes.length);
   });
 
   it('matches an existing name regardless of case', () => {

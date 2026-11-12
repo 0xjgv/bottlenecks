@@ -142,17 +142,17 @@ describe('which route is hurting', () => {
     }
   });
 
-  it('speaks up on stripe once the reporting API is slowed', () => {
-    const t = PRESETS.find((p) => p.id === 'stripe')?.topology;
-    if (!t) throw new Error('no stripe');
+  it('speaks up on series A once solutions engineering is slowed', () => {
+    const t = PRESETS.find((p) => p.id === 'series-a-saas')?.topology;
+    if (!t) throw new Error('no series-a-saas');
     const engine = new Engine(t, 1);
     for (let s = 0; s < 5000; s += 1000 / 60) engine.advance(1000 / 60);
-    engine.injectFailure('reportsvc', 'slow', { factor: 40 });
+    engine.injectFailure('solutions', 'slow', { factor: 40 });
     for (let s = 0; s < 8000; s += 1000 / 60) engine.advance(1000 / 60);
     const label = (id: string) => t.nodes.find((n) => n.id === id)?.label ?? id;
     const text = routeSentence(engine.routes(), label);
     expect(text).toMatch(
-      /^Dashboard Readers: 100% failing, mostly [a-z ]+\. Merchant API Calls: [\d.]+% failing\.$/,
+      /^Sales deals: 100% failing, mostly [a-z ]+\. Customer requests: [\d.]+% failing\.$/,
     );
   });
 });

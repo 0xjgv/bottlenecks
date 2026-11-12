@@ -69,7 +69,7 @@ function chart(): Element | null {
 
 describe('the per-route chart', () => {
   it('draws one series per client, the hurting one in the danger colour', () => {
-    show(preset('stripe'), 'reportsvc');
+    show(preset('series-a-saas'), 'solutions');
     const c = chart();
     if (!c) throw new Error('no route chart');
     const paths = [...c.querySelectorAll('path.mx-line')];
@@ -79,12 +79,12 @@ describe('the per-route chart', () => {
     ]);
     expect(paths.every((p) => (p.getAttribute('d') ?? '').startsWith('M'))).toBe(true);
     const legend = [...c.querySelectorAll('.mx-key-route')].map((li) => li.textContent);
-    expect(legend[0]).toMatch(/^Merchant API Calls\d/);
-    expect(legend[1]).toBe('Dashboard Readers100%');
+    expect(legend[0]).toMatch(/^Customer requests\d/);
+    expect(legend[1]).toBe('Sales deals100%');
   });
 
   it('switches to p99, with a gap where a route has nothing succeeding', () => {
-    show(preset('stripe'), 'reportsvc');
+    show(preset('series-a-saas'), 'solutions');
     const c = chart();
     if (!c) throw new Error('no route chart');
     const p99 = [...c.querySelectorAll('button')].find((b) => b.textContent === 'p99');
@@ -92,8 +92,8 @@ describe('the per-route chart', () => {
     act(() => p99.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     expect(p99.getAttribute('aria-pressed')).toBe('true');
     const legend = [...c.querySelectorAll('.mx-key-route')].map((li) => li.textContent);
-    expect(legend[1]).toBe('Dashboard Readersnone');
-    // Dashboards had a p99 before the fault and none after: the line stops
+    expect(legend[1]).toBe('Sales dealsnone');
+    // Sales deals had a p99 before the fault and none after: the line stops
     // where the readings stop rather than dropping to zero.
     const d = c.querySelectorAll('path.mx-line')[1]?.getAttribute('d') ?? '';
     const ys = [...d.matchAll(/[ML][\d.]+,([\d.]+)/g)].map((m) => Number(m[1]));

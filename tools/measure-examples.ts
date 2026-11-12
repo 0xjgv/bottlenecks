@@ -8,7 +8,8 @@
  * Uses the growth forecast's runner (src/learn/growth.ts): a fixed seed, a
  * 5 week warm-up, then 20 counted weeks. Per example and multiple it prints
  * work finished per week, the slowest 1 in 100 cycle time, the share of
- * work dropped, and the busiest step by utilisation.
+ * work dropped, the busiest step by utilisation, and what "Find the
+ * problem" says about the final snapshot (verdict kind and step).
  */
 import { forecastGrowth } from '../src/learn/growth.ts';
 import { PRESETS } from '../src/sim/presets.ts';
@@ -22,7 +23,7 @@ const pad = (s: string, n: number) => s.padEnd(n);
 const lpad = (s: string, n: number) => s.padStart(n);
 
 console.log(
-  `${pad('example', 22)}${lpad('x', 4)}${lpad('in/wk', 9)}${lpad('done/wk', 9)}${lpad('p99', 9)}${lpad('dropped', 9)}  busiest`,
+  `${pad('example', 22)}${lpad('x', 4)}${lpad('in/wk', 9)}${lpad('done/wk', 9)}${lpad('p99', 9)}${lpad('dropped', 9)}  ${pad('busiest', 24)}find the problem`,
 );
 for (const p of PRESETS) {
   if (!p.id.includes(filter)) continue;
@@ -31,8 +32,10 @@ for (const p of PRESETS) {
     const busy = s.busiest
       ? `${s.busiest.nodeId} ${(s.busiest.utilization * 100).toFixed(0)}%`
       : '-';
+    const v = s.verdict;
+    const found = v.kind === 'idle' ? 'idle' : `${v.kind} ${v.nodeId ?? '-'}`;
     console.log(
-      `${pad(p.id, 22)}${lpad(`${s.multiple}`, 4)}${lpad(s.offeredPerWeek.toFixed(1), 9)}${lpad(s.deliveredPerWeek.toFixed(1), 9)}${lpad(formatMs(s.p99Ms), 9)}${lpad(`${(s.droppedShare * 100).toFixed(1)}%`, 9)}  ${busy}`,
+      `${pad(p.id, 22)}${lpad(`${s.multiple}`, 4)}${lpad(s.offeredPerWeek.toFixed(1), 9)}${lpad(s.deliveredPerWeek.toFixed(1), 9)}${lpad(formatMs(s.p99Ms), 9)}${lpad(`${(s.droppedShare * 100).toFixed(1)}%`, 9)}  ${pad(busy, 24)}${found}`,
     );
   }
 }

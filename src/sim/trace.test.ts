@@ -40,7 +40,7 @@ describe('request tracer', () => {
   });
 
   it('orders hops by depth, the way the request walked them', () => {
-    const { trace } = traceOf('netflix');
+    const { trace } = traceOf('series-a-saas');
     const depths = trace!.hops.map((h) => h.depth);
     expect([...depths].sort((a, b) => a - b)).toEqual(depths);
   });
@@ -106,7 +106,12 @@ describe('request tracer', () => {
   });
 
   it('never reports a negative duration', () => {
-    for (const id of ['single-server', 'netflix', 'discord', 'stripe']) {
+    for (const id of [
+      'single-server',
+      'series-a-saas',
+      'seed-saas',
+      'marketplace-ops',
+    ]) {
       for (const m of [1, 4]) {
         const { trace } = traceOf(id, m);
         if (!trace) continue;
@@ -120,9 +125,9 @@ describe('request tracer', () => {
   });
 
   it('names only nodes that exist in the topology', () => {
-    const preset = PRESETS.find((p) => p.id === 'netflix')!;
+    const preset = PRESETS.find((p) => p.id === 'series-a-saas')!;
     const ids = new Set(preset.topology.nodes.map((n) => n.id));
-    const { trace } = traceOf('netflix');
+    const { trace } = traceOf('series-a-saas');
     for (const h of trace!.hops) expect(ids.has(h.nodeId), h.nodeId).toBe(true);
   });
 

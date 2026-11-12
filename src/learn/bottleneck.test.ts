@@ -77,18 +77,18 @@ describe('findBottleneck', () => {
     expect(wrong).toEqual([]);
   }, 60_000);
 
-  it('names the database as the constraint in the single server example at 270 a week', () => {
-    const run = runFor(scaled(preset('single-server'), 5.4), 10);
-    const db = idOf(run.topology, 'Database');
+  it('names the database as the constraint in the founder example at 3x', () => {
+    const run = runFor(scaled(preset('single-server'), 3), 10);
+    const db = idOf(run.topology, 'Founder sign-off');
     expect(problemAt(run)).toBe(db);
     const s = run.snapshot.nodes[db];
     expect(run.verdict.text).toContain(
-      'Database is the constraint: all 6 task slots busy',
+      'Founder sign-off is the constraint: all 2 task slots busy',
     );
     // The backlog in the sentence is the snapshot's own number.
     expect(run.verdict.text).toContain(`${formatCount(s?.queued)} tasks waiting`);
     expect(run.verdict.text).toMatch(
-      /API Server is not the problem; it is stuck behind it, with \d+ tasks blocked waiting on it\./,
+      /Engineers is not the problem; it is stuck behind it, with \d+ tasks blocked waiting on it\./,
     );
     // A Goal-style next step closes the verdict.
     expect(run.verdict.text).toMatch(/Protect its time: .+\.$/);
@@ -96,26 +96,26 @@ describe('findBottleneck', () => {
 
   it('names the workers, not the queue, when async jobs pile up', () => {
     const run = runFor(scaled(preset('async-workers'), 3), 6);
-    expect(problemAt(run)).toBe(idOf(run.topology, 'Workers'));
+    expect(problemAt(run)).toBe(idOf(run.topology, 'Ticket crew'));
     expect(run.verdict.text).toMatch(
-      /^Workers is the constraint: all 10 task slots taken, \d+ in progress and \d+ blocked waiting on others, [\d,]+ tasks waiting in Message Queue\./,
+      /^Ticket crew is the constraint: all 8 task slots taken, \d+ in progress and \d+ blocked waiting on others, [\d,]+ tasks waiting in Ticket backlog\./,
     );
     // Its slots are full only with held ones counted, so the sentence splits
-    // them the way the box does rather than calling all ten busy.
-    const s = run.snapshot.nodes[idOf(run.topology, 'Workers')];
+    // them the way the box does rather than calling all eight busy.
+    const s = run.snapshot.nodes[idOf(run.topology, 'Ticket crew')];
     expect(run.verdict.text).toContain(
       `${formatCount(s?.inFlight)} in progress and ${formatCount(s?.waitingOnDownstream)} blocked waiting on others`,
     );
     expect(run.verdict.text).toMatch(
-      /Message Queue takes in \d+ a week but only \d+ a week get done, so the backlog keeps growing\. Protect its time: /,
+      /Ticket backlog takes in \d+ a week but only \d+ a week get done, so the backlog keeps growing\. Protect its time: /,
     );
   });
 
   it('blames the database, not the caller giving up on it, in a retry storm', () => {
     const run = runFor(scaled(preset('retry-storm'), 2), 10);
-    expect(problemAt(run)).toBe(idOf(run.topology, 'Database'));
+    expect(problemAt(run)).toBe(idOf(run.topology, 'Support engineer'));
     expect(run.verdict.text).toMatch(
-      /API Server is giving up on it, \d+ items a week\./,
+      /Account managers is giving up on it, \d+ items a week\./,
     );
   });
 
@@ -123,40 +123,40 @@ describe('findBottleneck', () => {
     const run = runFor(scaled(preset('rate-limited-api'), 3), 10);
     expect(run.verdict.kind).toBe('on-purpose');
     expect(run.verdict.text).toMatch(
-      /^Nothing is full\. Rate Limiter is turning away \d+ items a week on purpose/,
+      /^Nothing is full\. Sprint intake limit is turning away \d+ items a week on purpose/,
     );
   });
 
   it('names an injected fault first, with what it caused', () => {
     const slowed = runFor(preset('single-server'), 8, {
       at: 3,
-      label: 'Database',
+      label: 'Founder sign-off',
       kind: 'slow',
       opts: { factor: 5 },
     });
-    expect(problemAt(slowed)).toBe(idOf(slowed.topology, 'Database'));
+    expect(problemAt(slowed)).toBe(idOf(slowed.topology, 'Founder sign-off'));
     expect(slowed.verdict.text).toMatch(
       /^Database: you slowed it 5x\. Now it is the constraint: all 6 task slots busy/,
     );
 
     const crashed = runFor(preset('single-server'), 6, {
       at: 3,
-      label: 'Database',
+      label: 'Founder sign-off',
       kind: 'crash',
     });
     expect(crashed.verdict.text).toBe(
-      'Database: you took the whole team out, so nothing sent to it gets done.',
+      'Founder sign-off: you took the whole team out, so nothing sent to it gets done.',
     );
   });
 
   it('says a team with one person out sick is coping when it is', () => {
     const run = runFor(preset('load-balanced'), 8, {
       at: 3,
-      label: 'API 1',
+      label: 'Pod 1',
       kind: 'crash-instance',
     });
     expect(run.verdict.text).toBe(
-      'API 1: you sent one of its people home sick, and it is keeping up for now.',
+      'Pod 1: you sent one of its people home sick, and it is keeping up for now.',
     );
   });
 
@@ -164,7 +164,7 @@ describe('findBottleneck', () => {
     const run = runFor(preset('single-server'), 10);
     expect(run.verdict.kind).toBe('healthy');
     expect(run.verdict.text).toMatch(
-      /^Nothing is piling up right now\. The busiest step is Database at \d+%; if work grows, it is the likely constraint\.$/,
+      /^Nothing is piling up right now\. The busiest step is Founder sign-off at \d+%; if work grows, it is the likely constraint\.$/,
     );
   });
 

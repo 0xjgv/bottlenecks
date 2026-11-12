@@ -126,7 +126,7 @@ describe('break it: shrink', () => {
     ['single-server', { metric: 'errorRate', max: 1 }],
     ['cache-aside', { metric: 'errorRate', max: 1 }],
     ['full-stack', { metric: 'p99', max: 300 }],
-    ['stripe', { metric: 'errorRate', max: 1, route: 'dashboards' }],
+    ['series-a-saas', { metric: 'errorRate', max: 1, route: 'sales' }],
   ] as const) {
     it(`leaves ${id} with no smaller break one step away`, () => {
       const t = preset(id);
@@ -237,7 +237,7 @@ describe('break it: verdicts', () => {
 
   it('reports already broken when the fault-free run misses', () => {
     const r = runSearch(
-      preset('stripe'),
+      preset('series-a-saas'),
       { metric: 'errorRate', max: 1 },
       DEFAULT_OPTIONS,
     );
@@ -372,9 +372,9 @@ describe('break it: goals', () => {
       'up',
       'fast',
     ]);
-    const stripe = breakGoals(preset('stripe')).map((g) => g.id);
-    expect(stripe).toContain('up:dashboards');
-    expect(stripe).toContain('fast:merchants');
+    const seriesA = breakGoals(preset('series-a-saas')).map((g) => g.id);
+    expect(seriesA).toContain('up:sales');
+    expect(seriesA).toContain('fast:customers');
   });
 
   it('offers lost writes and lost jobs only where they can happen', () => {
@@ -388,7 +388,7 @@ describe('break it: goals', () => {
 
   it('sets the default above a design that already sits near the line', () => {
     const goal: Goal = { metric: 'errorRate', max: 1 };
-    const worst = baselineOf(preset('stripe'), goal).worst.actual;
+    const worst = baselineOf(preset('series-a-saas'), goal).worst.actual;
     expect(worst).toBeGreaterThan(1);
     expect(defaultMax(goal, worst)).toBeGreaterThanOrEqual(2 * (worst ?? 0));
     expect(defaultMax(goal, 0.1)).toBe(1);

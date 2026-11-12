@@ -183,7 +183,12 @@ describe('routes', () => {
   });
 
   it('leaves every snapshot byte for byte as it was', () => {
-    for (const id of ['stripe', 'discord', 'uber', 'single-server']) {
+    for (const id of [
+      'series-a-saas',
+      'seed-saas',
+      'marketplace-ops',
+      'single-server',
+    ]) {
       const topology = PRESETS.find((p) => p.id === id)?.topology;
       if (!topology) throw new Error(`no preset ${id}`);
       const plain = new Engine(topology, 1);

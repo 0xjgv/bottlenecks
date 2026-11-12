@@ -9,21 +9,22 @@ import type { Topology } from './types';
 
 /*
  * A goal on one route: "checkout stays up" while something only the other
- * users touch is broken. Stripe has two kinds of user. Merchants pay
- * through the payment service; dashboard readers go through the reporting
- * API, which nothing else calls, so slowing it hurts only them.
+ * users touch is broken. The Series A example has two sources of work.
+ * Customer requests go through product triage; sales deals go through
+ * solutions engineering, which nothing else uses, so slowing it hurts only
+ * them.
  */
 
-function stripe(): Topology {
-  const t = PRESETS.find((p) => p.id === 'stripe')?.topology;
-  if (!t) throw new Error('no stripe preset');
+function seriesA(): Topology {
+  const t = PRESETS.find((p) => p.id === 'series-a-saas')?.topology;
+  if (!t) throw new Error('no series-a-saas preset');
   return {
     ...structuredClone(t),
     faults: [
       {
         atMs: 0,
         action: 'inject',
-        nodeId: 'reportsvc',
+        nodeId: 'solutions',
         kind: 'slow',
         opts: { factor: 40 },
       },
@@ -37,8 +38,8 @@ function challenge(goals: Goal[]): Challenge {
     version: 1,
     name: 'Keep payments up',
     brief: 'Reporting is slow. Payments must stay up.',
-    presetId: 'stripe',
-    loadRps: 220,
+    presetId: 'series-a-saas',
+    loadRps: 36,
     goals,
     warmupS: 5,
     windowS: 10,
@@ -48,7 +49,7 @@ function challenge(goals: Goal[]): Challenge {
 }
 
 function run(goals: Goal[]) {
-  const play = playRun(challenge(goals), stripe(), 1);
+  const play = playRun(challenge(goals), seriesA(), 1);
   for (;;) {
     const step = play.next();
     if (step.done) return step.value;
@@ -58,25 +59,25 @@ function run(goals: Goal[]) {
 describe('a goal on one route', () => {
   it('judges only that client’s requests', () => {
     const r = run([
-      { metric: 'errorRate', max: 6, route: 'merchants' },
-      { metric: 'errorRate', max: 1, route: 'dashboards' },
+      { metric: 'errorRate', max: 6, route: 'customers' },
+      { metric: 'errorRate', max: 1, route: 'sales' },
       { metric: 'errorRate', max: 100 },
     ]);
-    const [merchants, dashboards, all] = r.goals;
-    expect(merchants.met).toBe(true);
-    expect(merchants.actual).toBeLessThan(6);
-    expect(dashboards.met).toBe(false);
-    expect(dashboards.actual).toBeGreaterThan(50);
+    const [customers, sales, all] = r.goals;
+    expect(customers.met).toBe(true);
+    expect(customers.actual).toBeLessThan(6);
+    expect(sales.met).toBe(false);
+    expect(sales.actual).toBeGreaterThan(50);
     // The whole-system figure sits between the two, which is the point.
-    expect(all.actual).toBeGreaterThan(merchants.actual ?? 0);
-    expect(all.actual).toBeLessThan(dashboards.actual ?? 0);
+    expect(all.actual).toBeGreaterThan(customers.actual ?? 0);
+    expect(all.actual).toBeLessThan(sales.actual ?? 0);
     expect(r.outcome).toBe('goal-missed');
   });
 
   it('passes a brief that only asks for the healthy route', () => {
     const r = run([
-      { metric: 'errorRate', max: 6, route: 'merchants' },
-      { metric: 'p99', max: 2000, route: 'merchants' },
+      { metric: 'errorRate', max: 6, route: 'customers' },
+      { metric: 'p99', max: 2000, route: 'customers' },
     ]);
     expect(r.goals.every((g) => g.met)).toBe(true);
     expect(r.outcome).toBe('passed');
@@ -89,12 +90,12 @@ describe('a goal on one route', () => {
   });
 
   it('reads the route live, as the panel shows it', () => {
-    const engine = new Engine(stripe(), 1);
+    const engine = new Engine(seriesA(), 1);
     for (let t = 0; t < 8000; t += 1000 / 60) engine.advance(1000 / 60);
     const live = evaluate(
       challenge([
-        { metric: 'errorRate', max: 6, route: 'merchants' },
-        { metric: 'errorRate', max: 1, route: 'dashboards' },
+        { metric: 'errorRate', max: 6, route: 'customers' },
+        { metric: 'errorRate', max: 1, route: 'sales' },
       ]),
       engine.snapshot(),
       engine.routes(),
@@ -104,7 +105,7 @@ describe('a goal on one route', () => {
     expect(live.goals[1].actual).toBeGreaterThan(50);
     // Without route readings there is nothing to judge a route goal on.
     const blind = evaluate(
-      challenge([{ metric: 'errorRate', max: 100, route: 'merchants' }]),
+      challenge([{ metric: 'errorRate', max: 100, route: 'customers' }]),
       engine.snapshot(),
     );
     expect(blind.goals[0].met).toBe(false);

@@ -130,13 +130,13 @@ describe('stored progress', () => {
 
   it('round-trips', () => {
     let saved = '';
-    saveExplored(new Set(['single-server', 'uber']), {
+    saveExplored(new Set(['single-server', 'seed-saas']), {
       setItem: (k, v) => {
         expect(k).toBe(PATH_KEY);
         saved = v;
       },
     });
-    expect([...loadExplored(store(saved))]).toEqual(['single-server', 'uber']);
+    expect([...loadExplored(store(saved))]).toEqual(['single-server', 'seed-saas']);
   });
 
   it('drops ids that are not examples', () => {

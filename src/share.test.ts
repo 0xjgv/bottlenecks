@@ -84,7 +84,10 @@ const ANNOTATED: Topology = {
   ],
 };
 
-const NETFLIX = PRESETS.find((p) => p.id === 'netflix')!.topology;
+/** The example with the most nodes: the design people paste that is hardest to fit. */
+const LARGEST = PRESETS.reduce((a, b) =>
+  b.topology.nodes.length > a.topology.nodes.length ? b : a,
+).topology;
 
 /** The production origin; what a copied link actually starts with. */
 const ORIGIN = 'https://breakscale.vercel.app/';
@@ -234,14 +237,14 @@ describe('round trip, compressed', () => {
   });
 
   it('is a fraction of the raw JSON it carries', async () => {
-    const hash = await encodeTopology(NETFLIX);
-    const raw = JSON.stringify(NETFLIX).length;
+    const hash = await encodeTopology(LARGEST);
+    const raw = JSON.stringify(LARGEST).length;
     expect(hash.length).toBeLessThan(raw / 6);
   });
 
   it('is deterministic: the same design gives the same link', async () => {
-    expect(await encodeTopology(NETFLIX)).toBe(
-      await encodeTopology(structuredClone(NETFLIX)),
+    expect(await encodeTopology(LARGEST)).toBe(
+      await encodeTopology(structuredClone(LARGEST)),
     );
   });
 });
@@ -257,22 +260,22 @@ describe('round trip, uncompressed fallback', () => {
   });
 
   it('produces a longer payload than the compressed one, as expected', async () => {
-    const packed = await encodeTopology(NETFLIX);
+    const packed = await encodeTopology(LARGEST);
     suppressCompression();
-    const plain = await encodeTopology(NETFLIX);
+    const plain = await encodeTopology(LARGEST);
     expect(plain.length).toBeGreaterThan(packed.length);
   });
 
   it('reads an uncompressed link on a machine that CAN compress', async () => {
     suppressCompression();
-    const hash = await encodeTopology(NETFLIX);
+    const hash = await encodeTopology(LARGEST);
     restoreCompression();
     const out = await decodeTopology(hash);
     expect(out.status).toBe('ok');
   });
 
   it('reports a compressed link it cannot inflate instead of showing nothing', async () => {
-    const hash = await encodeTopology(NETFLIX);
+    const hash = await encodeTopology(LARGEST);
     suppressCompression();
     const out = await decodeTopology(hash);
     expect(out.status).toBe('invalid');
@@ -300,7 +303,7 @@ describe('shape of the encoded link', () => {
   });
 
   it('uses no character that is hostile in a URL', async () => {
-    const hash = await encodeTopology(NETFLIX);
+    const hash = await encodeTopology(LARGEST);
     expect(hash.slice(SHARE_VERSION.length + 1)).toMatch(/^[A-Za-z0-9\-_]+$/);
   });
 
@@ -339,8 +342,8 @@ describe('size', () => {
     const nodes = [];
     const edges = [];
     for (let k = 0; k < 40; k++) {
-      for (const n of NETFLIX.nodes) nodes.push({ ...n, id: `${k}-${n.id}` });
-      for (const e of NETFLIX.edges) {
+      for (const n of LARGEST.nodes) nodes.push({ ...n, id: `${k}-${n.id}` });
+      for (const e of LARGEST.edges) {
         edges.push({
           ...e,
           id: `${k}-${e.id}`,
@@ -382,13 +385,13 @@ describe('size', () => {
 
 describe('older links', () => {
   it('opens a generation-2 link exactly as that generation wrote it', async () => {
-    const out = await decodeTopology(await legacyDeflatedLink(NETFLIX));
+    const out = await decodeTopology(await legacyDeflatedLink(LARGEST));
     expect(out.status).toBe('ok');
     if (out.status !== 'ok') return;
     // Generation 2 carried ids, so these come back verbatim.
-    expect(out.topology.nodes).toEqual(NETFLIX.nodes);
-    expect(out.topology.edges).toEqual(NETFLIX.edges);
-    expect(out.topology.annotations).toEqual(NETFLIX.annotations);
+    expect(out.topology.nodes).toEqual(LARGEST.nodes);
+    expect(out.topology.edges).toEqual(LARGEST.edges);
+    expect(out.topology.annotations).toEqual(LARGEST.annotations);
   });
 
   it('restores the defaults a generation-2 link stripped', async () => {
@@ -446,7 +449,7 @@ describe('hostile input', () => {
   });
 
   it('rejects a truncated hash', async () => {
-    const hash = await encodeTopology(NETFLIX);
+    const hash = await encodeTopology(LARGEST);
     // Cut at several points, including inside the base64 and right after
     // the prefix, because a link is mangled wherever the chat app that
     // carried it decided the URL ended.

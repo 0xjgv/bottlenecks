@@ -139,9 +139,9 @@ describe('verify: held', () => {
   });
 
   it('stops at the simulated-time limit, the same way every time', () => {
-    const goal: VerifyGoal = { metric: 'p99', max: 300 };
-    const a = verify(preset('netflix'), goal, { maxSimSeconds: 200, budget: 50 });
-    const b = verify(preset('netflix'), goal, { maxSimSeconds: 200, budget: 50 });
+    const goal: VerifyGoal = { metric: 'p99', max: 100_000 };
+    const a = verify(preset('seed-saas'), goal, { maxSimSeconds: 200, budget: 50 });
+    const b = verify(preset('seed-saas'), goal, { maxSimSeconds: 200, budget: 50 });
     expect(b).toEqual(a);
     expect(a.status).toBe('held');
     if (a.status !== 'held') return;
@@ -155,7 +155,7 @@ describe('verify: held', () => {
   it("counts one fault's share of the budget as the budget, not as nothing left", () => {
     // One fault gets 40% of the budget: 4 of 10, with far more singles to draw.
     const v = verify(
-      preset('netflix'),
+      preset('seed-saas'),
       { metric: 'p99', max: 100_000 },
       { maxFaults: 1, budget: 10 },
     );
@@ -237,7 +237,7 @@ describe('verify: invalid requests', () => {
   });
 
   it('accepts a route that is a client', () => {
-    const t2 = preset('netflix');
+    const t2 = preset('seed-saas');
     const client = t2.nodes.find((n) => n.kind === 'client');
     if (!client) throw new Error('no client');
     expect(

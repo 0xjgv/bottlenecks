@@ -103,7 +103,7 @@ export function makeNode(
 /* ------------------------------------------------------------------ *
  * 1. Founder approves everything (single-server)
  *    Time: 25ms is one working hour, 200ms one day, 1000ms one week.
- *    api (engineers): 4 people x 4 tasks / 200ms = 80 a week of their own
+ *    api (engineers): 4 people x 4 tasks / 100ms = 160 a week of their own
  *             work. Each task is also held while it waits for sign-off,
  *             so the 16 slots are sized to outlast the founder's line.
  *    db (founder):    1 person x 2 at once / 50ms = 40 a week <- bottleneck
@@ -116,7 +116,7 @@ const singleServer: Topology = {
     node('api', 'service', 'Engineers', 340, 200, {
       capacity: 4,
       instances: 4,
-      serviceMs: 200,
+      serviceMs: 100,
       serviceCv: 0.6,
       queueLimit: 48,
     }),
@@ -133,7 +133,7 @@ const singleServer: Topology = {
       'ss-note-db',
       40,
       320,
-      'Four engineers, one founder who signs off on everything. The founder clears about 40 a week; the engineers could ship twice that. Drag the load past 2x and the wait builds at the founder while engineers sit blocked on finished work. Hiring engineers will not move it.',
+      'Four engineers, one founder who signs off on everything. The founder clears about 40 a week; the engineers could ship four times that. Drag the load past 2x and the wait builds at the founder while engineers sit blocked on finished work. Hiring engineers will not move it.',
       340,
     ),
   ],
@@ -142,7 +142,7 @@ const singleServer: Topology = {
 /* ------------------------------------------------------------------ *
  * 2. More engineers, one reviewer (load-balanced)
  *    lb (tech lead): hands out work, effectively free.
- *    3 pods: 3 x (2 people x 3 tasks / 100ms) = 180 a week of their own
+ *    3 pods: 3 x (2 people x 4 tasks / 75ms) = 320 a week of their own
  *            work, plus slots for the wait on review.
  *    db (reviewer):  1 person x 2 reviews / 25ms = 80 a week on paper,
  *            less measured because reviews of the same code collide
@@ -155,23 +155,23 @@ const loadBalanced: Topology = {
     node('client', 'client', 'Roadmap tasks', 40, 220, { rps: 40, timeoutMs: 4000 }),
     node('lb', 'lb', 'Tech lead', 260, 220, { capacity: 512, serviceMs: 0.5 }),
     node('api1', 'service', 'Pod 1', 500, 80, {
-      capacity: 3,
+      capacity: 4,
       instances: 2,
-      serviceMs: 100,
+      serviceMs: 75,
       serviceCv: 0.6,
       queueLimit: 24,
     }),
     node('api2', 'service', 'Pod 2', 500, 220, {
-      capacity: 3,
+      capacity: 4,
       instances: 2,
-      serviceMs: 100,
+      serviceMs: 75,
       serviceCv: 0.6,
       queueLimit: 24,
     }),
     node('api3', 'service', 'Pod 3', 500, 360, {
-      capacity: 3,
+      capacity: 4,
       instances: 2,
-      serviceMs: 100,
+      serviceMs: 75,
       serviceCv: 0.6,
       queueLimit: 24,
     }),
@@ -585,20 +585,20 @@ const shardedDatabase: Topology = {
 /* ------------------------------------------------------------------ *
  * 11. Hiring lags demand (autoscaling-service)
  *     api (delivery team): 3 people x 2 projects, each held for 100ms of
- *     work plus a short tooling call -> ~55 a week, against 40 offered.
- *     The hiring plan aims at 70% busy: 40 x 100 / 6000 = 67% at 1x.
+ *     work plus a short tooling call -> ~55 a week, against 32 offered.
+ *     The hiring plan aims at 70% busy: 32 x 100 / 6000 = 53% at 1x.
  *     Raise the load and capacity does not follow: the plan waits out 4
  *     weeks of cooldown, decides, and each new hire takes 6 more weeks to
  *     ramp up. Work is dropped in that gap. Letting people go is
  *     instant, which is why the way down looks nothing like the way up.
- *     max 6 people -> ~110 a week, so 3x (120) outruns the plan however
- *     patient it is.
+ *     max 5 people -> ~95 a week, so 3x (96) outruns the plan however
+ *     patient it is: about 1 in 10 dropped, measured.
  * ------------------------------------------------------------------ */
 
 const autoscalingService: Topology = {
   nodes: [
     node('client', 'client', 'Customer projects', COL(0), ROW(1), {
-      rps: 40,
+      rps: 32,
       timeoutMs: 3000,
     }),
     node('api', 'service', 'Delivery team', COL(1), ROW(1), {
@@ -619,9 +619,9 @@ const autoscalingService: Topology = {
     // that carries no work.
     node('scaler', 'autoscaler', 'Hiring plan', COL(1), ROW(2), {
       targetUtil: 0.7,
-      // In people: never fewer than 2, never more than 6.
-      minCapacity: 2,
-      maxCapacity: 6,
+      // In people: never fewer than 3, never more than 5.
+      minCapacity: 3,
+      maxCapacity: 5,
       cooldownMs: 4000,
       scaleStepPct: 0.5,
       warmupMs: 6000,
@@ -714,7 +714,7 @@ const multiRegion: Topology = {
  *     300 customer asks a week, and here is where they go:
  *       help center  answers 7 in 10 -> ~90 a week reach the support lead
  *       support lead -> 2 pods, ~45 a week each
- *       pods         2 x (2 people x 4 tickets), each held for 1h plus the
+ *       pods         2 x (2 people x 6 tickets), each held for 1h plus the
  *                    playbook and account manager -> never the constraint
  *       playbook     answers 6 in 10 -> ~36 a week reach account managers
  *       account mgrs 4 x 2 at once / 50ms -> 160 a week, 40 each
@@ -744,14 +744,14 @@ const fullStack: Topology = {
       serviceMs: 0.5,
     }),
     node('api1', 'service', 'Support pod A', COL(3), ROW(0), {
-      capacity: 4,
+      capacity: 6,
       instances: 2,
       serviceMs: 25,
       serviceCv: 0.5,
       queueLimit: 64,
     }),
     node('api2', 'service', 'Support pod B', COL(3), ROW(2), {
-      capacity: 4,
+      capacity: 6,
       instances: 2,
       serviceMs: 25,
       serviceCv: 0.5,
