@@ -578,7 +578,7 @@ describe('determinism', () => {
  * ------------------------------------------------------------------ */
 
 describe('hostile bytes', () => {
-  const sample = PRESETS.find((p) => p.id === 'discord')?.topology as Topology;
+  const sample = PRESETS.find((p) => p.id === 'series-a-saas')?.topology as Topology;
   const good = packTopology(sample);
 
   it('returns null for every truncation', () => {

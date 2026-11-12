@@ -136,7 +136,7 @@ describe('findBottleneck', () => {
     });
     expect(problemAt(slowed)).toBe(idOf(slowed.topology, 'Founder sign-off'));
     expect(slowed.verdict.text).toMatch(
-      /^Database: you slowed it 5x\. Now it is the constraint: all 6 task slots busy/,
+      /^Founder sign-off: you slowed it 5x\. Now it is the constraint: all 2 task slots busy/,
     );
 
     const crashed = runFor(preset('single-server'), 6, {

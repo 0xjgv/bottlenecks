@@ -81,18 +81,18 @@ describe('verify: broken', () => {
     expect(v.status).toBe('broken');
     if (v.status !== 'broken') return;
     expect(v.schedule).toEqual([
-      { kind: 'slow', target: 'db', factor: 5, atMs: 10_000, forMs: 5000 },
+      { kind: 'slow', target: 'api', factor: 10, atMs: 10_000, forMs: 10_000 },
     ]);
     expect(v.minimal).toBe(true);
     expect(v.faults).toEqual([
       {
         atMs: 10_000,
         action: 'inject',
-        nodeId: 'db',
+        nodeId: 'api',
         kind: 'slow',
-        opts: { factor: 5 },
+        opts: { factor: 10 },
       },
-      { atMs: 15_000, action: 'clear', nodeId: 'db' },
+      { atMs: 20_000, action: 'clear', nodeId: 'api' },
     ]);
     expect(v.measured.actual).toBeGreaterThan(UP.max * 1.1);
     expect(v.withoutFaults.actual).toBeLessThanOrEqual(UP.max);
@@ -165,7 +165,7 @@ describe('verify: held', () => {
   it('runs out of budget when the budget is what ends it', () => {
     const v = verify(
       preset('async-workers'),
-      { metric: 'errorRate', max: 5 },
+      { metric: 'errorRate', max: 50 },
       { budget: 20 },
     );
     expect(v.status === 'held' && v.stoppedBy).toBe('budget');

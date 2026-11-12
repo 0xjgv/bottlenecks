@@ -198,7 +198,7 @@ describe('link loss: none', () => {
    * Re-recorded with them when the presets were retuned for blocking calls.
    */
   const GOLDEN: Record<string, string> = {
-    'single-server': '61c9f76aeeba790481367c96699341c3aef403912f50cf9bf8ec0b1f28a1f2cf',
+    'single-server': '73e495019673522c24be8e337ee413cb23d0c400586b58d43cd2908bd5e775af',
     'circuit-breaker':
       'd364a0f12b3b16571533b675abbab4ffe9dda2998657989b459e04220c6576bf',
     'multi-region': '21bebc5f745e4fc93768becb01b7317626c82207eb40b0b686425d19def7379a',

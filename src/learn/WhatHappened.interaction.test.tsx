@@ -102,7 +102,7 @@ describe('What just happened', () => {
       const first = p?.querySelector('.wh-line');
       expect(first?.querySelector('.wh-at')?.textContent).toBe('2.0wk');
       expect(first?.querySelector('.wh-text')?.textContent).toBe(
-        'Database slowed down 5x.',
+        'Founder sign-off slowed down 5x.',
       );
 
       const close = container.querySelector('.wh-close');
@@ -136,7 +136,9 @@ describe('What just happened', () => {
     expect(panel()).not.toBeNull();
     // The same node, so it was registered before it had anything to say.
     expect(container.querySelector('[role="status"]')).toBe(live);
-    expect(live?.textContent).toBe('What just happened: Database slowed down 5x.');
+    expect(live?.textContent).toBe(
+      'What just happened: Founder sign-off slowed down 5x.',
+    );
     // Closed, it has nothing more to say until something new goes wrong.
     const close = container.querySelector('.wh-close');
     if (!close) throw new Error('no close');
@@ -157,7 +159,7 @@ describe('What just happened', () => {
       p.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     });
     expect(panel()).toBeNull();
-    // The line forming behind the slow database is news.
+    // The line forming behind the slow founder is news.
     play(engine, 6);
     expect(panel()).not.toBeNull();
   });

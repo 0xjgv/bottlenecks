@@ -286,13 +286,13 @@ describe('fault controls on a selected node', () => {
       b.getAttribute('aria-label'),
     );
     expect(names).toEqual([
-      'Break handoff from API Server',
-      'Break handoff to Payments API',
+      'Break handoff from Marketing team',
+      'Break handoff to Design agency',
     ]);
 
-    press(button('Break handoff to Payments API'));
+    press(button('Break handoff to Design agency'));
     expect(engine.activeCuts()).toEqual(['breaker->payments']);
-    expect(button('Restore to Payments API')).toBeTruthy();
+    expect(button('Restore to Design agency')).toBeTruthy();
   });
 
   it('Reset replays what was pressed at the moment it was pressed', () => {
@@ -313,7 +313,7 @@ describe('fault controls on a selected cable', () => {
     const { engine } = mount();
     press(hit('edge', 'breaker->payments'));
     expect(container.querySelector('.ins-empty-hint')?.textContent).toBe(
-      'Circuit Breaker to Payments API. Press Delete to remove it.',
+      'Stop-the-line rule to Design agency. Press Delete to remove it.',
     );
     expect(status()).toBe('Working.');
 
@@ -347,7 +347,7 @@ describe('fault controls on a selected cable', () => {
     act(() => root.render(<Harness engine={made.engine} topology={made.topology} />));
     press(hit('edge', 'breaker->payments'));
     expect(status()).toBe(
-      'Broken because Payments API is cut off from everyone. Fix Payments API to reconnect it.',
+      'Broken because Design agency is cut off from everyone. Fix Design agency to reconnect it.',
     );
     const restore = button('Restore');
     expect(restore.getAttribute('aria-disabled')).toBe('true');

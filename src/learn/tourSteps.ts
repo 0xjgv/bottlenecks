@@ -6,6 +6,7 @@ import { formatMs, formatPct, healthOfLatency } from '../components/format';
 import {
   FULL,
   findBottleneck,
+  mostlyWaiting,
   readParts,
   slotsOf,
   stateClause,
@@ -23,14 +24,26 @@ import {
 export const TOUR_KEY = 'bottlenecks.tour.v1';
 /** The session key App writes; its presence means this is not a first visit. */
 const SESSION_KEY = 'bottlenecks.session.v1';
-/** The load step 1 asks for. The first example runs out near 200 a week. */
-export const TOUR_RPS = 300;
+/**
+ * The load step 1 asks for. The first example's founder clears about 40 a
+ * week with 2 slots: 70 fills them, 3 slots (60 a week) still fall behind,
+ * and 4 (80 a week) fix it.
+ */
+export const TOUR_RPS = 70;
+/**
+ * How long a part must stay the full constraint before step 2 names it. In the
+ * first second of a surge the engineers fill before the founder they wait on.
+ */
+const HOLD_MS = 1000;
 /** System error rate a fixed design must be back under. */
 const RECOVERED_ERRORS = 0.01;
 
 export type TourStage =
-  /** Step 1: raise the load. */
-  | { kind: 'load' }
+  /**
+   * Step 1: raise the load. `candidate` is the part that has looked like the
+   * constraint since `sinceMs`, sim time.
+   */
+  | { kind: 'load'; candidate?: string; sinceMs?: number }
   /** Step 2: a part filled up. `slots` is its total when it did. */
   | { kind: 'broken'; nodeId: string; slots: number }
   /**
@@ -122,11 +135,19 @@ export function nextStage(
   switch (stage.kind) {
     case 'load': {
       const v = findBottleneck(topology, snapshot);
-      if (v.kind !== 'problem') return stage;
       // Turning work away starts a moment before the busy share catches up;
       // wait for it, so step 2 can say every slot is taken and be right.
-      const at = readingOf(topology, snapshot, v.nodeId);
-      if (!at || at.r.fill < FULL) return stage;
+      // A step whose slots are mostly blocked waiting on others fills first
+      // and is not the constraint; wait for the step it waits on.
+      const at = v.kind === 'problem' ? readingOf(topology, snapshot, v.nodeId) : null;
+      if (v.kind !== 'problem' || !at || at.r.fill < FULL || mostlyWaiting(at.r)) {
+        return stage.candidate === undefined ? stage : { kind: 'load' };
+      }
+      const now = snapshot.system.timeMs;
+      if (stage.candidate !== v.nodeId) {
+        return { kind: 'load', candidate: v.nodeId, sinceMs: now };
+      }
+      if (now - (stage.sinceMs ?? now) < HOLD_MS) return stage;
       return {
         kind: 'broken',
         nodeId: v.nodeId,
@@ -141,8 +162,9 @@ export function nextStage(
       if (now > (stage.raisedTo ?? stage.slots)) {
         return { ...stage, raisedAtMs: snapshot.system.timeMs, raisedTo: now };
       }
+      // "Has room again" must be true: no line, and not every slot taken.
       const at = readingOf(topology, snapshot, stage.nodeId);
-      if (!at || at.r.struggling) return stage;
+      if (!at || at.r.struggling || at.r.fill >= FULL) return stage;
       if (!recovered(snapshot)) return stage;
       return { kind: 'fixed', nodeId: stage.nodeId };
     }
@@ -153,13 +175,15 @@ export function nextStage(
 
 /**
  * Users would notice it is fixed: almost nothing failing, and p99 back out of
- * the warning band the top bar colours it with. p99 trails the fix by a few
- * seconds while the line drains, which is worth watching, so step 3 waits.
+ * the danger band the top bar colours it with. Not the warning band: the
+ * first example's healthy cycle time is already over a day. p99 trails the
+ * fix by a few seconds while the line drains, which is worth watching, so
+ * step 3 waits.
  */
 export function recovered(snapshot: SimSnapshot): boolean {
   return (
     snapshot.system.errorRate < RECOVERED_ERRORS &&
-    healthOfLatency(p99OrNull(snapshot)) === 'ok'
+    healthOfLatency(p99OrNull(snapshot)) !== 'danger'
   );
 }
 

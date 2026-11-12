@@ -108,11 +108,11 @@ describe('fault schedule: no faults', () => {
    * matched).
    */
   const GOLDEN: Record<string, string> = {
-    'single-server': '61c9f76aeeba790481367c96699341c3aef403912f50cf9bf8ec0b1f28a1f2cf',
+    'single-server': '73e495019673522c24be8e337ee413cb23d0c400586b58d43cd2908bd5e775af',
     'circuit-breaker':
       'd364a0f12b3b16571533b675abbab4ffe9dda2998657989b459e04220c6576bf',
     'autoscaling-service':
-      '405e0ba30c6a05f911250d040ec7615ce82e186371de19aba07c40bc0d7a0dca',
+      '854e3fec6ae352920cca646830b56b3eaf39a9d6b9b6261fdb03b488a9e33c1a',
     'event-driven': '6d0fb5fce6e0a75b96198d7383b7010a985d30a9541d6cdf0582898c3ee4ed85',
     'multi-region': '21bebc5f745e4fc93768becb01b7317626c82207eb40b0b686425d19def7379a',
   };
@@ -188,8 +188,11 @@ describe('fault schedule: each action', () => {
   });
 
   it('inject errors fails the given share of requests at the node', () => {
+    // The share is read over one week, so send enough work for it to settle.
+    const busy = preset('single-server');
+    for (const n of busy.nodes) if (n.kind === 'client') n.config.rps = 60;
     const { snap } = at(
-      withFaults(preset('single-server'), [
+      withFaults(busy, [
         {
           atMs: 500,
           action: 'inject',
@@ -202,7 +205,9 @@ describe('fault schedule: each action', () => {
     );
     expect(snap.activeFailures[0]).toMatchObject({ kind: 'errors', rate: 0.5 });
     expect(snap.nodes.api.errorRate).toBeGreaterThan(0.35);
-    expect(snap.nodes.api.errorRate).toBeLessThan(0.65);
+    expect(snap.nodes.api.errorRate, String(snap.nodes.api.errorRate)).toBeLessThan(
+      0.65,
+    );
   });
 
   it('inject partition cuts the named edges only', () => {

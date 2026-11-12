@@ -145,17 +145,17 @@ describe('break it: shrink', () => {
     }, 60_000);
   }
 
-  it('shrinks single-server down from slow 20x for good to slow 5x for 5s', () => {
+  it('shrinks single-server down from slow 20x for good to slow 10x for 10s', () => {
     const r = runSearch(
       preset('single-server'),
       { metric: 'errorRate', max: 1 },
       DEFAULT_OPTIONS,
     );
     expect(r.status === 'broke' && r.found).toEqual([
-      { kind: 'slow', target: 'db', factor: 20, atMs: 10_000, forMs: null },
+      { kind: 'slow', target: 'api', factor: 20, atMs: 10_000, forMs: null },
     ]);
     expect(r.status === 'broke' && r.attacks).toEqual([
-      { kind: 'slow', target: 'db', factor: 5, atMs: 10_000, forMs: 5000 },
+      { kind: 'slow', target: 'api', factor: 10, atMs: 10_000, forMs: 10_000 },
     ]);
   });
 });
@@ -262,8 +262,11 @@ describe('break it: single points of failure', () => {
   });
 
   it('only slows them by default', () => {
+    // A team of several people may still lose one of them; never the whole step.
     for (const target of breakTargets(t, goal, DEFAULT_OPTIONS)) {
-      expect(target.kinds).toEqual(['slow']);
+      expect(target.kinds).toContain('slow');
+      expect(target.kinds).not.toContain('crash');
+      expect(target.kinds).not.toContain('errors');
     }
     const r = runSearch(t, goal, DEFAULT_OPTIONS);
     expect(r.status === 'broke' && r.attacks.every((a) => a.kind === 'slow')).toBe(
@@ -284,7 +287,7 @@ describe('break it: remembered breaks', () => {
   const t = preset('single-server');
   const goal: Goal = { metric: 'errorRate', max: 1 };
   const old: Attack[] = [
-    { kind: 'slow', target: 'db', factor: 5, atMs: 10_000, forMs: 5000 },
+    { kind: 'slow', target: 'db', factor: 3, atMs: 10_000, forMs: 10_000 },
   ];
 
   it('tries a remembered break first, and stops there if it still breaks', () => {

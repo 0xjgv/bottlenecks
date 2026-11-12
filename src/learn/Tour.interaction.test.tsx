@@ -120,17 +120,17 @@ describe('the first-visit tour', () => {
 
   it('sets the load it asks for through the real slider path', () => {
     mount();
-    expect(slider()?.getAttribute('aria-valuetext')).toBe('50 items per week');
-    press(button('Set it to 300 a week'), 'touch');
-    expect(slider()?.getAttribute('aria-valuetext')).toBe('300 items per week');
+    expect(slider()?.getAttribute('aria-valuetext')).toBe('20 items per week');
+    press(button('Set it to 70 a week'), 'touch');
+    expect(slider()?.getAttribute('aria-valuetext')).toBe('70 items per week');
     // Undo takes it back, so the tour's change is an ordinary one.
     press(button('Undo'));
-    expect(slider()?.getAttribute('aria-valuetext')).toBe('50 items per week');
+    expect(slider()?.getAttribute('aria-valuetext')).toBe('20 items per week');
   });
 
   it('walks load, break, fix and done on the running engine', () => {
     mount();
-    press(button('Set it to 300 a week'), 'touch');
+    press(button('Set it to 70 a week'), 'touch');
     const title = () => document.getElementById('tour-title')?.textContent;
     for (let i = 0; i < 100 && title() !== 'You found the constraint'; i += 1) {
       act(() => {
@@ -139,7 +139,7 @@ describe('the first-visit tour', () => {
     }
     expect(title()).toBe('You found the constraint');
     expect(card()?.textContent).toMatch(
-      /Database is the constraint: all 6 task slots busy/,
+      /Founder sign-off is the constraint: all 2 task slots busy/,
     );
     // Turned-away requests do not wait, so the sentence only says every
     // request waits when none is being turned away.
@@ -159,7 +159,7 @@ describe('the first-visit tour', () => {
         HTMLInputElement.prototype,
         'value',
       )?.set;
-      set?.call(input, '12');
+      set?.call(input, '4');
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
     for (let i = 0; i < 300 && title() !== 'Fixed'; i += 1) {
@@ -205,9 +205,9 @@ describe('the first-visit tour', () => {
     press(button('Menu'));
     press(button('Examples'));
     const lb = [...document.querySelectorAll<HTMLElement>('button')].find((b) =>
-      b.textContent?.includes('Load balanced'),
+      b.textContent?.includes('More engineers, one reviewer'),
     );
-    if (!lb) throw new Error('no Load balanced card');
+    if (!lb) throw new Error('no More engineers, one reviewer card');
     press(lb);
     act(() => {
       vi.advanceTimersByTime(400);
@@ -235,10 +235,10 @@ describe('the load slider from the keyboard', () => {
     key('ArrowLeft');
     seen.push(s.getAttribute('aria-valuetext') ?? '');
     expect(seen).toEqual([
-      '55 items per week',
-      '60 items per week',
-      '65 items per week',
-      '60 items per week',
+      '25 items per week',
+      '30 items per week',
+      '35 items per week',
+      '30 items per week',
     ]);
   });
 });

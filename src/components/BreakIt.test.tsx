@@ -84,12 +84,13 @@ const names: Names = {
 };
 const goal: Goal = { metric: 'errorRate', max: 1 };
 const broke = runSearch(t, goal, DEFAULT_OPTIONS);
+// One engineer of four out sick leaves the founder the constraint: it holds.
 const held = runSearch(
   t,
   { metric: 'errorRate', max: 100 },
   {
     ...DEFAULT_OPTIONS,
-    kinds: ['slow'],
+    kinds: ['crash-instance'],
     maxFaults: 1,
     budget: 3,
   },
@@ -154,7 +155,7 @@ describe('BreakPanel', () => {
     expect(text).toContain('Keep work getting done');
     expect(text).toContain('Stay fast');
     expect(text).toContain(
-      'All work from Client has to pass through API Server, Database and the handoff from API Server to Database.',
+      'All work from Feature requests has to pass through Engineers, Founder sign-off and the handoff from Engineers to Founder sign-off.',
     );
     expect(container.querySelector('fieldset legend')?.textContent).toBe(
       'What has to hold',
@@ -224,7 +225,7 @@ describe('BreakPanel', () => {
     expect(container.querySelector('.brk-now')?.getAttribute('aria-hidden')).toBe(
       'true',
     );
-    expect(container.textContent).toContain('Now: slow Database 20x');
+    expect(container.textContent).toContain('Now: slow Founder sign-off 20x');
     const section = container.querySelector('section');
     act(() => {
       section?.dispatchEvent(
@@ -263,7 +264,7 @@ describe('BreakPanel', () => {
     expect(heading?.textContent).toBe('Broke it.');
     expect(document.activeElement).toBe(heading);
     const text = container.textContent ?? '';
-    expect(text).toContain('Slow Database 5x at week 10 for 5wk.');
+    expect(text).toContain('Slow Engineers 10x at week 10 for 10wk.');
     expect(text).toContain('of work items failed');
     expect(text).toContain('The goal was 1% or less.');
     const byText = (s: string) =>
@@ -283,7 +284,7 @@ describe('BreakPanel', () => {
     );
     press(fix as Element);
     expect(search.remember).toHaveBeenCalledWith(broke.attacks);
-    expect(container.textContent).toContain('Broke at: Slow Database 5x');
+    expect(container.textContent).toContain('Broke at: Slow Engineers 10x');
     expect(container.textContent).toContain('Run again');
   });
 
@@ -356,7 +357,7 @@ describe('break copy', () => {
       ),
     ).toMatch(/Work started to pile up\.$/);
     expect(lines[0]).toBe(
-      "Take out Database at week 10 for 2.5d and break the handoff from API Server to Database at week 10, then make 50% of API Server's work bounce back at week 12 for 2wk, then send one person from API Server home sick at week 15.",
+      "Take out Founder sign-off at week 10 for 2.5d and break the handoff from Engineers to Founder sign-off at week 10, then make 50% of Engineers's work bounce back at week 12 for 2wk, then send one person from Engineers home sick at week 15.",
     );
   });
 });

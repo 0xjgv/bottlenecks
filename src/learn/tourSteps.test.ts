@@ -55,27 +55,27 @@ class Run {
   }
 }
 
-describe('the tour on Single server', () => {
+describe('the tour on Founder approves everything', () => {
   it('waits at the starting load', () => {
     const run = new Run();
     expect(run.until('broken', 30)).toBeNull();
     expect(run.stage).toEqual({ kind: 'load' });
   });
 
-  it('breaks at the load it asks for, naming the database with every slot taken', () => {
+  it('breaks at the load it asks for, naming the founder with every slot taken', () => {
     const run = new Run();
     run.until('broken', 3);
     run.set('client', { rps: TOUR_RPS });
     expect(run.until('broken', 5)).not.toBeNull();
-    expect(run.stage).toEqual({ kind: 'broken', nodeId: 'db', slots: 6 });
+    expect(run.stage).toEqual({ kind: 'broken', nodeId: 'db', slots: 2 });
     expect(tourSpotlight(run.stage)).toBe('db');
     const text = brokenText(run.topology, run.engine.snapshot(), 'db');
     expect(text).toMatch(
-      /^Database is the constraint: all 6 task slots busy, \d+ tasks waiting/,
+      /^Founder sign-off is the constraint: all 2 task slots busy, \d+ tasks waiting/,
     );
   });
 
-  it('moves to the fix only once the database is selected', () => {
+  it('moves to the fix only once the founder is selected', () => {
     const run = new Run();
     run.set('client', { rps: TOUR_RPS });
     run.until('broken', 5);
@@ -84,24 +84,25 @@ describe('the tour on Single server', () => {
     expect(run.until('fix', 1)).not.toBeNull();
   });
 
-  it('is fixed by 12 slots once p99 is back, and not by 8', () => {
+  it('is fixed by 4 slots once p99 is back, and not by 3', () => {
     const run = new Run();
     run.set('client', { rps: TOUR_RPS });
     run.until('broken', 5);
     run.selected = 'db';
     run.until('fix', 1);
-    run.set('db', { capacity: 8 });
+    run.set('db', { capacity: 3 });
     expect(run.until('fixed', 15)).toBeNull();
-    expect(run.stage).toMatchObject({ kind: 'fix', raisedTo: 8 });
-    run.set('db', { capacity: 12 });
+    expect(run.stage).toMatchObject({ kind: 'fix', raisedTo: 3 });
+    run.set('db', { capacity: 4 });
     const took = run.until('fixed', 15);
     expect(took).not.toBeNull();
     const s = run.engine.snapshot();
     expect(s.system.errorRate).toBeLessThan(0.01);
-    expect(s.system.p99).toBeLessThan(200);
+    // Out of the danger band: under a week.
+    expect(s.system.p99).toBeLessThan(1000);
     expect(tourSpotlight(run.stage)).toBeNull();
     expect(fixedText(run.topology, s, 'db')).toMatch(
-      /^Database has room again: \d+% busy with 12 task slots\.$/,
+      /^Founder sign-off has room again: \d+% busy with 4 task slots\.$/,
     );
   });
 });

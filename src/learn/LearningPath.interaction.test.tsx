@@ -134,7 +134,9 @@ describe('the learning path', () => {
   it('opens from the menu with focus on the step to do next', () => {
     mount();
     const d = openPath();
-    expect(document.activeElement?.textContent).toBe('Open Single server');
+    expect(document.activeElement?.textContent).toBe(
+      'Open Founder approves everything',
+    );
     expect(d.querySelector('.ex-sub')?.textContent).toBe(
       'Every example and challenge in an order that builds up, from finding one constraint to keeping work flowing through a whole company. You have done 0 of 36.',
     );
@@ -147,7 +149,7 @@ describe('the learning path', () => {
     mount();
     expect(canvasIds()).toEqual(['mine-client', 'mine-svc']);
     const d = openPath();
-    press(must('Load balanced', d));
+    press(must('More engineers, one reviewer', d));
     advance(400);
     const lb = PRESETS.find((p) => p.id === 'load-balanced')!;
     expect(canvasIds()).toEqual(lb.topology.nodes.map((n) => n.id));
@@ -183,12 +185,14 @@ describe('the learning path', () => {
     mount();
     const d = openPath();
     const first = d.querySelector('section.lp-track')!;
-    expect(first.querySelector('.lp-track-count')?.textContent).toBe('2 of 4 done');
+    expect(first.querySelector('.lp-track-count')?.textContent).toBe('2 of 5 done');
     const statuses = [...first.querySelectorAll('.lp-status')].map(
       (s) => s.textContent,
     );
-    expect(statuses).toEqual(['Done', 'Up next', 'Done', '']);
-    expect(document.activeElement?.textContent).toBe('Open Load balanced');
+    expect(statuses).toEqual(['Done', 'Up next', 'Done', '', '']);
+    expect(document.activeElement?.textContent).toBe(
+      'Open More engineers, one reviewer',
+    );
   });
 
   it('closes on Escape and gives focus back to the menu button', () => {
@@ -223,7 +227,7 @@ describe('the learning path', () => {
     localStorage.clear();
     mount();
     const d = openPath();
-    press(must('Back to Single server', d));
+    press(must('Back to Founder approves everything', d));
     advance(400);
     expect(dialog()).toBeNull();
     expect(document.querySelector('.app-toast')).toBeNull();
@@ -232,7 +236,7 @@ describe('the learning path', () => {
   it('works with a finger', () => {
     mount();
     const d = openPath();
-    press(must('Open Single server', d), 'touch');
+    press(must('Open Founder approves everything', d), 'touch');
     advance(400);
     const single = PRESETS.find((p) => p.id === 'single-server')!;
     expect(canvasIds()).toEqual(single.topology.nodes.map((n) => n.id));

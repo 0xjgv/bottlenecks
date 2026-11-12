@@ -81,7 +81,7 @@ function snapAt(r: Run, ms: number): SimSnapshot {
   return s;
 }
 
-describe('timeline: Single server, Database slowed 5x', () => {
+describe('timeline: Founder approves everything, founder slowed 5x', () => {
   const top = preset('single-server');
   const db = idOf(top, 'db');
   const r = run(top, 20, (e, _t, ms) => {
@@ -91,28 +91,30 @@ describe('timeline: Single server, Database slowed 5x', () => {
 
   it('tells the story in order, cause first', () => {
     const order = [
-      'Database slowed down 5x.',
-      'Database: all 6 task slots busy',
-      'Database started turning away',
-      'Database is back to normal.',
-      'Database is keeping up again.',
+      'Founder sign-off slowed down 5x.',
+      'Founder sign-off: all 2 task slots busy',
+      'Engineers started turning away',
+      'Founder sign-off is back to normal.',
+      'Founder sign-off is keeping up again.',
     ].map((s) => r.lines.indexOf(line(r.lines, s)));
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(r.lines[0]?.text).toBe('Database slowed down 5x.');
+    expect(r.lines[0]?.text).toBe('Founder sign-off slowed down 5x.');
     expect(r.lines[0]?.tone).toBe('cause');
   });
 
   it("stamps the fault with the engine's own injection time", () => {
-    const fault = line(r.lines, 'Database slowed down 5x.');
+    const fault = line(r.lines, 'Founder sign-off slowed down 5x.');
     const snap = snapAt(r, 3000);
     expect(snap.activeFailures[0]?.sinceMs).toBe(fault.atMs);
   });
 
   it('carries the numbers of the snapshot at the time it names', () => {
-    const full = line(r.lines, 'Database: all 6 task slots busy');
+    const full = line(r.lines, 'Founder sign-off: all 2 task slots busy');
     const snap = snapAt(r, full.atMs);
     const queued = snap.nodes[db]?.queued ?? -1;
-    expect(full.text).toBe(`Database: all 6 task slots busy, ${queued} tasks waiting.`);
+    expect(full.text).toBe(
+      `Founder sign-off: all 2 task slots busy, ${queued} tasks waiting.`,
+    );
 
     const errs = r.lines.find((e) => e.text.endsWith('of work started failing.'));
     expect(errs).toBeDefined();
@@ -123,8 +125,8 @@ describe('timeline: Single server, Database slowed 5x', () => {
   });
 
   it('holds a condition for a second before it is a line', () => {
-    const full = line(r.lines, 'Database: all 6 task slots busy');
-    const fault = line(r.lines, 'Database slowed down 5x.');
+    const full = line(r.lines, 'Founder sign-off: all 2 task slots busy');
+    const fault = line(r.lines, 'Founder sign-off slowed down 5x.');
     expect(full.atMs - fault.atMs).toBeGreaterThanOrEqual(1000);
   });
 
@@ -147,31 +149,31 @@ describe('timeline: what the student changed', () => {
   it('makes a slider drag one line, and a fix its own line', () => {
     const r = run(top, 25, (_e, t, ms) => {
       // A drag: five values in half a second.
-      if (ms >= 2000 && ms <= 2400) return withLoad(t, 50 + ((ms - 1900) / 500) * 220);
+      if (ms >= 2000 && ms <= 2400) return withLoad(t, 20 + ((ms - 1900) / 500) * 40);
       if (ms === 12000) {
         return {
           ...t,
           nodes: t.nodes.map((n) =>
-            n.id === db ? { ...n, config: { ...n.config, capacity: 12 } } : n,
+            n.id === db ? { ...n, config: { ...n.config, capacity: 4 } } : n,
           ),
         };
       }
     });
     const loads = r.lines.filter((e) => e.text.startsWith('You raised incoming work'));
     expect(loads.map((e) => e.text)).toEqual([
-      'You raised incoming work from 50 to 270 a week.',
+      'You raised incoming work from 20 to 60 a week.',
     ]);
     expect(loads[0]?.atMs).toBe(2000);
-    line(r.lines, "You changed Database's tasks per person from 6 to 12.");
-    const fixed = line(r.lines, 'Database is keeping up again.');
+    line(r.lines, "You changed Founder sign-off's tasks per person from 2 to 4.");
+    const fixed = line(r.lines, 'Founder sign-off is keeping up again.');
     expect(fixed.atMs).toBeGreaterThan(12000);
     expect(r.lines.at(-1)?.tone).toBe('better');
   });
 
   it('drops a change that was put back', () => {
     const r = run(top, 4, (_e, t, ms) => {
-      if (ms === 1000) return withLoad(t, 60);
-      if (ms === 1500) return withLoad(t, 50);
+      if (ms === 1000) return withLoad(t, 30);
+      if (ms === 1500) return withLoad(t, 20);
     });
     expect(r.lines).toEqual([]);
   });

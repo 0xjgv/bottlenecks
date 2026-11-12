@@ -135,14 +135,14 @@ describe('Find the problem', () => {
     selected = [];
   });
 
-  it('rings the database and says why, then Escape clears both', () => {
+  it('rings the founder and says why, then Escape clears both', () => {
     const run = loaded('single-server', 5.4, 10);
     act(() => root.render(<Harness {...run} />));
     expect(ring()).toBeNull();
 
     press(button('Find the problem'));
     expect(status()?.textContent).toMatch(
-      /^Database is the constraint: all 6 task slots busy, \d+ tasks waiting/,
+      /^Founder sign-off is the constraint: all 2 task slots busy, \d+ tasks waiting/,
     );
     expect(ring()).not.toBeNull();
     expect(ring()?.textContent).toBe('Here');
