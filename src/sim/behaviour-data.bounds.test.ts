@@ -6,7 +6,7 @@ import type { NodeStats, Topology } from './types';
 /*
  * `shardCount`, `replicaCount` and `shardCapacity` size the structures the
  * data components keep on `state.ext`, and they reach the engine from places
- * that are not the inspector: a shared link, a `.breakscale` file and a
+ * that are not the inspector: a shared link, a `.bottlenecks` file and a
  * restored session all carry them through, and `isTopology` checks the nine
  * core config numbers and none of these three.
  *

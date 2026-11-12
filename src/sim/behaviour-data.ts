@@ -22,7 +22,7 @@ const KEYSPACE = 64;
 /* Fleet ceilings, each the maximum the inspector already offers for the
  * field, so nothing a reader can build is affected by them. They exist for
  * the designs a reader cannot build: `isTopology` checks the nine core
- * config numbers and none of these, so a shared link, a `.breakscale` file
+ * config numbers and none of these, so a shared link, a `.bottlenecks` file
  * and a restored session all carry whatever they say straight to the
  * structures below, which are sized from it. */
 const MAX_SHARDS = 64;

@@ -324,7 +324,7 @@ describe('opening something else from inside a brief', () => {
   it('leaves the brief for an imported file', async () => {
     mount();
     startChallenge(hold.name);
-    const file = new File([buildDesignFile(ownDesign(), 'Mine')], 'mine.breakscale', {
+    const file = new File([buildDesignFile(ownDesign(), 'Mine')], 'mine.bottlenecks', {
       type: 'application/json',
     });
     const input = document.querySelector<HTMLInputElement>('.app-file-input')!;

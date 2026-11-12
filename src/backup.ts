@@ -78,7 +78,7 @@ export function downloadBackup(now = new Date()): void {
   ].join('-');
   downloadBlob(
     new Blob([buildBackup()], { type: 'application/json' }),
-    `breakscale-${day}${BACKUP_EXT}`,
+    `bottlenecks-${day}${BACKUP_EXT}`,
   );
 }
 
@@ -141,18 +141,18 @@ export function restoreBackup(text: string): BackupResult {
     };
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return { ok: false, error: 'That file does not hold a Breakscale backup.' };
+    return { ok: false, error: 'That file does not hold a Bottlenecks backup.' };
   }
 
   const f = parsed as Partial<BackupFile>;
   if (f.app !== BACKUP_APP) {
-    return { ok: false, error: 'That file does not hold a Breakscale backup.' };
+    return { ok: false, error: 'That file does not hold a Bottlenecks backup.' };
   }
   const version = typeof f.version === 'number' ? f.version : 0;
   if (version > BACKUP_VERSION) {
     return {
       ok: false,
-      error: 'That backup was made by a newer version of Breakscale.',
+      error: 'That backup was made by a newer version of Bottlenecks.',
     };
   }
   if (!f.data || typeof f.data !== 'object') {
