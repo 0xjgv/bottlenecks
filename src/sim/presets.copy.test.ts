@@ -9,10 +9,9 @@ import type { NodeStats, Topology } from './types';
  *
  * Each case pins a claim a preset's notes or description makes to what the
  * engine measures, so a retune that makes the copy wrong fails here instead
- * of teaching a student something false. Every one of these claims was wrong
- * once: the load balanced database was said to top out at 480, the full
- * stack lesson blamed the sharded store for errors the job queue was making,
- * and the Uber breaker was said to trip at 4x when it mostly stays closed.
+ * of teaching a reader something false. Claims like these drifted before:
+ * a ceiling quoted from arithmetic rather than measured, and dropped work
+ * blamed on the wrong team.
  *
  * Bounds are loose on purpose. They separate the true story from the false
  * one, not one decimal from the next.
@@ -68,46 +67,43 @@ function measure(
 }
 
 describe('example copy agrees with the engine', () => {
-  it('load balanced: the database tops out near 430 a second, not 480', () => {
-    expect(noteText('load-balanced', 'lb-note-db')).toContain('near 430');
+  it('more engineers: the reviewer tops out near 80 a week', () => {
+    expect(noteText('load-balanced', 'lb-note-db')).toContain('about 80 a week');
     for (const seed of SEEDS) {
       const db = measure('load-balanced', 4, seed).mean.db;
-      expect(db.throughput, `seed ${seed}`).toBeGreaterThan(400);
-      expect(db.throughput, `seed ${seed}`).toBeLessThan(450);
+      expect(db.throughput, `seed ${seed}`).toBeGreaterThan(70);
+      expect(db.throughput, `seed ${seed}`).toBeLessThan(95);
     }
   });
 
-  it('full stack: at 4x the client errors come from the full job queue', () => {
-    expect(noteText('full-stack', 'fs-note-lesson')).toContain('job queue');
+  it('series A: at 3x the dropped work comes from the full feature backlog', () => {
+    expect(noteText('full-stack', 'fs-note-lesson')).toContain('feature backlog');
     for (const seed of SEEDS) {
-      const m = measure('full-stack', 4, seed).mean;
-      // The queue accounts for nearly all of the client's failures, while the
-      // sharded store, which the old note blamed, turns almost nothing away.
+      const m = measure('full-stack', 3, seed).mean;
+      // The backlog accounts for nearly all of the customers' dropped work,
+      // while the account managers run busy and turn almost nothing away.
       expect(m.queue.shedRate, `seed ${seed}`).toBeGreaterThan(0.9 * m.client.shedRate);
       expect(m.shards.shedRate ?? 0, `seed ${seed}`).toBeLessThan(2);
     }
   });
 
-  it('specialised stores: the vector index caps near 240, cold storage throttles', () => {
-    const vectors = preset('specialised-stores').topology.nodes.find(
-      (n) => n.id === 'vectors',
-    );
-    expect(vectors?.config.capacity).toBe(12);
-    expect(noteText('specialised-stores', 'ss-note-lesson')).not.toContain('sheds');
-    const m = measure('specialised-stores', 4, 1).mean;
-    expect(m.vectors.throughput).toBeGreaterThan(220);
-    expect(m.vectors.throughput).toBeLessThan(260);
-    expect(m.glacier.throttledRate).toBeGreaterThan(5);
+  it('where answers live: the AI assistant fills loudly, the archive quietly', () => {
+    expect(noteText('specialised-stores', 'ss-note-lesson')).toContain('AI assistant');
+    const m = measure('specialised-stores', 3, 1).mean;
+    expect(m.vectors.utilization).toBeGreaterThan(0.95);
+    expect(m['recs-api'].shedRate).toBeGreaterThan(5);
+    expect(m.glacier.throttledRate).toBeGreaterThan(2);
+    expect(m.batch.shedRate ?? 0).toBe(0);
   });
 
-  it('event driven: at 2x the audit log drops messages and the indexer lags', () => {
+  it('launch fan-out: at 3x legal review drops work and the others keep up', () => {
     const text = noteText('event-driven', 'ed-note-fanout');
-    expect(text).toContain('audit log');
-    expect(text).toContain('search indexer');
+    expect(text).toContain('legal review');
+    expect(text).toContain('data team');
     for (const seed of SEEDS) {
-      const m = measure('event-driven', 2, seed).mean;
+      const m = measure('event-driven', 3, seed).mean;
       expect(m.audit.shedRate, `seed ${seed}`).toBeGreaterThan(10);
-      expect(m.broker.consumerLag, `seed ${seed}`).toBeGreaterThan(200);
+      expect(m.broker.consumerLag, `seed ${seed}`).toBeLessThan(50);
       // The three the note says keep up do keep up.
       for (const id of ['billing', 'push', 'metrics']) {
         expect(m[id].shedRate ?? 0, `${id} seed ${seed}`).toBe(0);
@@ -115,40 +111,39 @@ describe('example copy agrees with the engine', () => {
     }
   });
 
-  it('uber: at 4x payments turns riders away and about a third of its calls fail', () => {
-    const p = preset('uber');
-    expect(p.description).not.toContain('without a single rider-facing error');
-    const text = noteText('uber', 'ub-note-pay');
-    expect(text).toContain('about a third');
-    expect(text).toContain('Crash payments');
-    for (const seed of SEEDS) {
-      // Two minutes, long enough to see the rare trips the note admits to.
-      const run = measure('uber', 4, seed, 15, 105);
-      expect(run.mean.payments.shedRate, `seed ${seed}`).toBeGreaterThan(2);
-      const share = run.mean['pay-brk'].breakerErrorRate;
-      expect(share, `seed ${seed}`).toBeGreaterThan(0.2);
-      expect(share, `seed ${seed}`).toBeLessThan(0.4);
-    }
-  }, 60_000);
-
-  it('spotify: three read copies, and the gateway keeps the primary from pinning', () => {
-    const pldb = preset('spotify').topology.nodes.find((n) => n.id === 'pldb');
-    expect(pldb?.config.replicaCount).toBe(3);
-    expect(noteText('spotify', 'sp-note-playlist')).toContain('three read copies');
-    expect(preset('spotify').description).not.toContain('idle');
-    const m = measure('spotify', 4, 1).mean;
-    expect(m.pldb.utilization).toBeLessThan(0.7);
+  it('intake limit: at 3x it ships less but a typical task is far faster', () => {
+    const text = noteText('rate-limited-api', 'rl-note-trade');
+    expect(text).toContain('ships 28 a week');
+    expect(text).toContain('34 a week');
+    const limited = measure('rate-limited-api', 3, 1).mean;
+    expect(limited.api.throughput).toBeGreaterThan(25);
+    expect(limited.api.throughput).toBeLessThan(31);
+    const open = structuredClone(preset('rate-limited-api').topology);
+    const limiter = open.nodes.find((n) => n.id === 'limiter');
+    if (!limiter) throw new Error('no limiter');
+    limiter.config.rateLimitRps = 10_000;
+    limiter.config.burst = 10_000;
+    for (const n of open.nodes) if (n.kind === 'client') n.config.rps *= 3;
+    const engine = new Engine(open, 1);
+    for (let i = 0; i < 60 * 15; i += 1) engine.advance(FRAME);
+    engine.startTally();
+    for (let i = 0; i < 60 * 20; i += 1) engine.advance(FRAME);
+    const tally = engine.readTally();
+    const sorted = [...(tally?.latencies ?? [])].sort((a, b) => a - b);
+    // Without the limit a typical task waits over a week.
+    expect(sorted[Math.floor(sorted.length / 2)]).toBeGreaterThan(1000);
+    expect((tally?.completed ?? 0) / 20).toBeGreaterThan(31);
   });
 
-  it('circuit breaker: after a crash it stays open while payments is down', () => {
+  it('failing agency: after a crash the rule stays open while the agency is down', () => {
     expect(noteText('circuit-breaker', 'cb-note-trip')).toContain(
       'only if they succeed',
     );
     const engine = new Engine(structuredClone(preset('circuit-breaker').topology), 1);
     for (let i = 0; i < 60 * 10; i += 1) engine.advance(FRAME);
     engine.injectFailure('payments', 'crash');
-    for (let i = 0; i < 60 * 4; i += 1) engine.advance(FRAME);
-    // From here the breaker probes every three seconds and the probes fail,
+    for (let i = 0; i < 60 * 6; i += 1) engine.advance(FRAME);
+    // From here the rule tries a few jobs every three weeks and they fail,
     // so it never reports closed again.
     for (let i = 0; i < 60 * 15; i += 1) {
       engine.advance(FRAME);

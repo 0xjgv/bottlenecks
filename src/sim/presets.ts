@@ -311,8 +311,9 @@ const asyncWorkers: Topology = {
  *    api (account managers) chase after 300ms (a day and a half) and
  *    resend up to twice, so once the engineer's line passes a day and a
  *    half every ask arrives three times, onto someone already full.
- *    default 18 a week; stable at 25 (1.5x) on every seed, can tip from 30
- *    (1.7x), and by 40 (2.2x) almost nothing is answered. Measured seeds 1-3.
+ *    default 18 a week. Over 120 weeks on seeds 1, 42, 7 and 2024: 25 a
+ *    week loses nothing on every seed, 27-30 tips on some, and 33 loses
+ *    90-97% on all of them. retryStorm.test.ts pins it.
  * ------------------------------------------------------------------ */
 
 const retryStorm: Topology = {
@@ -339,7 +340,7 @@ const retryStorm: Topology = {
       'rt-note-storm',
       40,
       320,
-      'The support engineer handles about 40 asks a week. Account managers chase after a day and a half without an answer and resend the ask, up to twice. Once the wait passes that, every ask arrives three times, onto someone who was already full. Steady at 25 a week. Past 30 it can tip over, and by 40 almost nothing gets answered.',
+      'The support engineer handles about 40 asks a week. Account managers chase after a day and a half without an answer and resend the ask, up to twice. Once the wait passes that, every ask arrives three times, onto someone who was already full. Steady at 25 a week. From about 30 it can tip over, and by 33 it has, with almost nothing answered.',
       340,
     ),
   ],
@@ -832,7 +833,7 @@ const fullStack: Topology = {
  *                       answers by similarity; its ceiling is the knee.
  *       design team  -> shared drive: slow per lookup, never saturates.
  *       every team   -> metrics tracker: logging a number is cheap.
- *     A separate 2 a week of quarter-end cleanup is archived through a
+ *     A separate 4 a week of quarter-end cleanup is archived through a
  *     backlog: cheap to keep, slow to dig out.
  *
  *     At 3x the two paths fail in character: the AI assistant saturates
@@ -846,7 +847,7 @@ const specialisedStores: Topology = {
       timeoutMs: 3000,
     }),
     node('batch', 'client', 'Quarter-end cleanup', COL(0), LROW(3, 1), {
-      rps: 2,
+      rps: 4,
       timeoutMs: 4000,
     }),
     node('lb', 'lb', 'Ops lead', COL(1), ROW(1), {
@@ -877,7 +878,7 @@ const specialisedStores: Topology = {
       queueLimit: 64,
     }),
     node('archiver', 'worker', 'Archivist', COL(2), LROW(3, 1), {
-      capacity: 16,
+      capacity: 40,
       serviceMs: 50,
       serviceCv: 0.4,
     }),
@@ -937,7 +938,7 @@ const specialisedStores: Topology = {
 /* ------------------------------------------------------------------ *
  * 15. Launch announcement fans out (event-driven)
  *
- *   shipped features 20 a week -> front desk (50 a week limit, 1 in 200
+ *   shipped features 20 a week -> front desk (80 a week limit, 1 in 200
  *     briefs bounced as incomplete)
  *     routes 3:1 -> product team (16 at once / 25ms = 640 a week) ~15
  *                -> contractors (2h warm, +2 days ramp-up when cold) ~5
@@ -962,8 +963,8 @@ const eventDriven: Topology = {
     node('gw', 'apigateway', 'Front desk', 250, 140, {
       capacity: 64,
       serviceMs: 2,
-      rateLimitRps: 50,
-      burst: 50,
+      rateLimitRps: 80,
+      burst: 80,
       authFailRate: 0.005,
     }),
     node('api', 'service', 'Product team', 470, 140, {
@@ -1080,7 +1081,7 @@ const eventDriven: Topology = {
       'ed-note-fanout',
       1160,
       16,
-      'One shipped feature becomes five pieces of work here, each picked up by its own team. Turn the load up to 3x and watch legal review: it runs out of room and work is dropped, while marketing, finance and analytics keep up and the data team falls behind but catches up. Nobody shipping features sees a thing.',
+      'One shipped feature becomes five pieces of work here, each picked up by its own team. Turn the load up to 3x and watch legal review: it runs out of room and work is dropped, while marketing, finance and analytics keep up and the data team runs busy but stays current. Nobody shipping features sees a thing.',
       300,
     ),
     note(

@@ -8,14 +8,14 @@ import type { Topology } from './types';
  *
  * This preset's own copy told the reader to "drag past about 2.4x", and a
  * source comment claimed it was stable to 2x. Neither survived measurement:
- * it is steady at 1.8x and mostly gone by 1.9x. Copy that overstates where a
+ * it is steady at 25 a week and mostly gone by 33. Copy that overstates where a
  * system breaks is worse than no copy, because a student who drags to the
  * stated number and finds a corpse learns the wrong lesson about the
  * mechanism.
  *
  * The failure rate at the knee is deliberately NOT asserted tightly. The
  * onset is stochastic: whether the queue tips over depends on the timing of
- * the first slow batch, so seeds land anywhere from 40% to 95%. That spread
+ * the first slow batch, so seeds at 27 to 30 a week land anywhere from 0% to 84%. That spread
  * is honest behaviour and the copy describes a range because of it.
  */
 
@@ -33,22 +33,22 @@ function failureRate(rps: number, seed: number, seconds = 120): number {
 const SEEDS = [1, 42, 7, 2024];
 
 describe('retry storm collapse', () => {
-  it('is completely stable at 80 rps on every seed', () => {
+  it('is completely stable at 25 a week on every seed', () => {
     for (const seed of SEEDS) {
-      expect(failureRate(80, seed), `seed ${seed}`).toBe(0);
+      expect(failureRate(25, seed), `seed ${seed}`).toBe(0);
     }
   });
 
-  it('has begun collapsing at 85 rps on every seed', () => {
+  it('has collapsed at 33 a week on every seed', () => {
     // The knee. Every seed loses a substantial share; none is still healthy.
     for (const seed of SEEDS) {
-      expect(failureRate(85, seed), `seed ${seed}`).toBeGreaterThan(30);
+      expect(failureRate(33, seed), `seed ${seed}`).toBeGreaterThan(30);
     }
   });
 
-  it('is essentially dead by 90 rps', () => {
+  it('is essentially dead by 40 a week', () => {
     for (const seed of SEEDS) {
-      expect(failureRate(90, seed), `seed ${seed}`).toBeGreaterThan(40);
+      expect(failureRate(40, seed), `seed ${seed}`).toBeGreaterThan(40);
     }
   });
 
@@ -57,7 +57,7 @@ describe('retry storm collapse', () => {
     // reason this file exists.
     const note = preset.topology.annotations?.find((a) => a.id === 'rt-note-storm');
     const text = note && 'text' in note ? (note.text as string) : '';
-    expect(text).toContain('80');
+    expect(text).toContain('25');
     expect(text).not.toContain('2.4x');
   });
 });
