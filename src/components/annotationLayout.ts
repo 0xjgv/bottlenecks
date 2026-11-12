@@ -12,7 +12,7 @@ import type { TextStyle } from './textMetrics';
 import type { AnnotationFont, Note } from '../sim/annotations';
 
 /** Drag payload type for the palette's annotation rows. */
-export const ANN_DND_MIME = 'application/x-breakscale-annotation';
+export const ANN_DND_MIME = 'application/x-bottlenecks-annotation';
 
 /**
  * The text a freshly placed note is born with. Shared by the shell (which

@@ -76,8 +76,9 @@ export const healthOfErr = (e: number | null | undefined): Health => {
 };
 
 /**
- * End-to-end cycle time in engine ms. The slowest items taking over two
- * working days is worth noticing; over a week is trouble.
+ * End-to-end cycle time in engine ms. The slowest items taking four working
+ * days is worth noticing (every example's healthy p99 sits under it); over a
+ * week is trouble.
  */
 export const healthOfLatency = (ms: number | null | undefined): Health => {
   const v = finite(ms);
@@ -85,7 +86,7 @@ export const healthOfLatency = (ms: number | null | undefined): Health => {
     ? 'ok'
     : v >= MS_PER_WEEK
       ? 'danger'
-      : v >= 2 * MS_PER_DAY
+      : v >= 4 * MS_PER_DAY
         ? 'warn'
         : 'ok';
 };

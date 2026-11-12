@@ -1,6 +1,6 @@
 import { Engine } from '../sim/engine';
 import { nearestRank } from '../sim/judge';
-import type { Topology } from '../sim/types';
+import type { SimSnapshot, Topology } from '../sim/types';
 import { findBottleneck, type Verdict } from './bottleneck';
 
 /**
@@ -66,6 +66,13 @@ export function scaled(t: Topology, multiple: number): Topology {
   };
 }
 
+/** Rework abandoned so far, summed over every rework queue's shelf. */
+function shelved(snapshot: SimSnapshot): number {
+  let n = 0;
+  for (const s of Object.values(snapshot.nodes)) n += s.deadLetters ?? 0;
+  return n;
+}
+
 /** Kinds that never do work of their own, so are never the busiest. */
 const NOT_WORK = new Set(['client', 'autoscaler', 'region', 'cron', 'pubsub']);
 
@@ -78,8 +85,12 @@ export function* playMultiple(
   const topology = scaled(t, multiple);
   const engine = new Engine(topology, seed);
   let now = 0;
+  let shelvedAtStart = 0;
   while (now < GROWTH_END_MS) {
-    if (now === GROWTH_WARMUP_MS) engine.startTally();
+    if (now === GROWTH_WARMUP_MS) {
+      engine.startTally();
+      shelvedAtStart = shelved(engine.snapshot());
+    }
     engine.advance(FRAME_MS);
     now += FRAME_MS;
     if (now % 1000 === 0) yield;
@@ -90,6 +101,14 @@ export function* playMultiple(
   const weeks = (GROWTH_END_MS - GROWTH_WARMUP_MS) / 1000;
   const arrived = tally?.arrived ?? 0;
   const sorted = Float64Array.from(tally?.latencies ?? []).sort();
+  // Lost work: what the requester saw fail, plus what was promised and then
+  // lost behind their back (backlog jobs that failed after a yes, deferred
+  // paperwork never filed, and rework abandoned on the dead letter shelf).
+  const lost =
+    (tally?.failed ?? 0) +
+    (tally?.jobsFailed ?? 0) +
+    Math.max(0, (tally?.writesAcked ?? 0) - (tally?.writesLanded ?? 0)) +
+    Math.max(0, shelved(snapshot) - shelvedAtStart);
 
   let busiest: GrowthStep['busiest'] = null;
   for (const node of topology.nodes) {
@@ -104,7 +123,7 @@ export function* playMultiple(
     multiple,
     offeredPerWeek: arrived / weeks,
     deliveredPerWeek: (tally?.completed ?? 0) / weeks,
-    droppedShare: arrived > 0 ? (tally?.failed ?? 0) / arrived : 0,
+    droppedShare: arrived > 0 ? lost / arrived : 0,
     p50Ms: nearestRank(sorted, 0.5),
     p99Ms: nearestRank(sorted, 0.99),
     busiest,
@@ -149,4 +168,21 @@ export function forecastGrowth(
   let r = run.next();
   while (!r.done) r = run.next();
   return r.value;
+}
+
+/**
+ * The step that limits output at one multiple. "Find the problem" is the
+ * authority: when it names a struggling step, or a gate refusing on purpose,
+ * that step is the answer, so the two features never disagree. Only when
+ * nothing is struggling does the busiest step stand in, as the likely next
+ * constraint.
+ */
+export function constraintOf(
+  step: GrowthStep,
+): { nodeId: string; how: 'struggling' | 'refusing' | 'busiest' } | null {
+  if (step.verdict.kind === 'problem')
+    return { nodeId: step.verdict.nodeId, how: 'struggling' };
+  if (step.verdict.kind === 'on-purpose')
+    return { nodeId: step.verdict.nodeId, how: 'refusing' };
+  return step.busiest ? { nodeId: step.busiest.nodeId, how: 'busiest' } : null;
 }

@@ -128,4 +128,4 @@ bun run lint
 bun run format
 ```
 
-bun dev serves on :5174 here, so it can run beside Breakscale.
+bun dev serves on :5174. Commit locally; there is no remote.

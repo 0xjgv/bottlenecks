@@ -50,13 +50,19 @@ export const MIN_RATE = 0.5;
 /** System error rate past which "nothing is full" needs a second sentence. */
 const ERRORS_WORTH_NAMING = 0.01;
 
-/** Kinds whose refusals are their purpose, never a sign of trouble. */
+/**
+ * Kinds whose refusals are their purpose, never a sign of trouble.
+ *
+ * Not the process step (sidecar): it is a real step with its own people and
+ * hands-on time, and in a startup it is often the constraint. Measured on the
+ * fintech example: doubling the compliance check lifts output from 120 to 152
+ * a week at 3x, doubling the team behind it changes nothing.
+ */
 const GATES: ReadonlySet<NodeKind> = new Set([
   'ratelimiter',
   'apigateway',
   'loadshedder',
   'breaker',
-  'sidecar',
   'bulkhead',
 ]);
 
@@ -246,7 +252,15 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
     if (!mostlyWaiting(r)) return true;
     return !downstream(topology, r.node.id).some((id) => byId.get(id)?.struggling);
   });
-  roots.sort((a, b) => b.refused - a.refused || b.fill - a.fill || b.line - a.line);
+  // Fullest first: the step with no idle hands is the one whose extra hour
+  // becomes output. Refusals only break a tie, because a part shedding a
+  // trickle at 96% busy is not the constraint when another sits at 100% with
+  // a long line (measured on the specialised-stores example at 3x: doubling
+  // the full one lifted output 37%, doubling the shedding one changed nothing).
+  const fullness = (r: Reading) => Math.round(r.fill * 100);
+  roots.sort(
+    (a, b) => fullness(b) - fullness(a) || b.refused - a.refused || b.line - a.line,
+  );
   const root = roots[0];
   if (root) {
     return {

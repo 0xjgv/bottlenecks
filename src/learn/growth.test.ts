@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PRESETS } from '../sim/presets';
 import type { Topology } from '../sim/types';
-import { forecastGrowth, scaled } from './growth';
+import { constraintOf, forecastGrowth, scaled } from './growth';
 
 function preset(id: string): Topology {
   const found = PRESETS.find((p) => p.id === id);
@@ -35,5 +35,33 @@ describe('growth forecast', () => {
     const a = forecastGrowth(preset('single-server'), 7, [2]);
     const b = forecastGrowth(preset('single-server'), 7, [2]);
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+  });
+});
+
+describe('the forecast names the step whose extra hour becomes output', () => {
+  // Each pick was checked by doubling candidates at 3x: only doubling the
+  // named step lifted finished work a week.
+  it.each([
+    ['fintech-compliance', 'kyc'],
+    ['specialised-stores', 'vectors'],
+    ['series-a-saas', 'qa'],
+    ['event-driven', 'ws'],
+  ])('%s at 3x: %s', (id, nodeId) => {
+    const [step] = forecastGrowth(preset(id), 1, [3]).steps;
+    if (!step) throw new Error('no step');
+    expect(constraintOf(step)).toEqual({ nodeId, how: 'struggling' });
+  });
+
+  it('calls a limiter refusing work a gate, not a constraint', () => {
+    const [step] = forecastGrowth(preset('rate-limited-api'), 1, [3]).steps;
+    if (!step) throw new Error('no step');
+    expect(constraintOf(step)?.how).toBe('refusing');
+  });
+
+  it('counts rework abandoned on the shelf as lost work', () => {
+    const [step] = forecastGrowth(preset('ai-agency'), 1, [3]).steps;
+    if (!step) throw new Error('no step');
+    expect(step.droppedShare).toBeGreaterThan(0.2);
+    expect(step.broken).toBe(true);
   });
 });

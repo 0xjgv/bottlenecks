@@ -124,7 +124,7 @@ function render(
   );
 }
 
-const urlFor = (kind: ShareKind) => `https://breakscale.tech/?d=${kind}#k`;
+const urlFor = (kind: ShareKind) => `https://bottlenecks.test/?d=${kind}#k`;
 const ok = (kind: ShareKind): Promise<ShareResult> =>
   Promise.resolve({ ok: true, url: urlFor(kind) });
 
