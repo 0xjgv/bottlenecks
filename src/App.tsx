@@ -36,6 +36,7 @@ import type { Verdict } from './sim/judge';
 import { ChallengePanel } from './components/Challenge';
 import { IncidentPanel } from './components/Incidents';
 import { BreakPanel } from './components/BreakIt';
+import { GrowthPanel } from './components/Growth';
 import type { Names } from './components/breakCopy';
 import { secs } from './components/breakCopy';
 import { formatGoalMs, formatGoalPct, formatShareDown } from './components/format';
@@ -885,6 +886,12 @@ export default function App() {
   const [challengesOpen, setChallengesOpen] = useState(false);
   /** "Can you break it?" is open. Only in the reader's own workspace. */
   const [breakOpen, setBreakOpen] = useState(false);
+  /**
+   * The design as it was when the growth forecast opened, or null when it is
+   * shut. The forecast plays this copy, so pressing Play on a row (which
+   * changes the live load) does not restart it with a new "today".
+   */
+  const [growthBase, setGrowthBase] = useState<Topology | null>(null);
   /** The real incident whose panel is open, by id. Only in the reader's own workspace. */
   const [incidentId, setIncidentId] = useState<string | null>(null);
   const [pathOpen, setPathOpen] = useState(false);
@@ -3107,7 +3114,7 @@ export default function App() {
      was when it closes. Hidden, not ended: its first step says to break it
      on purpose, and that is not a reason to lose it. An incident's panel
      takes the same room. */
-  const tourShown = tour.open && !breakShown && !incident;
+  const tourShown = tour.open && !breakShown && !incident && growthBase === null;
   const breakSearch = useBreakSearch(breakShown, topology);
   const breakView = breakSearch.view;
 
@@ -3367,8 +3374,24 @@ export default function App() {
     else {
       setBreakOpen(true);
       setIncidentId(null);
+      setGrowthBase(null);
     }
   }, [breakShown, handleCloseBreak]);
+
+  /* ---------------- what if we grow? ---------------- */
+
+  const growthShown = growthBase !== null && !challenge && !breakShown && !incident;
+  const handleToggleGrowth = useCallback(() => {
+    setGrowthBase((b) => (b ? null : topology));
+  }, [topology]);
+  const handlePlayGrowth = useCallback(
+    (multiple: number) => {
+      if (!growthBase) return;
+      const today = findClients(growthBase).reduce((sum, c) => sum + c.config.rps, 0);
+      handleRpsChange(Math.round(today * multiple));
+    },
+    [growthBase, handleRpsChange],
+  );
   /* ---------------- real incidents ---------------- */
 
   /** Bumped when a card is opened, to move focus to the panel. */
@@ -3947,6 +3970,35 @@ export default function App() {
           {/* Labelled, and in the bar rather than three levels down inside
               Settings. Sending a design to someone is a thing people want
               to do often, and a feature nobody can find has not shipped. */}
+          {challenge ? null : (
+            <button
+              type="button"
+              className="btn app-share-btn"
+              onClick={handleToggleGrowth}
+              disabled={breakBlocked !== null}
+              aria-expanded={growthShown}
+              title={
+                breakBlocked ??
+                'Play this company at 1x to 4x today\u2019s work and see what breaks first'
+              }
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M22 7 13.5 15.5 8.5 10.5 2 17" />
+                <path d="M16 7h6v6" />
+              </svg>
+              <span>What if we grow?</span>
+            </button>
+          )}
           {/* Hidden inside a brief, which owns its faults and its check. */}
           {challenge ? null : (
             <button
@@ -4227,6 +4279,14 @@ export default function App() {
                 focusSignal={incidentFocus}
                 foldOnStart={false}
                 onSheetResize={handleSheetResize}
+              />
+            ) : null}
+            {growthShown && growthBase ? (
+              <GrowthPanel
+                topology={growthBase}
+                nameOf={(id) => nodeNames[id] ?? id}
+                onClose={() => setGrowthBase(null)}
+                onPlay={handlePlayGrowth}
               />
             ) : null}
             {breakShown ? (
