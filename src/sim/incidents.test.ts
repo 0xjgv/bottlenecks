@@ -95,33 +95,19 @@ function errorsAt(rows: Map<number, readonly RouteStats[]>, s: number): number[]
   return (rows.get(s) ?? []).map((r) => Math.round(r.errorRate * 100));
 }
 
-/** A second region for the status console, behind a region router. */
-const secondRegion = (extra: Partial<NodeConfig> = {}): Edit =>
+/** A new component on the connection from `from` to `to`. */
+const between = (
+  from: string,
+  to: string,
+  kind: NodeKind,
+  config: Partial<NodeConfig> = {},
+): Edit =>
   all(
-    add('router', 'region', 450, 450, extra),
-    add('s3b', 'objectstore', 600, 450),
-    unwire('console', 's3'),
-    wire('console', 'router'),
-    wire('router', 's3'),
-    wire('router', 's3b'),
+    add(`new-${kind}`, kind, 600, 450, config),
+    unwire(from, to),
+    wire(from, `new-${kind}`),
+    wire(`new-${kind}`, to),
   );
-
-/** The edge split into `k` groups of `cap` slots, the rule on the first. */
-const groups =
-  (k: number, cap: number): Edit =>
-  (t) => {
-    set('edge', { capacity: cap })(t);
-    for (let g = 2; g <= k; g++) {
-      add(`edge${g}`, 'service', 560, 190 + g * 130, {
-        capacity: cap,
-        serviceMs: 4,
-        serviceCv: 0.4,
-        queueLimit: 256,
-      })(t);
-      wire('router', `edge${g}`)(t);
-      wire(`edge${g}`, 'origin')(t);
-    }
-  };
 
 describe('the set of incidents', () => {
   it('keeps out of the examples and the briefs', () => {
@@ -184,121 +170,131 @@ describe('the set of incidents', () => {
   );
 
   it('shows the caption the clock has reached', () => {
-    const s3 = incident('incident-s3-2017');
-    expect(captionAt(s3, 0)?.atMs).toBe(0);
-    expect(captionAt(s3, 19_999)?.atMs).toBe(0);
-    expect(captionAt(s3, 20_000)?.atMs).toBe(20_000);
-    expect(captionAt(s3, 90_000)?.atMs).toBe(50_000);
+    const launch = incident('incident-launch-week');
+    expect(captionAt(launch, 0)?.atMs).toBe(0);
+    expect(captionAt(launch, 22_499)?.atMs).toBe(0);
+    expect(captionAt(launch, 22_500)?.atMs).toBe(22_500);
+    expect(captionAt(launch, 90_000)?.atMs).toBe(25_000);
   });
 });
 
-describe('S3, 2017', () => {
-  const s3 = incident('incident-s3-2017');
+describe('the launch week', () => {
+  const launch = incident('incident-launch-week');
 
-  it('plays the outage: fine, all down while S3 is, then back', () => {
-    const rows = timeline(s3.scene, 55);
+  it('plays it: fine, customers fail while the launch spikes, then back', () => {
+    // Routes are [customer tickets, launch signups].
+    const rows = timeline(launch.scene, 30);
     expect(errorsAt(rows, 20)).toEqual([0, 0]);
-    for (const s of [25, 30, 40, 50]) expect(errorsAt(rows, s)).toEqual([100, 100]);
-    expect(errorsAt(rows, 55)).toEqual([0, 0]);
+    expect(errorsAt(rows, 25)[0]).toBeGreaterThan(10);
+    expect(errorsAt(rows, 30)).toEqual([0, 0]);
   });
 
   it('fails as it starts', () => {
-    expect(status(s3, () => {})).toBe('goal-missed');
+    expect(status(launch, () => {})).toBe('goal-missed');
   });
 
   it.each([
-    ['a second region behind a router', secondRegion()],
-    ['the same, with the switch set to instant', secondRegion({ failoverMs: 0 })],
-  ])('passes with %s', (_, edit) => {
-    expect(status(s3, edit)).toBe('passed');
-  });
-
-  it.each([
-    ['a bigger S3', set('s3', { capacity: 256 })],
-    ['four S3 instances', set('s3', { instances: 4 })],
-    ['retries on the console', set('console', { retries: 3, timeoutMs: 500 })],
-  ])('fails with %s', (_, edit) => {
-    expect(status(s3, edit)).toBe('goal-missed');
-  });
-
-  it('will not take a cache in front of S3', () => {
-    const v = status(
-      s3,
-      all(
-        add('cache', 'cache', 450, 450, { hitRate: 0.99 }),
-        unwire('console', 's3'),
-        wire('console', 'cache'),
-        wire('cache', 's3'),
-      ),
-    );
-    expect(v).toBe('unjudgeable');
-  });
-});
-
-describe('Cloudflare, 2019', () => {
-  const cf = incident('incident-cloudflare-2019');
-
-  it('plays the outage: fine, all down under the rule, then back', () => {
-    const rows = timeline(cf.scene, 55);
-    expect(errorsAt(rows, 20)).toEqual([0, 0]);
-    for (const s of [25, 35, 45]) expect(errorsAt(rows, s)).toEqual([100, 100]);
-    expect(errorsAt(rows, 55)).toEqual([0, 0]);
-  });
-
-  it('fails as it starts', () => {
-    expect(status(cf, () => {})).toBe('goal-missed');
-  });
-
-  it.each([
-    ['two groups of 12', groups(2, 12)],
-    ['three groups of 8', groups(3, 8)],
-    ['four groups of 6', groups(4, 6)],
-  ])('passes with %s', (_, edit) => {
-    expect(status(cf, edit)).toBe('passed');
-  });
-
-  it.each([
-    ['the edge at 48 slots', set('edge', { capacity: 48 })],
-    ['three instances of 8 in one group', set('edge', { capacity: 8, instances: 3 })],
-    ['a short line on the edge', set('edge', { queueLimit: 4 })],
-    ['retries on the edge', set('edge', { timeoutMs: 100, retries: 2 })],
-  ])('fails with %s', (_, edit) => {
-    expect(status(cf, edit)).toBe('goal-missed');
-  });
-
-  it('will not take more than 24 slots', () => {
-    expect(status(cf, groups(3, 24))).toBe('over-budget');
-  });
-});
-
-describe('AWS, 2021', () => {
-  const aws = incident('incident-aws-2021');
-
-  it('plays the outage: fine, then down long after the slowdown ends', () => {
-    const rows = timeline(aws.scene, 70);
-    expect(errorsAt(rows, 15)).toEqual([0]);
-    for (const s of [20, 40, 70]) expect(errorsAt(rows, s)).toEqual([100]);
-  });
-
-  it('fails as it starts', () => {
-    expect(status(aws, () => {})).toBe('nothing-completed');
-  });
-
-  it.each([
-    ['no retries', set('callers', { retries: 0 })],
-    ['waiting 1000ms', set('callers', { timeoutMs: 1000 })],
-  ])('passes with %s', (_, edit) => {
-    expect(status(aws, edit)).toBe('passed');
-  });
-
-  it.each([
-    ['one retry', set('callers', { retries: 1 })],
-    ['waiting 500ms', set('callers', { timeoutMs: 500 })],
     [
-      'a short line on the devices, which the brief holds',
-      set('devices', { queueLimit: 16 }),
+      'launch signups capped at 2 in the founder',
+      between('onboarding', 'founder', 'bulkhead', { bulkheadMax: 2 }),
+    ],
+    [
+      'launch signups capped at 1 in the founder',
+      between('onboarding', 'founder', 'bulkhead', { bulkheadMax: 1 }),
+    ],
+  ])('passes with %s', (_, edit) => {
+    expect(status(launch, edit)).toBe('passed');
+  });
+
+  it.each([['a deeper line at the founder', set('founder', { queueLimit: 64 })]])(
+    'fails with %s',
+    (_, edit) => {
+      expect(status(launch, edit)).toBe('goal-missed');
+    },
+  );
+
+  it.each([
+    ['more founder time', set('founder', { capacity: 3 })],
+    ['a bigger support team', set('support', { capacity: 6 })],
+  ])('will not take %s', (_, edit) => {
+    expect(status(launch, edit)).toBe('over-budget');
+  });
+});
+
+describe('the key engineer quits', () => {
+  const quit = incident('incident-key-engineer-quits');
+
+  it('plays it: fine, then nothing ships once the lead reviewer leaves', () => {
+    const rows = timeline(quit.scene, 40);
+    expect(errorsAt(rows, 20)).toEqual([0]);
+    for (const s of [25, 30, 40]) expect(errorsAt(rows, s)).toEqual([100]);
+  });
+
+  it('fails as it starts', () => {
+    expect(status(quit, () => {})).toBe('goal-missed');
+  });
+
+  it.each([
+    ['review spread across two people', set('lead', { capacity: 2, instances: 2 })],
+    ['review spread across four people', set('lead', { capacity: 1, instances: 4 })],
+  ])('passes with %s', (_, edit) => {
+    expect(status(quit, edit)).toBe('passed');
+  });
+
+  it.each([
+    ['engineers giving up on review sooner', set('engineers', { timeoutMs: 500 })],
+    ['a deeper review line', set('lead', { queueLimit: 100 })],
+  ])('fails with %s', (_, edit) => {
+    expect(status(quit, edit)).toBe('goal-missed');
+  });
+
+  it('will not take more review time', () => {
+    expect(status(quit, set('lead', { capacity: 8 }))).toBe('over-budget');
+  });
+});
+
+describe('the enterprise deal', () => {
+  const deal = incident('incident-enterprise-deal');
+
+  it('plays it: fine, then everyone drops work once the ramp fills engineering', () => {
+    // Routes are [other customers, enterprise customer].
+    const rows = timeline(deal.scene, 30);
+    expect(errorsAt(rows, 10)).toEqual([0, 0]);
+    expect(errorsAt(rows, 25)[0]).toBeGreaterThan(10);
+    expect(errorsAt(rows, 30)[0]).toBeGreaterThan(10);
+  });
+
+  it('fails as it starts', () => {
+    expect(status(deal, () => {})).toBe('goal-missed');
+  });
+
+  it.each([
+    [
+      'reserved capacity of 3 for the enterprise customer',
+      between('whale', 'eng', 'bulkhead', { bulkheadMax: 3 }),
+    ],
+    [
+      'an intake limit of 25 a week on the enterprise customer',
+      between('whale', 'eng', 'ratelimiter', { rateLimitRps: 25, burst: 25 }),
+    ],
+  ])('passes with %s', (_, edit) => {
+    expect(status(deal, edit)).toBe('passed');
+  });
+
+  it.each([
+    [
+      'an intake limit of 40 a week, the whole ask',
+      between('whale', 'eng', 'ratelimiter', { rateLimitRps: 40, burst: 40 }),
     ],
   ])('fails with %s', (_, edit) => {
-    expect(status(aws, edit)).not.toBe('passed');
+    expect(status(deal, edit)).toBe('goal-missed');
+  });
+
+  it('fails outright with a deeper engineering line', () => {
+    expect(status(deal, set('eng', { queueLimit: 200 }))).not.toBe('passed');
+  });
+
+  it('will not take more engineers', () => {
+    expect(status(deal, set('eng', { capacity: 3 }))).toBe('over-budget');
   });
 });

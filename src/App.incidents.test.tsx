@@ -89,7 +89,7 @@ const canvasIds = () =>
     n.getAttribute('data-id'),
   );
 
-const s3 = incidentById('incident-s3-2017')!;
+const s3 = incidentById('incident-key-engineer-quits')!;
 
 function openIncident(): void {
   press(must('Menu'));
@@ -197,13 +197,13 @@ describe('finding the incidents in the examples dialog', () => {
       (n) => n.textContent,
     );
 
-  it('finds every incident by the section name, and one by its year', () => {
+  it('finds every incident by the section name, and one by when it happened', () => {
     mount();
     press(must('Menu'));
     press(must('Examples'));
     search('incident');
     expect(incidentNames()).toHaveLength(3);
-    search('2017');
+    search('mid quarter');
     expect(incidentNames()).toEqual([s3.name]);
   });
 
