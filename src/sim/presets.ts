@@ -101,28 +101,30 @@ export function makeNode(
 }
 
 /* ------------------------------------------------------------------ *
- * 1. Single Server
- *    service: 64 slots / 25ms -> 2560 rps of its own work. Each slot is
- *             also held while its database call is out, so the pool is
- *             sized to outlast the database's 6 slots and 48 in line.
- *    db:      6 slots / 30ms  -> 200 rps  <- first bottleneck
- *    default 50 rps, knee around 4x.
+ * 1. Founder approves everything (single-server)
+ *    Time: 25ms is one working hour, 200ms one day, 1000ms one week.
+ *    api (engineers): 4 people x 4 tasks / 200ms = 80 a week of their own
+ *             work. Each task is also held while it waits for sign-off,
+ *             so the 16 slots are sized to outlast the founder's line.
+ *    db (founder):    1 person x 2 at once / 50ms = 40 a week <- bottleneck
+ *    default 20 a week (founder half busy), knee near 2x.
  * ------------------------------------------------------------------ */
 
 const singleServer: Topology = {
   nodes: [
-    node('client', 'client', 'Client', 40, 200, { rps: 50, timeoutMs: 2000 }),
-    node('api', 'service', 'API Server', 340, 200, {
-      capacity: 64,
-      serviceMs: 25,
+    node('client', 'client', 'Feature requests', 40, 200, { rps: 20, timeoutMs: 4000 }),
+    node('api', 'service', 'Engineers', 340, 200, {
+      capacity: 4,
+      instances: 4,
+      serviceMs: 200,
       serviceCv: 0.6,
-      queueLimit: 64,
-    }),
-    node('db', 'db', 'Database', 660, 200, {
-      capacity: 6,
-      serviceMs: 30,
-      serviceCv: 0.7,
       queueLimit: 48,
+    }),
+    node('db', 'db', 'Founder sign-off', 660, 200, {
+      capacity: 2,
+      serviceMs: 50,
+      serviceCv: 0.7,
+      queueLimit: 24,
     }),
   ],
   edges: [edge('client', 'api'), edge('api', 'db')],
@@ -131,49 +133,53 @@ const singleServer: Topology = {
       'ss-note-db',
       40,
       320,
-      'One server, one database. The database is the smaller of the two: 6 requests at a time at 30ms each, so it runs out near 200 a second. Drag the load past 4x and the wait builds there first, not at the API.',
+      'Four engineers, one founder who signs off on everything. The founder clears about 40 a week; the engineers could ship twice that. Drag the load past 2x and the wait builds at the founder while engineers sit blocked on finished work. Hiring engineers will not move it.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 2. Load Balanced
- *    3 services: 3 x (44 slots / 25ms) = 5280 rps of their own work, with
- *                room for each one's share of the database's slots and
- *                line while they wait on it
- *    shared db:  12 slots / 25ms       = 480 rps on paper, about 425
- *                measured, because writes wait on locks <- bottleneck anyway
- *    default 140 rps, db bites around 3x.
+ * 2. More engineers, one reviewer (load-balanced)
+ *    lb (tech lead): hands out work, effectively free.
+ *    3 pods: 3 x (2 people x 3 tasks / 100ms) = 180 a week of their own
+ *            work, plus slots for the wait on review.
+ *    db (reviewer):  1 person x 2 reviews / 25ms = 80 a week on paper,
+ *            less measured because reviews of the same code collide
+ *            (lockMs) <- bottleneck anyway.
+ *    default 40 a week, review bites near 2x.
  * ------------------------------------------------------------------ */
 
 const loadBalanced: Topology = {
   nodes: [
-    node('client', 'client', 'Client', 40, 220, { rps: 140, timeoutMs: 2000 }),
-    node('lb', 'lb', 'Load Balancer', 260, 220, { capacity: 512, serviceMs: 0.5 }),
-    node('api1', 'service', 'API 1', 500, 80, {
-      capacity: 44,
-      serviceMs: 25,
+    node('client', 'client', 'Roadmap tasks', 40, 220, { rps: 40, timeoutMs: 4000 }),
+    node('lb', 'lb', 'Tech lead', 260, 220, { capacity: 512, serviceMs: 0.5 }),
+    node('api1', 'service', 'Pod 1', 500, 80, {
+      capacity: 3,
+      instances: 2,
+      serviceMs: 100,
       serviceCv: 0.6,
-      queueLimit: 48,
+      queueLimit: 24,
     }),
-    node('api2', 'service', 'API 2', 500, 220, {
-      capacity: 44,
-      serviceMs: 25,
+    node('api2', 'service', 'Pod 2', 500, 220, {
+      capacity: 3,
+      instances: 2,
+      serviceMs: 100,
       serviceCv: 0.6,
-      queueLimit: 48,
+      queueLimit: 24,
     }),
-    node('api3', 'service', 'API 3', 500, 360, {
-      capacity: 44,
-      serviceMs: 25,
+    node('api3', 'service', 'Pod 3', 500, 360, {
+      capacity: 3,
+      instances: 2,
+      serviceMs: 100,
       serviceCv: 0.6,
-      queueLimit: 48,
+      queueLimit: 24,
     }),
-    node('db', 'db', 'Database', 800, 220, {
-      capacity: 12,
+    node('db', 'db', 'Code reviewer', 800, 220, {
+      capacity: 2,
       serviceMs: 25,
       serviceCv: 0.7,
-      queueLimit: 96,
+      queueLimit: 32,
     }),
   ],
   edges: [
@@ -190,39 +196,44 @@ const loadBalanced: Topology = {
       'lb-note-db',
       40,
       480,
-      'Three servers share one database. That triples the API capacity and does nothing for the database, which still tops out near 430 a second. Adding servers only helps when the servers were the problem.',
+      'Three pods, one reviewer. Hiring a third pod tripled what engineering can build and did nothing for review, which still clears about 80 a week. Drag the load to 3x: the pods sit blocked waiting for review. More engineers only help when engineers were the constraint.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 3. Cache Aside
- *    cache: 64 slots / 2ms -> effectively unlimited
- *    db:    4 slots / 30ms -> 133 rps, but only (1 - hitRate) reaches it.
- *    At hitRate 0.85 and 200 rps offered the db sees ~30 rps.
- *    Drop hitRate to ~0.3 and the db is instantly over its 133 rps ceiling.
+ * 3. Docs deflect support (cache-aside)
+ *    cache (help docs): answers 80 in 100 questions, nobody involved.
+ *    db (support lead): 1 person x 3 at once / 50ms = 60 a week, but only
+ *             the questions the docs miss reach them.
+ *    At 0.8 and 150 a week the lead sees ~30: half busy. Drop the docs'
+ *    hit rate to 0.5 and the lead is offered 75 against 60, with no change
+ *    in incoming work at all.
  * ------------------------------------------------------------------ */
 
 const cacheAside: Topology = {
   nodes: [
-    node('client', 'client', 'Client', 40, 200, { rps: 200, timeoutMs: 2000 }),
-    node('api', 'service', 'API Server', 280, 200, {
+    node('client', 'client', 'Customer questions', 40, 200, {
+      rps: 150,
+      timeoutMs: 3000,
+    }),
+    node('api', 'service', 'Support inbox', 280, 200, {
       capacity: 64,
-      serviceMs: 8,
+      serviceMs: 5,
       serviceCv: 0.5,
       queueLimit: 128,
     }),
-    node('cache', 'cache', 'Cache', 550, 200, {
+    node('cache', 'cache', 'Help docs', 550, 200, {
       capacity: 64,
       serviceMs: 2,
       serviceCv: 0.4,
-      hitRate: 0.85,
+      hitRate: 0.8,
       queueLimit: 512,
     }),
-    node('db', 'db', 'Database', 820, 200, {
-      capacity: 4,
-      serviceMs: 30,
+    node('db', 'db', 'Support lead', 820, 200, {
+      capacity: 3,
+      serviceMs: 50,
       serviceCv: 0.7,
       queueLimit: 32,
     }),
@@ -233,44 +244,46 @@ const cacheAside: Topology = {
       'ca-note-miss',
       40,
       320,
-      'The database only ever sees the misses. At an 85 percent hit rate it takes about 30 requests a second out of 200. Drag the hit rate down to 0.3 and it is instantly over its 133 a second ceiling, with no change in load at all.',
+      'The support lead only sees what the docs do not answer. At 80 in 100 answered, that is about 30 of the 150 questions a week, against the 60 they can handle. Drag the docs hit rate down to 0.5 and the lead is swamped with no change in incoming questions.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 4. Async Workers
- *    api:     24 slots / 8ms  -> 3000 rps (never the bottleneck)
- *    queue:   ack ~1ms, 5000 deep
- *    workers: 10 slots, each held for 30ms of work and a ~20ms database
- *             call -> 200 rps drain rate <- the real ceiling
- *    default 120 rps drains fine; push past 200 and the backlog grows
- *    without the client ever seeing an error, until the buffer fills.
+ * 4. Support backlog and the ticket crew (async-workers)
+ *    api (front line): logs the ticket and says "got it", ~12 minutes.
+ *    queue (backlog): holds up to 400 tickets.
+ *    worker (crew):  4 people x 2 tickets, each held for 2h of work plus
+ *             the refund approval call -> ~120 a week <- ceiling
+ *    db (refund approvals): 4 at once / 15ms, rarely the problem.
+ *    default 60 a week drains fine; past the crew's rate the backlog grows
+ *    while every customer still gets an instant "got it".
  * ------------------------------------------------------------------ */
 
 const asyncWorkers: Topology = {
   nodes: [
-    node('client', 'client', 'Client', 40, 200, { rps: 120, timeoutMs: 2000 }),
-    node('api', 'service', 'API Server', 260, 200, {
-      capacity: 24,
+    node('client', 'client', 'Customers', 40, 200, { rps: 60, timeoutMs: 4000 }),
+    node('api', 'service', 'Front line', 260, 200, {
+      capacity: 16,
       serviceMs: 8,
       serviceCv: 0.5,
       queueLimit: 128,
     }),
-    node('queue', 'queue', 'Message Queue', 500, 200, {
+    node('queue', 'queue', 'Ticket backlog', 500, 200, {
       serviceMs: 1,
       serviceCv: 0.2,
-      queueLimit: 5000,
+      queueLimit: 400,
     }),
-    node('worker', 'worker', 'Workers', 730, 200, {
-      capacity: 10,
-      serviceMs: 30,
+    node('worker', 'worker', 'Ticket crew', 730, 200, {
+      capacity: 2,
+      instances: 4,
+      serviceMs: 50,
       serviceCv: 0.6,
     }),
-    node('db', 'db', 'Database', 860, 380, {
-      capacity: 8,
-      serviceMs: 20,
+    node('db', 'db', 'Refund approvals', 860, 380, {
+      capacity: 4,
+      serviceMs: 15,
       serviceCv: 0.7,
       queueLimit: 64,
     }),
@@ -286,49 +299,38 @@ const asyncWorkers: Topology = {
       'aw-note-queue',
       40,
       520,
-      'The workers drain 200 a second. Push the load past that and the client still gets an instant yes, because the queue is absorbing the difference. Nothing looks wrong until the queue fills, so the graph to watch is the queue depth, not the error rate.',
+      'The crew closes about 120 tickets a week. Push incoming work past that and customers still get an instant "got it", because the backlog absorbs the difference. Nothing looks wrong until the backlog fills, so watch how deep it is, not how many tickets fail.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 5. Retry Storm
- *    db: 4 slots / 40ms -> 100 rps ceiling.
- *    The api timeout (250ms) sits comfortably above the db's uncongested
- *    tail latency (~110ms at low load), so retries fire only once real
- *    queueing develops -- not from service-time variance alone. Below the
- *    ceiling each request needs one attempt and load passes through 1:1.
- *    Once queueing pushes past 250ms, every request starts issuing all 3
- *    attempts, tripling the offered load onto a db already at its limit,
- *    and the system collapses. Stable to 80 rps (1.8x); collapse can begin
- *    at 85 (1.9x) and is near total by 95 (2.1x).
- *
- *    Measured, not estimated, and the onset is genuinely stochastic. Over
- *    seeds 1-8: at 80 rps every seed loses 0%; at 85 they lose 0, 1.6, 8.6,
- *    24.6, 59.6, 71.5, 88.8 and 100%; at 90 seed 7 still loses 0% while the
- *    rest lose 66-100%; at 95 every seed loses over 93%. Whether the queue
- *    tips depends on the timing of the first slow batch.
- *    An earlier note here claimed collapse at 2.4x, which is well past the
- *    interesting part: by then it is uniformly dead.
+ * 5. Customers chasing slow support (retry-storm)
+ *    db (support engineer): 2 at once / 50ms = 40 a week.
+ *    api (account managers) chase after 300ms (a day and a half) and
+ *    resend up to twice, so once the engineer's line passes a day and a
+ *    half every ask arrives three times, onto someone already full.
+ *    default 18 a week; stable at 25 (1.5x) on every seed, can tip from 30
+ *    (1.7x), and by 40 (2.2x) almost nothing is answered. Measured seeds 1-3.
  * ------------------------------------------------------------------ */
 
 const retryStorm: Topology = {
   nodes: [
-    node('client', 'client', 'Client', 40, 200, { rps: 45, timeoutMs: 3000 }),
-    node('api', 'service', 'API Server', 340, 200, {
+    node('client', 'client', 'Customer asks', 40, 200, { rps: 18, timeoutMs: 4000 }),
+    node('api', 'service', 'Account managers', 340, 200, {
       capacity: 64,
       serviceMs: 5,
       serviceCv: 0.4,
       queueLimit: 256,
-      timeoutMs: 250,
+      timeoutMs: 300,
       retries: 2,
     }),
-    node('db', 'db', 'Database', 680, 200, {
-      capacity: 4,
-      serviceMs: 40,
+    node('db', 'db', 'Support engineer', 680, 200, {
+      capacity: 2,
+      serviceMs: 50,
       serviceCv: 0.5,
-      queueLimit: 64,
+      queueLimit: 32,
     }),
   ],
   edges: [edge('client', 'api'), edge('api', 'db')],
@@ -337,45 +339,49 @@ const retryStorm: Topology = {
       'rt-note-storm',
       40,
       320,
-      'The database handles 100 a second. Once waiting passes the 250ms timeout on the API, every request starts trying three times, so the load triples onto a database that was already full. It is steady at 80 a second. Push to 85 and it can tip over and lose most of its traffic; by 95 almost none gets through.',
+      'The support engineer handles about 40 asks a week. Account managers chase after a day and a half without an answer and resend the ask, up to twice. Once the wait passes that, every ask arrives three times, onto someone who was already full. Steady at 25 a week. Past 30 it can tip over, and by 40 almost nothing gets answered.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 6. CDN + Origin
- *    cdn:    256 slots / 2ms  -> effectively unbounded
- *    origin:   4 slots, each held for 23ms of its own work plus ~10ms
- *              waiting on the database -> ~120 rps ceiling
- *    At hitRate 0.90 and 400 rps offered the origin sees ~40 rps: a third of
- *    its ceiling. At 4x it sees ~160 rps and is over the ceiling, which is
- *    the same collapse a student can trigger at 1x just by dragging the hit
- *    rate down -- the point being that the origin was never sized for the
- *    traffic the CDN was absorbing.
+ * 6. Self-serve setup (cdn-origin)
+ *    cdn (self-serve setup): 9 in 10 new accounts finish on their own.
+ *    origin (onboarding team): 3 people x 2 calls, each held for 2h of
+ *              work plus the solutions engineer's answer -> ~55 a
+ *              week. At 300 signups a week it sees ~30.
+ *    db (solutions engineer): 2 at once / 25ms = 80 a week.
+ *    3x sends ~90 a week to a team sized for the 30 the setup flow lets
+ *    through; the same collapse a reader gets at 1x by dragging the
+ *    self-serve rate down.
  * ------------------------------------------------------------------ */
 
 const cdnOrigin: Topology = {
   nodes: [
-    node('client', 'client', 'Client', COL(0), ROW(1), { rps: 400, timeoutMs: 2000 }),
-    node('cdn', 'cdn', 'CDN Edge', COL(1), ROW(1), {
+    node('client', 'client', 'New signups', COL(0), ROW(1), {
+      rps: 300,
+      timeoutMs: 3000,
+    }),
+    node('cdn', 'cdn', 'Self-serve setup', COL(1), ROW(1), {
       capacity: 256,
       serviceMs: 2,
       serviceCv: 0.3,
       hitRate: 0.9,
       queueLimit: 2048,
     }),
-    node('origin', 'service', 'Origin Server', COL(2), ROW(1), {
-      capacity: 4,
-      serviceMs: 23,
+    node('origin', 'service', 'Onboarding team', COL(2), ROW(1), {
+      capacity: 2,
+      instances: 2,
+      serviceMs: 50,
       serviceCv: 0.6,
-      queueLimit: 64,
+      queueLimit: 32,
     }),
-    node('db', 'db', 'Database', COL(3), ROW(1), {
-      capacity: 8,
-      serviceMs: 10,
+    node('db', 'db', 'Solutions engineer', COL(3), ROW(1), {
+      capacity: 4,
+      serviceMs: 25,
       serviceCv: 0.6,
-      queueLimit: 64,
+      queueLimit: 32,
     }),
   ],
   edges: [edge('client', 'cdn'), edge('cdn', 'origin'), edge('origin', 'db')],
@@ -384,55 +390,45 @@ const cdnOrigin: Topology = {
       'co-note-miss',
       40,
       320,
-      'The origin only ever sees what the cache misses. It handles 120 a second, and the cache is currently hiding 90 percent of the traffic from it. Drag the hit rate down and the origin gets a load nobody ever sized it for.',
+      'The onboarding team only meets the accounts self-serve setup cannot finish. They handle about 55 a week, and setup is currently keeping 9 in 10 signups away from them. Drag the self-serve rate down and the team gets a load nobody ever hired for.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 7. Rate Limited API
- *    limiter: 200 rps sustained, 200-token burst
- *    api:       9 slots, each held ~37ms (25ms of its own work plus the
- *               database call) -> ~240 rps ceiling
- *    The limiter is set just under what the api can actually serve, so at 1x
- *    (150 rps) every request is admitted and nothing is refused: the limiter
- *    is invisible until it is needed.
- *
- *    What it buys is NOT extra goodput -- measured at 600 rps offered, the
- *    limiter serves 200 rps where removing it serves 240. It buys LATENCY for
- *    the requests that do get through:
- *
- *      600 rps    goodput   p50     p99    api queue
- *      limiter     200.0    36ms    81ms      0
- *      no limiter  239.9   234ms   287ms     47
- *
- *    Without the limiter every caller waits behind a 47-deep queue for an
- *    answer that mostly arrives too late to be useful. With it, the system
- *    says no quickly to some so it can say yes quickly to the rest. That
- *    trade -- a lower ceiling in exchange for a flat, predictable latency --
- *    is the whole argument for admission control, and it is why the honest
- *    comparison is p50, not throughput.
+ * 7. WIP limit at sprint intake (rate-limited-api)
+ *    limiter (intake limit): admits 28 a week, 28 of burst.
+ *    api (engineering): 3 people x 2 tasks, each held for 6h of work plus
+ *              review -> ~35 a week.
+ *    db (code review): 4 at once / 25ms = 160 a week, never the problem.
+ *    The limit sits just under what the team can finish, so at 1x (25 a
+ *    week) nothing is refused. What it buys at 3x is not more output, it
+ *    is a short cycle time for the work it lets in.
  * ------------------------------------------------------------------ */
 
 const rateLimitedApi: Topology = {
   nodes: [
-    node('client', 'client', 'Client', COL(0), ROW(1), { rps: 150, timeoutMs: 2000 }),
-    node('limiter', 'ratelimiter', 'Rate Limiter', COL(1), ROW(1), {
-      rateLimitRps: 200,
-      burst: 200,
+    node('client', 'client', 'Feature requests', COL(0), ROW(1), {
+      rps: 25,
+      timeoutMs: 3000,
     }),
-    node('api', 'service', 'API Server', COL(2), ROW(1), {
-      capacity: 9,
-      serviceMs: 25,
+    node('limiter', 'ratelimiter', 'Sprint intake limit', COL(1), ROW(1), {
+      rateLimitRps: 28,
+      burst: 28,
+    }),
+    node('api', 'service', 'Engineering team', COL(2), ROW(1), {
+      capacity: 2,
+      instances: 3,
+      serviceMs: 150,
       serviceCv: 0.5,
       queueLimit: 48,
     }),
-    node('db', 'db', 'Database', COL(3), ROW(1), {
-      capacity: 12,
-      serviceMs: 12,
+    node('db', 'db', 'Code review', COL(3), ROW(1), {
+      capacity: 4,
+      serviceMs: 25,
       serviceCv: 0.6,
-      queueLimit: 96,
+      queueLimit: 64,
     }),
   ],
   edges: [edge('client', 'limiter'), edge('limiter', 'api'), edge('api', 'db')],
@@ -441,45 +437,47 @@ const rateLimitedApi: Topology = {
       'rl-note-trade',
       40,
       320,
-      'The limiter does not add capacity. It refuses some requests quickly so the rest are answered quickly: at 600 offered it serves 200 at 36ms, where removing it serves 240 at 235ms. Saying no fast is what buys the predictable wait.',
+      'The intake limit does not add capacity. It says no to some work at the start of the sprint so the rest ships fast: at 3x it ships 28 a week and a typical task takes under a day, where without it the team ships 34 a week and a typical task takes a week and a half. Drag the limit up to see it.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 8. Circuit Breaker
- *    payments: 4 slots / 30ms -> 133 rps ceiling, and it is the dependency
- *    that goes bad. The breaker trips once half the calls in a 4s window
- *    fail, stays open 3s, then probes.
- *    At 1x (100 rps) the dependency is inside its ceiling and the circuit
- *    stays closed all run. At 4x it is 3x oversubscribed, its queue fills,
- *    the shed rate crosses the error threshold and the breaker trips -- after
- *    which requests fail in microseconds instead of waiting out a timeout.
- *    Injecting a `crash` or raising errorRate on payments trips it on demand.
+ * 8. Stop sending to the agency that keeps failing (circuit-breaker)
+ *    payments (design agency): 4 at once / 100ms = 40 a week, and it is
+ *    the partner that goes bad. The rule trips once half the work in a
+ *    4 week window fails, stops sending for 3 weeks, then tries a few.
+ *    At 1x (18 a week) the agency is inside its ceiling and the rule never
+ *    trips. At 3x it is overloaded, its backlog fills, refusals pass the
+ *    threshold and the rule trips: work bounces at once instead of
+ *    waiting a week for an answer that will not come.
  * ------------------------------------------------------------------ */
 
 const circuitBreaker: Topology = {
   nodes: [
-    node('client', 'client', 'Client', COL(0), ROW(1), { rps: 100, timeoutMs: 2000 }),
-    node('api', 'service', 'API Server', COL(1), ROW(1), {
+    node('client', 'client', 'Design requests', COL(0), ROW(1), {
+      rps: 18,
+      timeoutMs: 3000,
+    }),
+    node('api', 'service', 'Marketing team', COL(1), ROW(1), {
       capacity: 48,
-      serviceMs: 6,
+      serviceMs: 25,
       serviceCv: 0.4,
       queueLimit: 128,
-      timeoutMs: 600,
+      timeoutMs: 1000,
     }),
-    node('breaker', 'breaker', 'Circuit Breaker', COL(2), ROW(1), {
+    node('breaker', 'breaker', 'Stop-the-line rule', COL(2), ROW(1), {
       errorThreshold: 0.5,
       windowMs: 4000,
       openMs: 3000,
       halfOpenProbes: 3,
     }),
-    node('payments', 'service', 'Payments API', COL(3), ROW(1), {
+    node('payments', 'service', 'Design agency', COL(3), ROW(1), {
       capacity: 4,
-      serviceMs: 30,
+      serviceMs: 100,
       serviceCv: 0.6,
-      queueLimit: 32,
+      queueLimit: 16,
     }),
   ],
   edges: [edge('client', 'api'), edge('api', 'breaker'), edge('breaker', 'payments')],
@@ -488,43 +486,44 @@ const circuitBreaker: Topology = {
       'cb-note-trip',
       40,
       320,
-      'Select the payments API and press Crash in the inspector. Once half the calls in a four second window fail, the breaker opens and the rest fail in microseconds instead of waiting out a timeout. After three seconds it lets a few test calls through, and closes again only if they succeed.',
+      'Select the design agency and press Crash in the inspector. Once half the work sent in four weeks fails, the rule stops sending there, and new requests bounce at once instead of waiting a week for nothing. After three weeks it sends a few test jobs, and resumes only if they succeed.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 9. Read Replicas
- *    api:     192 slots / 5ms. Each slot is also held while its read or
- *             write waits on the replica set, so the pool is sized to
- *             outlast the set's slots and its 128 in line.
- *    replicas: 3 x 4 slots / 20ms -> 600 rps of READ capacity
- *    primary:      4 slots / 20ms -> 200 rps of WRITE capacity
- *    At 85% reads and 300 rps offered that is 255 reads against 600 and 45
- *    writes against 200: comfortable. At 4x the reads blow past 600 while the
- *    writes are still inside their own ceiling, so adding replicas is the fix
- *    for one and does nothing at all for the other.
- *    The 60ms replication lag is what makes stale reads visible without
- *    needing an unrealistic write rate.
+ * 9. Deputies answer for the CTO (read-replicas)
+ *    replicas: the CTO (primary) plus 3 deputies, each 2 at once / 50ms
+ *              = 40 a week. 85 in 100 asks are questions a deputy can
+ *              answer: 3 x 40 = 120 a week of answers. Decisions all go to
+ *              the CTO: 40 a week.
+ *    At 60 a week: 51 questions against 120, 9 decisions against 40. At 3x
+ *    the questions pass 120 while decisions are still inside the CTO's
+ *    ceiling, so another deputy fixes one and does nothing for the other.
+ *    Deputies are two days behind on context (400ms of lag), which is what
+ *    makes stale answers visible.
  * ------------------------------------------------------------------ */
 
 const readReplicas: Topology = {
   nodes: [
-    node('client', 'client', 'Client', COL(0), ROW(1), { rps: 300, timeoutMs: 2000 }),
-    node('api', 'service', 'API Server', COL(1), ROW(1), {
-      capacity: 192,
+    node('client', 'client', 'Engineering asks', COL(0), ROW(1), {
+      rps: 60,
+      timeoutMs: 3000,
+    }),
+    node('api', 'service', 'Engineers', COL(1), ROW(1), {
+      capacity: 96,
       serviceMs: 5,
       serviceCv: 0.4,
       queueLimit: 256,
     }),
-    node('replicas', 'replica', 'Replica Set', COL(2), ROW(1), {
-      capacity: 4,
-      serviceMs: 20,
+    node('replicas', 'replica', 'CTO and deputies', COL(2), ROW(1), {
+      capacity: 2,
+      serviceMs: 50,
       serviceCv: 0.5,
-      queueLimit: 128,
+      queueLimit: 48,
       replicaCount: 3,
-      replicationLagMs: 60,
+      replicationLagMs: 400,
       readFraction: 0.85,
     }),
   ],
@@ -534,37 +533,39 @@ const readReplicas: Topology = {
       'rr-note-writes',
       40,
       320,
-      'Copies give you read capacity and nothing else: 600 reads a second across three of them, but still only 200 writes against the one primary. Adding copies fixes one of those and does nothing at all for the other.',
+      'Deputies add room for questions and nothing else: about 120 answers a week across three of them, but decisions still go to the one CTO, who makes about 40. Another deputy fixes the first and does nothing for the second, and deputies two days behind give stale answers.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 10. Sharded Database
- *     4 shards x 4 slots / 25ms -> 160 rps PER SHARD, 640 rps total.
- *     At 400 rps spread evenly by key each shard carries ~100 of its 160 and
- *     the store is fine. The whole lesson is in hotKeyFraction: push it to
- *     0.8 and shard 0 alone is offered 320 rps against its own 160, so it
- *     pins at 100% and sheds while the node-level utilisation meter -- the
- *     mean across shards -- still reads comfortable.
+ * 10. One whale customer (sharded-database)
+ *     4 account managers x 2 at once / 100ms = 20 a week EACH, 80 total.
+ *     At 48 a week spread evenly each carries ~12 of their 20. The lesson
+ *     is in hotKeyFraction: at 0.6 the whale's account manager alone is
+ *     offered ~32 against 20, so they drown while the team-wide average
+ *     still reads comfortable.
  * ------------------------------------------------------------------ */
 
 const shardedDatabase: Topology = {
   nodes: [
-    node('client', 'client', 'Client', COL(0), ROW(1), { rps: 400, timeoutMs: 2000 }),
-    node('api', 'service', 'API Server', COL(1), ROW(1), {
-      capacity: 192,
+    node('client', 'client', 'Customer asks', COL(0), ROW(1), {
+      rps: 48,
+      timeoutMs: 3000,
+    }),
+    node('api', 'service', 'Support desk', COL(1), ROW(1), {
+      capacity: 96,
       serviceMs: 5,
       serviceCv: 0.4,
       queueLimit: 256,
     }),
-    node('shards', 'shard', 'Sharded Store', COL(2), ROW(1), {
-      serviceMs: 25,
+    node('shards', 'shard', 'Account managers', COL(2), ROW(1), {
+      serviceMs: 100,
       serviceCv: 0.6,
-      queueLimit: 32,
+      queueLimit: 16,
       shardCount: 4,
-      shardCapacity: 4,
+      shardCapacity: 2,
       hotKeyFraction: 0,
     }),
   ],
@@ -574,75 +575,55 @@ const shardedDatabase: Topology = {
       'sd-note-hot',
       40,
       320,
-      'Four shards carry 160 a second each. Push the hot key share to 0.8 and one shard alone is offered 320 against its own 160, so it pins and sheds while the utilisation meter, an average across all four, still looks comfortable.',
+      'Accounts are split across four account managers, about 20 asks a week each. Drag the hot key share to 0.6, one whale customer, and their account manager alone is offered about 32 a week against 20. They drown while the team average still looks comfortable.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 11. Autoscaling Service
- *     api: 3 INSTANCES x 3 slots each = 9 slots, each held for 23ms of its
- *     own work plus ~2.5ms on the database call -> ~350 rps, against 250 rps
- *     offered. The controller scales on work-only utilisation, which at 1x
- *     is 250 x 23ms / 9 = 64%, just under its 70% setpoint. The system is
- *     stable, but the controller is not at rest: measured at 1x it averages
- *     3.2 machines with 0.5 warming up, and spends about 40% of the time in
- *     cooldown, because noise keeps nudging it to start a fourth.
- *
- *     RETUNED for the instance model. It used to be one node with `capacity:
- *     9` and the controller moved that 9 up and down -- arithmetically the
- *     same system, but the thing being added was a thread, which is invisible
- *     and is not what "autoscaling" means to anyone. The fleet is now three
- *     machines of three slots: same 9 slots, same ceiling, same reading at 1x,
- *     but now the number the controller moves is a number of MACHINES and the
- *     canvas can draw them appearing.
- *
- *     The lesson is what happens when you MOVE the load. Raise the client's
- *     rps and capacity does not follow immediately: the controller waits out
- *     its 3s cooldown, decides, and then the new machines take a further 4s
- *     to boot. Requests fail in that gap, and the gap is the whole point --
- *     an autoscaler is a lagging controller, not a shield. Scale-DOWN is
- *     instant, as it is in reality, which is why the recovery looks nothing
- *     like the climb.
- *
- *     maxCapacity 5 instances -> 15 slots held ~25.5ms each -> ~590 rps
- *     ceiling, so 4x (1000 rps) outruns the autoscaler no matter how patient
- *     it is: past some point the answer is not more of the same box. (Under
- *     the old slot-based reading this bound was `maxCapacity: 16` slots, a
- *     640 rps ceiling; it is the ceiling that carried over, not the integer.)
+ * 11. Hiring lags demand (autoscaling-service)
+ *     api (delivery team): 3 people x 2 projects, each held for 100ms of
+ *     work plus a short tooling call -> ~55 a week, against 40 offered.
+ *     The hiring plan aims at 70% busy: 40 x 100 / 6000 = 67% at 1x.
+ *     Raise the load and capacity does not follow: the plan waits out 4
+ *     weeks of cooldown, decides, and each new hire takes 6 more weeks to
+ *     ramp up. Work is dropped in that gap. Letting people go is
+ *     instant, which is why the way down looks nothing like the way up.
+ *     max 6 people -> ~110 a week, so 3x (120) outruns the plan however
+ *     patient it is.
  * ------------------------------------------------------------------ */
 
 const autoscalingService: Topology = {
   nodes: [
-    node('client', 'client', 'Client', COL(0), ROW(1), { rps: 250, timeoutMs: 3000 }),
-    node('api', 'service', 'API Server', COL(1), ROW(1), {
-      // Three slots on one machine; three machines running right now.
-      capacity: 3,
-      instances: 3,
-      serviceMs: 23,
-      serviceCv: 0.5,
-      queueLimit: 256,
+    node('client', 'client', 'Customer projects', COL(0), ROW(1), {
+      rps: 40,
+      timeoutMs: 3000,
     }),
-    node('db', 'db', 'Database', COL(2), ROW(1), {
+    node('api', 'service', 'Delivery team', COL(1), ROW(1), {
+      // Two projects per person; three people today.
+      capacity: 2,
+      instances: 3,
+      serviceMs: 100,
+      serviceCv: 0.5,
+      queueLimit: 48,
+    }),
+    node('db', 'db', 'Project tooling', COL(2), ROW(1), {
       capacity: 24,
-      serviceMs: 2,
+      serviceMs: 4,
       serviceCv: 0.6,
       queueLimit: 128,
     }),
-    // The controller sits below the node it scales, joined to it by a CONTROL
-    // edge. That edge names its target and carries no requests -- the engine
-    // keeps control edges out of routing entirely, so this is a supervisory
-    // relationship the topology states outright rather than something a
-    // student has to infer from a wire that looks like every other wire.
-    node('scaler', 'autoscaler', 'Autoscaler', COL(1), ROW(2), {
+    // The plan sits below the team it hires for, joined by a CONTROL edge
+    // that carries no work.
+    node('scaler', 'autoscaler', 'Hiring plan', COL(1), ROW(2), {
       targetUtil: 0.7,
-      // In INSTANCES: never fewer than 2 machines, never more than 5.
+      // In people: never fewer than 2, never more than 6.
       minCapacity: 2,
-      maxCapacity: 5,
-      cooldownMs: 3000,
+      maxCapacity: 6,
+      cooldownMs: 4000,
       scaleStepPct: 0.5,
-      warmupMs: 4000,
+      warmupMs: 6000,
     }),
   ],
   edges: [edge('client', 'api'), edge('api', 'db'), control('scaler', 'api')],
@@ -651,59 +632,59 @@ const autoscalingService: Topology = {
       'as-note-lag',
       40,
       456,
-      'Raise the load and capacity does not follow. The controller waits out three seconds of cooldown, decides, and the new machines take four more to boot. Requests fail in that gap, and the gap is the point: an autoscaler lags, it does not shield.',
+      'Raise the load and headcount does not follow. The hiring plan waits four weeks to be sure, opens roles, and each new hire takes six more weeks to ramp up. Work is dropped in that gap, and the gap is the point: hiring lags demand, it never leads it.',
       340,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 12. Multi-Region Failover
- *     Two regions, each 15 slots, every slot held for 25ms of work plus
- *     ~12ms on the database call -> ~400 rps. Only ONE serves traffic at a
- *     time, so the pair buys availability and not one request per second of
- *     extra capacity -- which is why 4x (1000 rps) melts the active region
- *     while the standby sits at zero.
- *     Crash `us-api` (or cut the edge to it) and traffic lands on `eu-api`
- *     after the 5s failover window, during which every request fails as
- *     'region-down'. Set failoverMs to 0 to see the cutover no real system
- *     gets, or to 30000 to feel what a slow one costs.
+ * 12. Backup on-call owner (multi-region)
+ *     Two owners, each 3 at once, every escalation held for 50ms (2h) of
+ *     work plus the specialist's answer -> ~40 a week. Only ONE owner
+ *     is on duty at a time, so the pair buys cover, not capacity: at 3x
+ *     the on-duty owner drowns while the backup sits idle.
+ *     Crash `us-api` and escalations go to `eu-api` after a one week
+ *     handover, during which every escalation fails.
  * ------------------------------------------------------------------ */
 
 const multiRegion: Topology = {
   nodes: [
-    node('client', 'client', 'Client', COL(0), ROW(1), { rps: 250, timeoutMs: 2000 }),
-    node('router', 'region', 'Region Router', COL(1), ROW(1), {
+    node('client', 'client', 'Customer escalations', COL(0), ROW(1), {
+      rps: 24,
+      timeoutMs: 3000,
+    }),
+    node('router', 'region', 'Escalation owner', COL(1), ROW(1), {
       regions: 2,
       activeRegion: 0,
-      failoverMs: 5000,
+      failoverMs: 1000,
     }),
-    node('us-api', 'service', 'US API', COL(2), ROW(0), {
-      capacity: 15,
-      serviceMs: 25,
+    node('us-api', 'service', 'Primary owner', COL(2), ROW(0), {
+      capacity: 3,
+      serviceMs: 50,
       serviceCv: 0.5,
-      queueLimit: 64,
+      queueLimit: 24,
     }),
-    node('eu-api', 'service', 'EU API', COL(2), ROW(2), {
-      capacity: 15,
-      serviceMs: 25,
+    node('eu-api', 'service', 'Backup owner', COL(2), ROW(2), {
+      capacity: 3,
+      serviceMs: 50,
       serviceCv: 0.5,
-      queueLimit: 64,
+      queueLimit: 24,
     }),
-    node('us-db', 'db', 'US Database', COL(3), ROW(0), {
-      capacity: 16,
-      serviceMs: 12,
+    node('us-db', 'db', "Primary's specialist", COL(3), ROW(0), {
+      capacity: 4,
+      serviceMs: 25,
       serviceCv: 0.6,
-      queueLimit: 96,
+      queueLimit: 32,
     }),
-    node('eu-db', 'db', 'EU Database', COL(3), ROW(2), {
-      capacity: 16,
-      serviceMs: 12,
+    node('eu-db', 'db', "Backup's specialist", COL(3), ROW(2), {
+      capacity: 4,
+      serviceMs: 25,
       serviceCv: 0.6,
-      queueLimit: 96,
+      queueLimit: 32,
     }),
   ],
-  // Edge ORDER is region index: the first edge out of the router is region 0.
+  // Edge ORDER is the owner index: the first edge out of the router is owner 0.
   edges: [
     edge('client', 'router'),
     edge('router', 'us-api'),
@@ -712,98 +693,93 @@ const multiRegion: Topology = {
     edge('eu-api', 'eu-db'),
   ],
   annotations: [
-    sectionOver('mr-sec-us', 'United States, taking traffic', 0, 2, 3, 0, 0),
-    sectionOver('mr-sec-eu', 'Europe, idle until it is needed', 3, 2, 3, 2, 2),
+    sectionOver('mr-sec-us', 'On duty, taking escalations', 0, 2, 3, 0, 0),
+    sectionOver('mr-sec-eu', 'Backup, idle until needed', 3, 2, 3, 2, 2),
     note(
       'mr-note-fail',
       1064,
       40,
-      'Crash the US API. For five seconds every request fails while the router notices, then Europe picks it all up. Only one region takes traffic at a time, so this pair buys you survival, not extra capacity: at 4x the active region melts while the standby sits at zero.',
+      'Crash the primary owner. For a week every escalation fails while the handover happens, then the backup picks it all up. Only one owner is on duty at a time, so a backup buys cover, not capacity: at 3x the primary drowns while the backup sits idle.',
       300,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 13. Full Stack
- *     The showcase. Every tier in one picture, each sized so that the thing
- *     that breaks first is the thing a real system breaks first.
+ * 13. Series A company (full-stack)
+ *     Every team in one picture, each sized so the first to run out is the
+ *     one a real Series A runs out of first.
  *
- *     600 rps offered, and here is where it goes:
- *       cdn     hitRate 0.70   -> 30% miss, so ~180 rps reach the LB
- *       lb      -> 2 api, ~90 rps each
- *       api     2 x 24 slots, each held for 8ms plus the cache and shard
- *               call -> still never the bottleneck at 4x
- *       cache   hitRate 0.60   -> 40% miss, so ~72 rps reach the shards
- *       shards  4 x 2 slots / 25ms  -> 320 rps total, 80 rps per shard
- *       queue   -> workers 6 / 25ms -> 240 rps of async drain
+ *     300 customer asks a week, and here is where they go:
+ *       help center  answers 7 in 10 -> ~90 a week reach the support lead
+ *       support lead -> 2 pods, ~45 a week each
+ *       pods         2 x (2 people x 4 tickets), each held for 1h plus the
+ *                    playbook and account manager -> never the constraint
+ *       playbook     answers 6 in 10 -> ~36 a week reach account managers
+ *       account mgrs 4 x 2 at once / 50ms -> 160 a week, 40 each
+ *       feature asks  every ticket also logs a feature ask in the backlog
+ *                    -> product engineers 8 x 2 / 100ms = 160 a week, ~90
+ *                    offered: the first team to run out, at about 1.8x.
  *
- *     The workers are the first thing to run out. At 1x they are 75% busy;
- *     the extra the api books goes into the queue, so the failure starts
- *     QUIETLY: the client is still acknowledged instantly while an invisible
- *     backlog grows. Then the queue's 5000 places fill and it turns work
- *     away. Measured over seeds 1-3:
- *
- *       2x   queue fills in ~40s, then turns away ~100-120/s -> ~9% errors
- *       4x   queue pinned at 5000, turns away 479/s   -> 20% client errors
- *            shards 90% busy, turning away 0.1/s
- *
- *     So at 4x every error the client sees comes from the full queue, while
- *     the synchronous path (cache -> shards) runs its busiest partition flat
- *     out but turns almost nothing away. A student
- *     who watches only the error rate blames the wrong half. A full queue
- *     drains at 240 - 180 = 60/s once load returns to 1x, about 80s.
+ *     At 3x the backlog fills (1000 places) and its refusals are the
+ *     dropped work, while the account managers run busy but refuse little.
  * ------------------------------------------------------------------ */
 
 const fullStack: Topology = {
   nodes: [
-    node('client', 'client', 'Client', COL(0), ROW(1), { rps: 600, timeoutMs: 3000 }),
-    node('cdn', 'cdn', 'CDN Edge', COL(1), ROW(1), {
+    node('client', 'client', 'Customers', COL(0), ROW(1), {
+      rps: 300,
+      timeoutMs: 3000,
+    }),
+    node('cdn', 'cdn', 'Help center', COL(1), ROW(1), {
       capacity: 256,
       serviceMs: 2,
       serviceCv: 0.3,
       hitRate: 0.7,
       queueLimit: 2048,
     }),
-    node('lb', 'lb', 'Load Balancer', COL(2), ROW(1), {
+    node('lb', 'lb', 'Support lead', COL(2), ROW(1), {
       capacity: 512,
       serviceMs: 0.5,
     }),
-    node('api1', 'service', 'API 1', COL(3), ROW(0), {
-      capacity: 24,
-      serviceMs: 8,
+    node('api1', 'service', 'Support pod A', COL(3), ROW(0), {
+      capacity: 4,
+      instances: 2,
+      serviceMs: 25,
       serviceCv: 0.5,
-      queueLimit: 128,
+      queueLimit: 64,
     }),
-    node('api2', 'service', 'API 2', COL(3), ROW(2), {
-      capacity: 24,
-      serviceMs: 8,
+    node('api2', 'service', 'Support pod B', COL(3), ROW(2), {
+      capacity: 4,
+      instances: 2,
+      serviceMs: 25,
       serviceCv: 0.5,
-      queueLimit: 128,
+      queueLimit: 64,
     }),
-    node('cache', 'cache', 'Cache', COL(4), ROW(0), {
+    node('cache', 'cache', 'Internal playbook', COL(4), ROW(0), {
       capacity: 64,
       serviceMs: 2,
       serviceCv: 0.4,
       hitRate: 0.6,
       queueLimit: 512,
     }),
-    node('shards', 'shard', 'Sharded Store', COL(5), ROW(0), {
-      serviceMs: 25,
+    node('shards', 'shard', 'Account managers', COL(5), ROW(0), {
+      serviceMs: 50,
       serviceCv: 0.6,
-      queueLimit: 32,
+      queueLimit: 16,
       shardCount: 4,
       shardCapacity: 2,
       hotKeyFraction: 0,
     }),
-    node('queue', 'queue', 'Job Queue', COL(4), ROW(2), {
+    node('queue', 'queue', 'Feature backlog', COL(4), ROW(2), {
       serviceMs: 1,
       serviceCv: 0.2,
-      queueLimit: 5000,
+      queueLimit: 1000,
     }),
-    node('workers', 'worker', 'Workers', COL(5), ROW(2), {
-      capacity: 6,
-      serviceMs: 25,
+    node('workers', 'worker', 'Product engineers', COL(5), ROW(2), {
+      capacity: 2,
+      instances: 8,
+      serviceMs: 100,
       serviceCv: 0.6,
     }),
   ],
@@ -812,8 +788,8 @@ const fullStack: Topology = {
     edge('cdn', 'lb'),
     edge('lb', 'api1'),
     edge('lb', 'api2'),
-    // Each api reads through the cache AND books async work. Both edges are
-    // taken for every request: a 'service' fans out to all its downstreams.
+    // Each pod answers through the playbook AND logs a feature ask. Both
+    // edges are taken for every ticket: a team fans out to all its handoffs.
     edge('api1', 'cache'),
     edge('api1', 'queue'),
     edge('api2', 'cache'),
@@ -824,117 +800,102 @@ const fullStack: Topology = {
   annotations: [
     // Only the two ends are framed. The point of this example is the
     // contrast between them, and boxing the middle would bury it.
-    sectionOver('fs-sec-sync', 'Answered while you wait', 0, 4, 5, 0, 0),
-    sectionOver('fs-sec-async', 'Answered later', 3, 4, 5, 2, 2),
+    sectionOver('fs-sec-sync', 'Answered while the customer waits', 0, 4, 5, 0, 0),
+    sectionOver('fs-sec-async', 'Promised for later', 3, 4, 5, 2, 2),
     note(
       'fs-note-cdn',
       1584,
       40,
-      'Two thirds of the traffic never gets past the edge cache. Only the misses reach anything below, which is why everything behind it looks so lightly loaded at rest.',
+      'Seven in ten customers find their answer in the help center and never reach a person. Only the rest reach anything below, which is why every team behind it looks so calm at rest.',
       236,
     ),
-    // The lesson. The async half runs out first, and quietly, until the
-    // queue fills and its refusals become the client's errors.
+    // The lesson. The promised-for-later half runs out first, and quietly,
+    // until the backlog fills and its refusals become customer-facing.
     note(
       'fs-note-lesson',
       16,
       336,
-      "Take the load to 4x and watch the job queue. The workers fall behind and for a few seconds the queue swallows the excess, so the client is still told everything is fine. Then its 5000 places fill, and the errors the client sees come from there, while the sharded store's busiest partition is maxed out but turns almost nothing away.",
+      'Take the load to 3x and watch the feature backlog. Product engineers fall behind and for weeks the backlog swallows the excess, so customers are still told their ask is logged. Then it fills, and the dropped work comes from there, while the account managers are busy but turn almost nothing away.',
       300,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 14. Specialised Stores
- *     Every request finds the store built for it, and the arithmetic of
- *     WHY each store exists is visible in the meters.
+ * 14. Where answers live (specialised-stores)
+ *     Every question finds the tool built for it.
  *
- *     240 rps offered, split three ways by the LB (~80 rps per API):
- *       search-api -> searchindex   80 rps at a 90/10 search/write mix.
- *                     Mean cost ~14ms against 12 slots -> ~850 rps ceiling.
- *                     Writes pay +60ms of indexing and are searchable only
- *                     1.5s after commit; the stale-search rate IS that lag.
- *       recs-api   -> vectordb + graphdb. The vector index costs ~50ms per
- *                     query at 1M vectors and 0.9 recall (12 slots ->
- *                     240 rps ceiling, 241 measured at 4x: the knee of this
- *                     preset), the graph
- *                     runs friend-of-friend at depth 2 (~18ms -> 440 rps).
- *       media-api  -> objectstore. 90ms flat, 64 slots -> ~710 rps: high
- *                     latency, near-unlimited throughput. Not a database.
- *       every api  -> timeseriesdb. All 240 rps of metrics appends land
- *                     there and use ~11% of it; range queries are the only
- *                     thing that can hurt it, and that is a slider.
+ *     60 questions a week, split three ways by the ops lead (~20 each):
+ *       sales ops    -> internal search (finding past deals is cheap;
+ *                       writing them up costs more and shows up late)
+ *       product team -> AI assistant + cross-team lookup. The assistant
+ *                       answers by similarity; its ceiling is the knee.
+ *       design team  -> shared drive: slow per lookup, never saturates.
+ *       every team   -> metrics tracker: logging a number is cheap.
+ *     A separate 2 a week of quarter-end cleanup is archived through a
+ *     backlog: cheap to keep, slow to dig out.
  *
- *     A separate 6 rps batch client archives through a queue into cold
- *     storage (24 slots / 2.8s -> ~8.5 rps ceiling, ~70% busy at 1x).
- *
- *     At 4x the two paths fail in character: the vector index saturates
- *     LOUDLY (sheds, client errors) while the archive pipeline fails
- *     QUIETLY -- the batch client is still acknowledged instantly while
- *     cold storage throttles the restores behind the queue (~16/s refused
- *     at 4x).
+ *     At 3x the two paths fail in character: the AI assistant saturates
+ *     LOUDLY (dropped questions) while the archive fails QUIETLY.
  * ------------------------------------------------------------------ */
 
 const specialisedStores: Topology = {
   nodes: [
-    node('client', 'client', 'Client', COL(0), ROW(1), { rps: 240, timeoutMs: 3000 }),
-    node('batch', 'client', 'Batch Jobs', COL(0), LROW(3, 1), {
-      rps: 6,
-      timeoutMs: 2000,
+    node('client', 'client', 'Team questions', COL(0), ROW(1), {
+      rps: 60,
+      timeoutMs: 3000,
     }),
-    node('lb', 'lb', 'Load Balancer', COL(1), ROW(1), {
+    node('batch', 'client', 'Quarter-end cleanup', COL(0), LROW(3, 1), {
+      rps: 2,
+      timeoutMs: 4000,
+    }),
+    node('lb', 'lb', 'Ops lead', COL(1), ROW(1), {
       capacity: 512,
       serviceMs: 0.5,
     }),
-    node('archive-q', 'queue', 'Archive Queue', COL(1), LROW(3, 1), {
+    node('archive-q', 'queue', 'Archive backlog', COL(1), LROW(3, 1), {
       serviceMs: 1,
       serviceCv: 0.2,
-      queueLimit: 5000,
+      queueLimit: 500,
     }),
-    node('search-api', 'service', 'Search API', COL(2), ROW(0), {
+    node('search-api', 'service', 'Sales ops', COL(2), ROW(0), {
       capacity: 16,
-      serviceMs: 6,
+      serviceMs: 25,
       serviceCv: 0.4,
-      queueLimit: 128,
+      queueLimit: 64,
     }),
-    node('recs-api', 'service', 'Recs API', COL(2), ROW(1), {
-      capacity: 160,
-      serviceMs: 6,
+    node('recs-api', 'service', 'Product team', COL(2), ROW(1), {
+      capacity: 64,
+      serviceMs: 25,
       serviceCv: 0.4,
-      queueLimit: 128,
+      queueLimit: 64,
     }),
-    node('media-api', 'service', 'Media API', COL(2), ROW(2), {
-      capacity: 48,
-      serviceMs: 6,
-      serviceCv: 0.4,
-      queueLimit: 128,
-    }),
-    node('archiver', 'worker', 'Archiver', COL(2), LROW(3, 1), {
+    node('media-api', 'service', 'Design team', COL(2), ROW(2), {
       capacity: 32,
-      serviceMs: 40,
+      serviceMs: 25,
+      serviceCv: 0.4,
+      queueLimit: 64,
+    }),
+    node('archiver', 'worker', 'Archivist', COL(2), LROW(3, 1), {
+      capacity: 16,
+      serviceMs: 50,
       serviceCv: 0.4,
     }),
-    node('search', 'searchindex', 'Search Index', COL(3), ROW(0)),
-    // 12 slots at ~50ms per query is a 240 rps ceiling: a third used at 1x,
-    // and the first thing to saturate at 4x, which makes the vector index
-    // the knee of the whole preset.
-    node('vectors', 'vectordb', 'Vector Index', COL(3), ROW(1), { capacity: 12 }),
-    node('blobs', 'objectstore', 'Object Storage', COL(3), ROW(2)),
-    node('glacier', 'coldstorage', 'Cold Storage', COL(3), LROW(3, 1)),
-    node('social', 'graphdb', 'Social Graph', COL(4), ROW(0)),
-    node('metrics', 'timeseriesdb', 'Metrics Store', COL(4), ROW(2)),
+    node('search', 'searchindex', 'Internal search', COL(3), ROW(0)),
+    node('vectors', 'vectordb', 'AI assistant', COL(3), ROW(1), { capacity: 2 }),
+    node('blobs', 'objectstore', 'Shared drive', COL(3), ROW(2)),
+    node('glacier', 'coldstorage', 'Archive', COL(3), LROW(3, 1)),
+    node('social', 'graphdb', 'Cross-team lookup', COL(4), ROW(0)),
+    node('metrics', 'timeseriesdb', 'Metrics tracker', COL(4), ROW(2)),
   ],
   edges: [
     edge('client', 'lb'),
-    // Unequal on purpose: equal weights make the LB route least-loaded, and
-    // it would steer recs traffic onto the other APIs once the vectors slow.
+    // Unequal on purpose: equal weights make the dispatcher route to the
+    // least loaded team, and it would steer product questions elsewhere
+    // once the assistant slows.
     edge('lb', 'search-api', 33),
     edge('lb', 'recs-api', 34),
     edge('lb', 'media-api', 33),
-    // Each API talks to its own store AND emits a metric append; a service
-    // fans out to all its downstreams, so the metrics edge is taken for
-    // every request, which is exactly what instrumentation does.
     edge('search-api', 'search'),
     edge('search-api', 'metrics'),
     edge('recs-api', 'vectors'),
@@ -942,175 +903,160 @@ const specialisedStores: Topology = {
     edge('recs-api', 'metrics'),
     edge('media-api', 'blobs'),
     edge('media-api', 'metrics'),
-    // The archive path: acknowledged at the queue, drained at the
-    // archiver's pace, paid for in seconds at the cold tier.
     edge('batch', 'archive-q'),
     edge('archive-q', 'archiver'),
     edge('archiver', 'glacier'),
   ],
   annotations: [
-    sectionOver('ss-sec-stores', 'A different store for each question', 0, 2, 4, 0, 2),
-    sectionOver('ss-sec-arch', 'Moving old data somewhere cheaper', 2, 0, 3, 3, 3, 1),
+    sectionOver('ss-sec-stores', 'A different tool for each question', 0, 2, 4, 0, 2),
+    sectionOver('ss-sec-arch', 'Putting old work away', 2, 0, 3, 3, 3, 1),
     note(
       'ss-note-stores',
       1320,
       40,
-      'One general purpose database would do all of this badly. A text index, a vector index and a graph each answer a question the others are slow at, and the price is four stores to run instead of one.',
+      'One shared folder would answer all of this badly. Search, an AI assistant and a map of who knows what each answer a question the others are slow at, and the price is four tools to keep up instead of one.',
       300,
     ),
-    // The lesson: the same overload, told two different ways depending on
-    // whether the caller is still waiting for an answer.
     note(
       'ss-note-lesson',
       1320,
       296,
-      'Take the load to 4x. The vector index saturates and the client sees the errors immediately. The archive path saturates too and says nothing: the batch client is still acked while cold storage turns restores away behind the queue.',
+      'Take the load to 3x. The AI assistant fills up and questions are dropped at once. The archive path fills too and says nothing: cleanup is still logged as done while the archive turns retrievals away behind the backlog.',
       300,
     ),
     note(
       'ss-note-cold',
       16,
       296,
-      'Cold storage is slow on purpose, seconds per restore, because almost nothing is ever read back. Paying for fast storage you never read is the mistake this avoids.',
+      'The archive is slow on purpose, days to dig anything out, because almost nothing is ever looked at again. Keeping old work at hand costs more than it is worth.',
       236,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * 15. Event-Driven Backend
+ * 15. Launch announcement fans out (event-driven)
  *
- * The messaging tier in one picture, with the arithmetic worked out:
- *
- *   client 60 rps -> apigateway (150 rps bucket, 1% bad auth, 2ms)
- *     routes 3:1 -> api service (16 slots / 10ms = 1600 rps ceiling) ~44 rps
- *                -> lambda (25ms warm, +350ms cold, 30 concurrent)   ~15 rps
- *   api fans out to:
- *     stream broker (4 partitions, retention 2000):
- *       group A -> indexer  (4 slots / 55ms -> ~72/s; 4 partitions x
- *                  1000/55 = ~72/s -- keeps up at 1x; at 2x the lag
- *                  grows steadily, ~1000 after a minute and near the 2000
- *                  retention after two, when old messages start to
- *                  expire; at 4x it pins at 2000 within a minute and
- *                  expires ~35-40/s)
- *       group B -> billing  (4 slots / 12ms -> ~330/s; never behind)
- *     pub/sub topic -> push, audit, metrics (1 publish = 3 deliveries;
- *       audit is deliberately slow (2 slots / 40ms = 50/s) so at ~44 rps it
- *       runs 87% busy, and at 2x drops ~40/s, without touching the other
- *       subscribers)
- *   chat client 30 conn/s -> websocket gateway (400 connection slots,
- *       8s sessions -> ~240 held, 60% full at 1x; 4x offers 120 conn/s =
- *       960 wanted and the gateway refuses everything past 400)
- *       -> sidecar (2ms tax, 2 retries, eject after 5) -> chat service
- *   cron: every 15s, 40 requests at once -> lambda -> shared db. The warm
- *       pool between bursts (3-5 instances measured) cannot cover a burst
- *       of 40, so each burst pays about 28 cold starts, and the db (8 slots / 20ms =
- *       400/s) absorbs a spike that shows up in interactive latency.
+ *   shipped features 20 a week -> front desk (50 a week limit, 1 in 200
+ *     briefs bounced as incomplete)
+ *     routes 3:1 -> product team (16 at once / 25ms = 640 a week) ~15
+ *                -> contractors (2h warm, +2 days ramp-up when cold) ~5
+ *   the product team posts every feature to two places:
+ *     team channel (4 threads): each reader group reads at its own pace
+ *       data team -> 4 threads x 1000/75 = ~53 a week; keeps up even at 3x
+ *       finance   -> 4 x 1000/25 = 160 a week; never behind
+ *     launch announcement: one post becomes one task for each of
+ *       marketing (2 / 25ms = 80 a week), legal review (1 / 40ms = 25 a
+ *       week, 60% busy at 1x and the first to drop work at 2x) and
+ *       analytics (2 / 10ms = 200 a week).
+ *   customer check-ins 12 a week -> standing meetings (20 seats, each held
+ *     4 days -> ~10 held, half full at 1x; 3x wants ~29 and is refused past
+ *     20) -> meeting notes step -> account team.
+ *   weekly reporting: every week, 8 reports at once -> contractors ->
+ *     finance lead (2 / 25ms = 80 a week).
  * ------------------------------------------------------------------ */
 
 const eventDriven: Topology = {
   nodes: [
-    node('client', 'client', 'API Clients', 40, 140, { rps: 60, timeoutMs: 2500 }),
-    node('gw', 'apigateway', 'API Gateway', 250, 140, {
+    node('client', 'client', 'Shipped features', 40, 140, { rps: 20, timeoutMs: 3000 }),
+    node('gw', 'apigateway', 'Front desk', 250, 140, {
       capacity: 64,
       serviceMs: 2,
-      // 60 rps of interactive traffic fits comfortably; at 4x the door is
-      // exactly what refuses the excess, which is its job and its lesson.
-      rateLimitRps: 150,
-      burst: 150,
-      authFailRate: 0.01,
+      rateLimitRps: 50,
+      burst: 50,
+      authFailRate: 0.005,
     }),
-    node('api', 'service', 'API Service', 470, 140, {
+    node('api', 'service', 'Product team', 470, 140, {
       capacity: 16,
-      serviceMs: 10,
+      serviceMs: 25,
       serviceCv: 0.5,
-      queueLimit: 128,
+      queueLimit: 64,
     }),
-    node('broker', 'streambroker', 'Event Stream', 700, 60, {
+    node('broker', 'streambroker', 'Team channel', 700, 60, {
       serviceMs: 1,
       partitions: 4,
-      queueLimit: 2000,
+      queueLimit: 400,
     }),
-    node('indexer', 'service', 'Search Indexer', 930, 20, {
+    node('indexer', 'service', 'Data team', 930, 20, {
       capacity: 4,
-      serviceMs: 55,
+      serviceMs: 75,
       serviceCv: 0.6,
       queueLimit: 32,
     }),
-    node('billing', 'service', 'Billing', 930, 130, {
+    node('billing', 'service', 'Finance', 930, 130, {
       capacity: 4,
-      serviceMs: 12,
+      serviceMs: 25,
       serviceCv: 0.5,
       queueLimit: 32,
     }),
-    node('topic', 'pubsub', 'Fan-out Topic', 700, 230, { serviceMs: 0.5 }),
-    node('push', 'service', 'Push Notifs', 930, 240, {
-      capacity: 4,
-      serviceMs: 8,
-      serviceCv: 0.5,
-      queueLimit: 32,
-    }),
-    node('audit', 'service', 'Audit Log', 930, 350, {
+    node('topic', 'pubsub', 'Launch announcement', 700, 230, { serviceMs: 0.5 }),
+    node('push', 'service', 'Marketing', 930, 240, {
       capacity: 2,
+      serviceMs: 25,
+      serviceCv: 0.5,
+      queueLimit: 16,
+    }),
+    node('audit', 'service', 'Legal review', 930, 350, {
+      capacity: 1,
       serviceMs: 40,
       serviceCv: 0.6,
-      queueLimit: 24,
+      queueLimit: 8,
     }),
-    node('metrics', 'service', 'Metrics', 930, 460, {
-      capacity: 4,
-      serviceMs: 5,
+    node('metrics', 'service', 'Analytics', 930, 460, {
+      capacity: 2,
+      serviceMs: 10,
       serviceCv: 0.4,
-      queueLimit: 32,
+      queueLimit: 16,
     }),
-    node('chat', 'client', 'Chat Clients', 40, 420, { rps: 30, timeoutMs: 2000 }),
-    node('ws', 'websocket', 'WS Gateway', 250, 420, {
-      capacity: 400,
+    node('chat', 'client', 'Customer check-ins', 40, 420, { rps: 12, timeoutMs: 3000 }),
+    node('ws', 'websocket', 'Standing meetings', 250, 420, {
+      capacity: 20,
       serviceMs: 5,
-      connectionMs: 8000,
+      connectionMs: 800,
     }),
-    node('mesh', 'sidecar', 'Chat Sidecar', 470, 420, {
+    node('mesh', 'sidecar', 'Meeting notes step', 470, 420, {
       capacity: 32,
-      serviceMs: 2,
+      serviceMs: 5,
       timeoutMs: 500,
       retries: 2,
       outlierAfter: 5,
       openMs: 3000,
     }),
-    node('chatsvc', 'service', 'Chat Service', 690, 420, {
-      capacity: 8,
-      serviceMs: 12,
-      serviceCv: 0.5,
-      queueLimit: 64,
-    }),
-    node('cron', 'cron', 'Nightly Report', 40, 560, {
-      intervalMs: 15000,
-      batchSize: 40,
-    }),
-    node('fn', 'lambda', 'Report Fn', 300, 560, {
+    node('chatsvc', 'service', 'Account team', 690, 420, {
+      capacity: 4,
       serviceMs: 25,
       serviceCv: 0.5,
-      coldStartMs: 350,
-      keepWarmMs: 10000,
-      maxConcurrency: 30,
+      queueLimit: 32,
     }),
-    node('db', 'db', 'Database', 560, 560, {
-      capacity: 8,
-      serviceMs: 20,
+    node('cron', 'cron', 'Weekly reporting', 40, 560, {
+      intervalMs: 1000,
+      batchSize: 8,
+    }),
+    node('fn', 'lambda', 'Contractors', 300, 560, {
+      serviceMs: 50,
+      serviceCv: 0.5,
+      coldStartMs: 400,
+      keepWarmMs: 2000,
+      maxConcurrency: 12,
+    }),
+    node('db', 'db', 'Finance lead', 560, 560, {
+      capacity: 2,
+      serviceMs: 25,
       serviceCv: 0.6,
-      queueLimit: 64,
+      queueLimit: 32,
     }),
   ],
   edges: [
     edge('client', 'gw'),
-    // The gateway's route table: 3 parts interactive API, 1 part function.
+    // The front desk's routing: 3 parts product team, 1 part contractors.
     edge('gw', 'api', 3),
     edge('gw', 'fn', 1),
     edge('api', 'broker'),
     edge('api', 'topic'),
-    // Each broker edge is an independent consumer group.
+    // Each channel edge is an independent reader group.
     edge('broker', 'indexer'),
     edge('broker', 'billing'),
-    // Each topic edge is one more delivery per publish.
+    // Each announcement edge is one more task per post.
     edge('topic', 'push'),
     edge('topic', 'audit'),
     edge('topic', 'metrics'),
@@ -1120,145 +1066,133 @@ const eventDriven: Topology = {
     edge('cron', 'fn'),
     edge('fn', 'db'),
   ],
-  // Notes only, no sections. These nodes are hand-placed rather than on the
-  // COL/ROW grid, and the twelve pixels between Billing and the fan-out
-  // topic cannot hold two frames plus a label plate. Nudging the layout to
-  // make room would cost more than the frames are worth here.
+  // Notes only, no sections: these nodes are hand-placed rather than on the
+  // grid, and the gaps between them cannot hold frames plus label plates.
   annotations: [
     note(
       'ed-note-sync',
       16,
       248,
-      'Everything on the left is a caller waiting for an answer. Everything on the right runs after that answer was already sent.',
+      'Everything on the left is someone waiting for an answer. Everything on the right happens after the feature already shipped.',
       236,
     ),
-    // The lesson. Five consumers, two of which quietly cannot keep up.
     note(
       'ed-note-fanout',
       1160,
       16,
-      'One event becomes five pieces of work here, each read by its own consumer. Turn the load up to 2x and watch the audit log and the search indexer: the audit log runs out of room and drops messages, and the indexer falls further behind the stream, while billing, push and metrics keep up. Nobody calling the API sees a thing.',
+      'One shipped feature becomes five pieces of work here, each picked up by its own team. Turn the load up to 3x and watch legal review: it runs out of room and work is dropped, while marketing, finance and analytics keep up and the data team falls behind but catches up. Nobody shipping features sees a thing.',
       300,
     ),
     note(
       'ed-note-cold',
       16,
       680,
-      'The report function starts cold. The first call after a quiet spell pays 350ms of startup, then stays warm for ten seconds. Watch the first burst after the timer fires.',
+      'Contractors start cold. The first job after a quiet spell pays two days of ramp-up, then they stay on for two weeks. Watch the first batch after weekly reporting lands.',
       236,
     ),
   ],
 };
 
 /* ------------------------------------------------------------------ *
- * Resilient Delivery
- *     The resilience tier in one picture: every way a system can fail
- *     ON PURPOSE instead of by surprise.
+ * 16. Choosing what fails (resilient-delivery)
+ *     Every way a company can fail ON PURPOSE instead of by surprise.
  *
- *     Sync path, 240 rps offered:
- *       shedder   admits 700 rps sustained; 30% of keys are best-effort.
- *                 Invisible at 1x, and at 4x it drops the best-effort tier
- *                 first while the important traffic keeps its tokens.
- *       api       16 slots / 6ms -> 2600 rps, never the bottleneck.
- *       bulkhead  12 concurrent calls around recommendations. At 240 rps
- *                 a 15ms dependency holds ~3.6 in flight on average, and
- *                 the pool is sized at 3x that mean because concurrency is
- *                 Poisson: a pool at the mean would clip ordinary bursts.
- *                 Slow the dependency (inject 'slow') and the pool fills
- *                 within one round trip, after which the excess fails in
- *                 microseconds instead of queueing.
- *       recs      6 slots / 15ms -> 400 rps ceiling behind the bulkhead.
- *       writebehind  acks every write in ~1ms and holds it dirty for
- *                 200ms before the flush lands on the db: a standing
- *                 population of ~50 acknowledged-but-unwritten rows.
- *                 Crash it and watch exactly that many failures appear.
- *       retryqueue -> notify   the notification service fails 15% of
- *                 calls, so ~40/s are redelivered with backoff and only
- *                 the 0.34% that fail three straight attempts dead-letter:
- *                 failures with somewhere to go, counted on the shelf.
- *
- *     Batch path, 3 uploads/s:
- *       encode queue -> transcoder farm, 2 boxes x 2 jobs / 1.2s = 3.3
- *       jobs/s of drain against 3.0 offered. ~90% utilised at 1x; at 4x
- *       the 12 jobs/s deficit grows the backlog by ~9 jobs every second,
- *       and no amount of waiting drains it. Scale `instances` to fix it.
+ *     Customer path, 40 a week:
+ *       triage     admits 120 a week; 3 in 10 asks are low priority.
+ *                  Invisible at 1x; at 3x it drops low priority first.
+ *       customer success  16 at once / 25ms = 640 a week, never the
+ *                  constraint.
+ *       reserved time  at most 9 asks outstanding with the integrations
+ *                  team, so one slow partner cannot eat every hour.
+ *       integrations   3 at once / 50ms = 60 a week <- the constraint;
+ *                  67% busy at 1x, overwhelmed at 3x.
+ *       deferred paperwork  says yes at once and files a week later: a
+ *                  standing pile of ~40 promised but unrecorded.
+ *       rework queue -> fulfilment vendor fails 15 in 100 jobs; failed
+ *                  ones come back later, and only those that fail three
+ *                  times are abandoned.
+ *     Content path, 6 a week:
+ *       backlog -> content studio, 6 people x 1 / 300ms = 20 a week.
  * ------------------------------------------------------------------ */
 
 const resilientDelivery: Topology = {
   nodes: [
-    node('client', 'client', 'Client', COL(0), ROW(1), { rps: 240, timeoutMs: 2500 }),
-    node('shedder', 'loadshedder', 'Load Shedder', COL(1), ROW(1), {
-      rateLimitRps: 700,
-      burst: 700,
+    node('client', 'client', 'Customer asks', COL(0), ROW(1), {
+      rps: 40,
+      timeoutMs: 3000,
+    }),
+    node('shedder', 'loadshedder', 'Priority triage', COL(1), ROW(1), {
+      rateLimitRps: 120,
+      burst: 120,
       lowPriorityShare: 0.3,
       priorityReserve: 0.3,
     }),
-    node('api', 'service', 'API Server', COL(2), ROW(1), {
+    node('api', 'service', 'Customer success', COL(2), ROW(1), {
       capacity: 16,
-      serviceMs: 6,
+      serviceMs: 25,
       serviceCv: 0.4,
-      queueLimit: 128,
+      queueLimit: 64,
     }),
-    node('bulkhead', 'bulkhead', 'Recs Bulkhead', COL(3), ROW(0), {
-      bulkheadMax: 12,
+    node('bulkhead', 'bulkhead', 'Reserved time', COL(3), ROW(0), {
+      bulkheadMax: 9,
     }),
-    node('recs', 'service', 'Recommendations', COL(4), ROW(0), {
-      capacity: 6,
-      serviceMs: 15,
+    node('recs', 'service', 'Integrations team', COL(4), ROW(0), {
+      capacity: 3,
+      serviceMs: 50,
       serviceCv: 0.5,
-      queueLimit: 32,
+      queueLimit: 16,
     }),
-    node('writebuf', 'writebehind', 'Write-Behind Cache', COL(3), ROW(1), {
+    node('writebuf', 'writebehind', 'Deferred paperwork', COL(3), ROW(1), {
       capacity: 256,
       serviceMs: 1,
       serviceCv: 0.3,
       queueLimit: 512,
-      flushDelayMs: 200,
+      flushDelayMs: 1000,
     }),
-    node('db', 'db', 'Database', COL(4), ROW(1), {
-      capacity: 12,
-      serviceMs: 15,
+    node('db', 'db', 'Ops records', COL(4), ROW(1), {
+      capacity: 4,
+      serviceMs: 25,
       serviceCv: 0.6,
-      queueLimit: 96,
+      queueLimit: 48,
     }),
-    node('retryq', 'retryqueue', 'Notify Queue', COL(3), ROW(2), {
+    node('retryq', 'retryqueue', 'Rework queue', COL(3), ROW(2), {
       capacity: 8,
       serviceMs: 3,
       serviceCv: 0.3,
-      queueLimit: 2000,
+      queueLimit: 400,
       timeoutMs: 1000,
       retries: 2,
     }),
-    node('notify', 'service', 'Notification Service', COL(4), ROW(2), {
+    node('notify', 'service', 'Fulfilment vendor', COL(4), ROW(2), {
       capacity: 6,
-      serviceMs: 12,
+      serviceMs: 25,
       serviceCv: 0.5,
       errorRate: 0.15,
-      queueLimit: 48,
+      queueLimit: 32,
     }),
-    node('uploader', 'client', 'Upload Client', COL(0), LROW(3, 1), {
-      rps: 3,
+    node('uploader', 'client', 'Content requests', COL(0), LROW(3, 1), {
+      rps: 6,
       timeoutMs: 4000,
     }),
-    node('encodeq', 'queue', 'Encode Queue', COL(1), LROW(3, 1), {
+    node('encodeq', 'queue', 'Content backlog', COL(1), LROW(3, 1), {
       serviceMs: 1,
       serviceCv: 0.2,
-      queueLimit: 5000,
+      queueLimit: 200,
     }),
-    node('transcoder', 'transcoder', 'Transcoder Farm', COL(2), LROW(3, 1), {
-      instances: 2,
-      capacity: 2,
-      serviceMs: 1200,
+    node('transcoder', 'transcoder', 'Content studio', COL(2), LROW(3, 1), {
+      instances: 6,
+      capacity: 1,
+      serviceMs: 300,
       serviceCv: 0.3,
     }),
   ],
   edges: [
     edge('client', 'shedder'),
     edge('shedder', 'api'),
-    // The api fans out to all three: recommendations behind their own
-    // bulkhead, writes into the write-behind buffer, and a notification
-    // job into the retry queue. Both delivery nodes ack instantly, so
-    // the client's fate rides on the recommendations path alone.
+    // Customer success hands every ask to all three: the integrations team
+    // behind its reserved time, the paperwork, and a fulfilment job into
+    // the rework queue. Paperwork and rework say yes at once, so the
+    // customer's wait rides on the integrations path alone.
     edge('api', 'bulkhead'),
     edge('api', 'writebuf'),
     edge('api', 'retryq'),
@@ -1275,30 +1209,28 @@ const resilientDelivery: Topology = {
       'rd-note-shed',
       16,
       16,
-      'At 4x the shedder drops the traffic marked best effort first, to protect the rest. Choosing what to drop beats letting a queue choose for you.',
+      'At 3x triage drops the low priority asks first, to protect the rest. Choosing what to drop beats letting a backlog choose for you.',
       236,
     ),
-    // The lesson. A bulkhead is the one protection whose effect you can
-    // trigger by hand and see in a single round trip.
     note(
       'rd-note-bulkhead',
       1320,
       40,
-      "Select recommendations and press Slow in the inspector. The bulkhead in front fills within one round trip, and after that the extra calls fail in microseconds instead of queueing. One slow feature stops being everyone else's problem.",
+      "Select the integrations team and press Slow in the inspector. Their reserved time fills within days, and after that new asks for them bounce at once instead of waiting. One slow team stops being everyone else's problem.",
       300,
     ),
     note(
       'rd-note-writebuf',
       1320,
       264,
-      'The write cache acks in about a millisecond and flushes 200ms later, so roughly 50 rows are always acknowledged but not yet stored. Crash it and exactly that many writes are gone.',
+      'Paperwork says yes at once and gets filed a week later, so about 40 promises are always made but not yet recorded. Crash it and exactly those are gone.',
       300,
     ),
     note(
       'rd-note-batch',
       800,
       496,
-      'The transcoders drain about 3.3 jobs a second against 3 arriving, so they are already 90 percent busy at rest. Turn the load up and the backlog grows about 9 jobs every second and never drains on its own. Raise the number of instances to fix it.',
+      'The content studio finishes about 20 pieces a week against 6 asked for. Turn the load past 3x and the backlog grows every week and never drains on its own. Add people to the studio to fix it.',
       300,
     ),
   ],
@@ -1307,130 +1239,130 @@ const resilientDelivery: Topology = {
 export const PRESETS: Preset[] = [
   {
     id: 'single-server',
-    name: 'Single server',
-    tagline: 'Watch the database become the bottleneck',
+    name: 'Founder approves everything',
+    tagline: 'Engineers blocked on one founder',
     description:
-      'One service in front of one database. Latency climbs sharply as the database fills up.',
+      'Four engineers ship features, and every one waits for the founder to sign off. The founder is the smaller of the two, so cycle time climbs there first while engineers sit blocked on finished work.',
     topology: singleServer,
   },
   {
     id: 'load-balanced',
-    name: 'Load balanced',
-    tagline: 'More servers, same database behind them',
+    name: 'More engineers, one reviewer',
+    tagline: 'Hiring engineers does not speed up review',
     description:
-      'Three servers share the load, but they all still talk to the same database.',
+      'A tech lead spreads work across three pods, and all of it goes through one code reviewer. Adding a pod adds building capacity and none at review.',
     topology: loadBalanced,
   },
   {
     id: 'cache-aside',
-    name: 'Cache aside',
-    tagline: 'What happens when the hit rate falls',
+    name: 'Docs deflect support',
+    tagline: 'What happens when the docs go stale',
     description:
-      'The cache absorbs most reads. Lower the hit rate and the database takes the whole load.',
+      'Help docs answer most questions before they reach a person. Lower the share the docs answer and the support lead takes the whole load.',
     topology: cacheAside,
   },
   {
     id: 'async-workers',
-    name: 'Async workers',
+    name: 'Support backlog and the ticket crew',
     tagline: 'A backlog that grows faster than it drains',
     description:
-      'Requests are acknowledged instantly and buffered. Watch the backlog grow when workers fall behind.',
+      'Every ticket gets an instant "got it" and waits in a backlog for the crew. Watch the backlog grow when the crew falls behind, long before any ticket is dropped.',
     topology: asyncWorkers,
   },
   {
     id: 'retry-storm',
-    name: 'Retry storm',
-    tagline: 'Retries making an overload worse',
+    name: 'Customers chasing slow support',
+    tagline: 'Follow-ups multiplying the overload',
     description:
-      'A short timeout with retries in front of a small database. Retries multiply the load that caused them.',
+      'Account managers chase support after a day and a half and resend the ask. Once support is slower than that, every ask arrives three times and support never catches up.',
     topology: retryStorm,
   },
   {
     id: 'cdn-origin',
-    name: 'CDN and origin',
-    tagline: 'How much traffic never reaches you',
+    name: 'Self-serve setup',
+    tagline: 'How many signups never need a person',
     description:
-      'The CDN answers most requests at the edge, so only a trickle reaches the origin. Drop the hit rate and watch the origin melt.',
+      'Self-serve setup finishes 9 in 10 new accounts, so only a trickle reaches the onboarding team. Drop the self-serve rate and watch the team drown.',
     topology: cdnOrigin,
   },
   {
     id: 'rate-limited-api',
-    name: 'Rate limited API',
-    tagline: 'Turning excess away before it queues',
+    name: 'WIP limit at sprint intake',
+    tagline: 'Saying no at intake keeps work moving',
     description:
-      'A limiter refuses excess traffic at the door. It serves slightly less, but what it does serve stays fast instead of queueing.',
+      'An intake limit admits only what the team can finish each week. It ships slightly less under pressure, but what it takes on ships in days instead of weeks.',
     topology: rateLimitedApi,
   },
   {
     id: 'circuit-breaker',
-    name: 'Circuit breaker',
-    tagline: 'Giving a failing dependency room to recover',
+    name: 'Stop sending work to a failing agency',
+    tagline: 'A partner that keeps failing gets a break',
     description:
-      'A breaker watches a failing dependency and stops calling it. Break the payments API and watch the circuit trip, then recover.',
+      'A stop-the-line rule watches the design agency and stops sending work once too much comes back failed. Crash the agency and watch the rule trip, then try again.',
     topology: circuitBreaker,
   },
   {
     id: 'read-replicas',
-    name: 'Read replicas',
-    tagline: 'Reads that scale, and reads that go stale',
+    name: 'Deputies answer for the CTO',
+    tagline: 'Deputies scale answers, not decisions',
     description:
-      'Replicas scale reads but not writes, and a read can arrive before the write it should have seen.',
+      "Deputies answer questions on the CTO's behalf, but every decision still goes to the CTO, and deputies two days behind can give a stale answer.",
     topology: readReplicas,
   },
   {
     id: 'sharded-database',
-    name: 'Sharded database',
-    tagline: 'One hot key undoing all the partitions',
+    name: 'One whale customer',
+    tagline: 'One huge account swamping its owner',
     description:
-      'Four partitions share the load evenly until one key gets hot, and then a single shard melts while the average still looks healthy.',
+      'Accounts are split evenly across four account managers until one customer gets huge. Then one account manager drowns while the team average still looks healthy.',
     topology: shardedDatabase,
   },
   {
     id: 'autoscaling-service',
-    name: 'Autoscaling service',
-    tagline: 'Capacity arriving after it was needed',
+    name: 'Hiring lags demand',
+    tagline: 'Headcount arriving after it was needed',
     description:
-      'Capacity chases the load, but new servers take time to boot, so requests fail in the gap between the two.',
+      'A hiring plan adds people when the team runs hot, but each hire takes weeks to ramp up, so work is dropped in the gap between demand and headcount.',
     topology: autoscalingService,
   },
   {
     id: 'multi-region',
-    name: 'Multi-region failover',
-    tagline: 'What a failover actually costs you',
+    name: 'Backup on-call owner',
+    tagline: 'What a handover actually costs you',
     description:
-      'Two regions, one serving. Crash the active one and every request fails until failover lands.',
+      'Two owners, one on duty. Take the primary out and every escalation fails until the backup has taken over.',
     topology: multiRegion,
   },
   {
     id: 'full-stack',
-    name: 'Full stack',
-    tagline: 'Every piece at once, under real load',
+    name: 'Series A company',
+    tagline: 'Every team at once, under real load',
     description:
-      'Every tier at once: edge cache, load balancer, services, cache, shards, and a queue of async work behind it all.',
+      'Every team at once: help center, support pods, playbook, account managers, and a feature backlog behind it all. Watch which team runs out first, and which one fails quietly.',
     topology: fullStack,
   },
   {
     id: 'specialised-stores',
-    name: 'Specialised stores',
-    tagline: 'The right store for each job, side by side',
+    name: 'Where answers live',
+    tagline: 'The right tool for each question',
     description:
-      'Search, vectors, graph, blobs, metrics and an archive tier, each store built for one job. Watch which one saturates first, and which fails without a sound.',
+      'Search, an AI assistant, a cross-team lookup, a shared drive, a metrics tracker and an archive, each built for one kind of question. Watch which fills first, and which fails without a sound.',
     topology: specialisedStores,
   },
   {
     id: 'event-driven',
-    name: 'Event-driven backend',
-    tagline: 'Lag, fan-out, cold starts and a cron burst',
+    name: 'Launch announcement fans out',
+    tagline: 'One post becomes work for every team',
     description:
-      'A stream with two consumer groups, a fan-out topic, a websocket tier, a sidecar, a lambda and a cron burst. Watch consumer lag grow, cold starts spike on the quarter-minute, and connections, not requests, run out.',
+      'Every shipped feature is posted to a team channel and announced to marketing, legal and analytics. Watch one post become five tasks, legal review run out of room, and standing meetings run out of seats.',
     topology: eventDriven,
   },
   {
     id: 'resilient-delivery',
-    name: 'Resilient delivery',
-    tagline: 'Choosing what fails, and where failures go',
+    name: 'Choosing what fails',
+    tagline: 'Deciding what gets dropped, on purpose',
     description:
-      'Failing on purpose: a shedder drops the traffic that matters least, a bulkhead contains a slow dependency, retried deliveries land on a dead letter shelf, and a write-behind buffer trades durability for speed.',
+      'Failing on purpose: triage drops low priority asks first, reserved time contains a slow team, failed vendor work comes back for rework, and deferred paperwork trades a quick yes for a pile of unrecorded promises.',
     topology: resilientDelivery,
   },
   ...STARTUP_PRESETS,
