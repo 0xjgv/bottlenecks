@@ -591,7 +591,9 @@ export function Palette({ onAdd, onAddAnnotation, armedTool }: PaletteProps) {
                     {hintsOn && (
                       <Term id={KIND_TERM[kind]} className="pal-explain" bare>
                         <span aria-hidden="true">?</span>
-                        <span className="sr-only">What is a {KIND_NAME[kind]}?</span>
+                        <span className="sr-only">
+                          What does {KIND_NAME[kind]} mean?
+                        </span>
                       </Term>
                     )}
                   </li>
