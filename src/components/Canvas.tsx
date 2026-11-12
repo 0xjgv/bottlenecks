@@ -130,6 +130,17 @@ import './Canvas.css';
 
 export const NODE_W = 184;
 export const NODE_H = 88;
+
+/** One word per palette group, for the footer's "what it is made of" line. */
+const GROUP_SHORT: Record<string, string> = {
+  traffic: 'sources',
+  compute: 'teams',
+  data: 'decisions',
+  stores: 'records',
+  messaging: 'handoffs',
+  control: 'policies',
+};
+
 /** Radii come from the design scale (3/4/6). The node body is the 6. */
 const NODE_R = 6;
 /** The spotlight ring's gap from the node, and its tag's size. */
@@ -5870,7 +5881,7 @@ export default function Canvas({
   }, [topology.nodes]);
 
   /**
-   * What the design is made of, by category: "4 traffic, 7 compute, 3 data".
+   * What the design is made of, by category: "2 sources, 7 teams, 3 decisions".
    *
    * The total says how big a diagram is; the breakdown says what kind of
    * system it is, which is what a reader is trying to work out about a
@@ -5880,8 +5891,8 @@ export default function Canvas({
    * order of the rail and does not reshuffle itself every time a node is
    * dropped. Empty groups are left out: eleven of the twenty-three examples
    * touch only three of the six, and "0 messaging" on a three-box chain is
-   * noise. The group's `id` is the name printed, because "specialised
-   * stores" is too long for a corner that also has to hold two totals and a
+   * noise. GROUP_SHORT holds a one-word name per group, because the rail's
+   * titles are too long for a corner that also has to hold two totals and a
    * clock.
    */
   const nodeGroupSummary = useMemo(() => {
@@ -5891,7 +5902,7 @@ export default function Canvas({
       if (group) counts.set(group.id, (counts.get(group.id) ?? 0) + 1);
     }
     return KIND_GROUPS.filter((g) => counts.has(g.id))
-      .map((g) => `${counts.get(g.id)} ${g.id}`)
+      .map((g) => `${counts.get(g.id)} ${GROUP_SHORT[g.id] ?? g.id}`)
       .join(', ');
   }, [topology.nodes]);
 

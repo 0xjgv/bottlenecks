@@ -22,6 +22,11 @@ import type { NodeKind } from '../sim/types';
  * thirty-three icons named here are bundled. Keep its version in step with
  * lucide-react so the two packages draw the same icon set.
  *
+ * In Bottlenecks the icons depict the startup job (KIND_NAME), not the
+ * server part the engine kind was named for: a team is people, a decision
+ * maker is a gavel, a backlog is a to-do list. The per-kind comments below
+ * still explain the engine behaviour each kind models.
+ *
  * CHOOSING RULES, in priority order:
  *   BEHAVIOUR   the icon depicts what the component DOES to traffic, not
  *               what the hardware looks like, because the behaviour is the
@@ -37,42 +42,42 @@ import type { NodeKind } from '../sim/types';
 
 import {
   /* Traffic */
-  MonitorSmartphone as icClient,
+  Inbox as icClient,
   Split as icLb,
-  CloudDownload as icCdn,
-  Globe as icRegion,
+  CircleHelp as icCdn,
+  LifeBuoy as icRegion,
   /* Compute */
-  Server as icService,
-  Cog as icWorker,
-  SquareFunction as icLambda,
-  CloudLightning as icEdgecompute,
+  Users as icService,
+  Ticket as icWorker,
+  Briefcase as icLambda,
+  Headset as icEdgecompute,
   Film as icTranscoder,
   CalendarClock as icCron,
   /* Data */
-  Database as icDb,
-  DatabaseZap as icCache,
-  DatabaseBackup as icReplica,
+  Gavel as icDb,
+  BookOpen as icCache,
+  UsersRound as icReplica,
   Columns3 as icShard,
-  Package as icObjectstore,
-  TextSearch as icSearchindex,
+  FolderOpen as icObjectstore,
+  Search as icSearchindex,
   ChartLine as icTimeseriesdb,
-  Waypoints as icGraphdb,
-  Snowflake as icColdstorage,
-  ChartScatter as icVectordb,
-  HardDriveDownload as icWritebehind,
+  Network as icGraphdb,
+  Archive as icColdstorage,
+  Bot as icVectordb,
+  FileClock as icWritebehind,
   /* Messaging */
-  Rows3 as icQueue,
-  Logs as icStreambroker,
-  Share2 as icPubsub,
-  Cable as icWebsocket,
+  ListTodo as icQueue,
+  MessagesSquare as icStreambroker,
+  Megaphone as icPubsub,
+  Presentation as icWebsocket,
   ListRestart as icRetryqueue,
   /* Control */
-  Scaling as icAutoscaler,
+  UserPlus as icAutoscaler,
   Funnel as icRatelimiter,
-  Unplug as icBreaker,
-  DoorOpen as icApigateway,
-  Blocks as icSidecar,
-  SquareSplitHorizontal as icBulkhead,
+  OctagonX as icBreaker,
+  ConciergeBell as icApigateway,
+  ClipboardCheck as icSidecar,
+  Lock as icBulkhead,
   FunnelX as icLoadshedder,
 } from 'lucide';
 

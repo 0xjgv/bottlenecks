@@ -1069,7 +1069,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
     term: 'lock-contention',
     label: 'Wait per conflicting decision',
     unit: 'working time each',
-    hint: 'Each decision waits this long for every other decision already in progress. Headcount does not appear in that sentence, which is the lesson.',
+    hint: 'Each decision waits this long for every other decision already in progress. Adding people does not shorten it; fewer decisions in flight does.',
     min: 0,
     max: 200,
     step: 1,
