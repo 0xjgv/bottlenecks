@@ -10,12 +10,12 @@
   border-collapse: collapse;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .grw-table th,
 .grw-table td {
-  padding: var(--sp-1) var(--sp-2);
+  padding: var(--sp-1) 4px;
   text-align: left;
   vertical-align: top;
   border-bottom: 1px solid var(--border);
@@ -54,4 +54,19 @@
   display: block;
   height: 100%;
   background: var(--accent);
+}
+
+.grw-table th:first-child {
+  white-space: nowrap;
+}
+
+.grw-who {
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.grw-play {
+  min-width: 44px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
 }

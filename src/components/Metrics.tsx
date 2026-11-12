@@ -13,6 +13,7 @@ import {
   formatPct,
   formatRate,
   healthOfLatency,
+  MS_PER_WEEK,
   NA,
   type Health,
 } from './format';
@@ -20,7 +21,6 @@ import { routeCondition } from './routeHealth';
 import { useSettledHealth } from './settledHealth';
 import { Term } from './Tooltip';
 import { Trace } from './Trace';
-import { Cost } from './Cost';
 import './Metrics.css';
 
 /* ------------------------------------------------------------------ *
@@ -58,6 +58,8 @@ const WINDOW_MS = 60_000;
 
 /** Width assumed before the first ResizeObserver callback lands. */
 const FALLBACK_W = 320;
+/** The window in working weeks, for the captions that name it. */
+const WINDOW_TEXT = `${WINDOW_MS / MS_PER_WEEK} weeks`;
 
 /* ------------------------------------------------------------------ *
  * Scales
@@ -370,7 +372,7 @@ const Frame = memo(function Frame({
   format,
   w,
   empty,
-  emptyLabel = 'Waiting for traffic',
+  emptyLabel = 'Waiting for work',
 }: FrameProps) {
   const plotH = CHART_H - PAD_T - PAD_B;
   const right = Math.max(PAD_L + 1, w - PAD_R);
@@ -432,7 +434,7 @@ const Frame = memo(function Frame({
       />
 
       <text className="mx-xlabel" x={PAD_L} y={CHART_H - 8}>
-        60s ago
+        {WINDOW_MS / MS_PER_WEEK}wk ago
       </text>
       <text className="mx-xlabel" x={right} y={CHART_H - 8} textAnchor="end">
         now
@@ -529,9 +531,12 @@ const LatencyChart = memo(function LatencyChart({
   const empty = history.length === 0;
 
   return (
-    <section className="mx-chart" aria-label="Latency over the last 60 seconds">
+    <section
+      className="mx-chart"
+      aria-label={`Cycle time over the last ${WINDOW_TEXT}`}
+    >
       <ChartHead
-        caption="Latency"
+        caption="Cycle time"
         captionTerm="latency"
         unit="p99"
         unitTerm="p99"
@@ -554,7 +559,7 @@ const LatencyChart = memo(function LatencyChart({
           <Frame
             ticks={ticks}
             top={top}
-            format={formatCompact}
+            format={formatMs}
             w={w}
             empty={empty}
             emptyLabel={emptyLabel}
@@ -694,11 +699,14 @@ const ThroughputChart = memo(function ThroughputChart({
   const rate = (v: number) => (empty ? NA : formatCompact(v));
 
   return (
-    <section className="mx-chart" aria-label="Throughput over the last 60 seconds">
+    <section
+      className="mx-chart"
+      aria-label={`Work finished over the last ${WINDOW_TEXT}`}
+    >
       <ChartHead
-        caption="Throughput"
+        caption="Work finished"
         captionTerm="throughput"
-        unit="succeeding /s"
+        unit="done /wk"
         unitTerm="goodput"
         value={rate(safeGoodput)}
         unmeasured={empty}
@@ -736,14 +744,14 @@ const ThroughputChart = memo(function ThroughputChart({
       <ul className="mx-legend">
         <LegendKey
           className="mx-key-offered"
-          name="offered"
+          name="arriving"
           term="offered"
           value={rate(safeOffered)}
           dim={empty}
         />
         <LegendKey
           className="mx-key-goodput"
-          name="succeeded"
+          name="done"
           term="goodput"
           value={rate(safeGoodput)}
           dim={empty}
@@ -784,22 +792,22 @@ const REASON_ORDER: FailureReason[] = [
 ];
 
 const REASON_LABEL: Record<FailureReason, string> = {
-  error: 'error',
-  shed: 'shed',
-  timeout: 'timeout',
-  'no-route': 'no route',
-  depth: 'depth',
-  throttled: 'throttled',
-  rejected: 'rejected',
-  crashed: 'crashed',
-  partitioned: 'partitioned',
-  'region-down': 'region down',
-  'conn-refused': 'conn refused',
-  unauthorized: 'unauthorized',
-  'bulkhead-full': 'bulkhead full',
-  'acquire-timeout': 'acquire timeout',
-  deprioritized: 'deprioritized',
-  'packet-loss': 'packet loss',
+  error: 'bounced back',
+  shed: 'backlog full',
+  timeout: 'gave up waiting',
+  'no-route': 'nobody to take it',
+  depth: 'passed in a loop',
+  throttled: 'intake limit',
+  rejected: 'line stopped',
+  crashed: 'team out',
+  partitioned: 'handoff cut',
+  'region-down': 'no owner on duty',
+  'conn-refused': 'meeting full',
+  unauthorized: 'refused at front desk',
+  'bulkhead-full': 'reserve full',
+  'acquire-timeout': 'no free person',
+  deprioritized: 'low priority dropped',
+  'packet-loss': 'lost between teams',
 };
 
 /**
@@ -984,12 +992,12 @@ const FailureChart = memo(function FailureChart({
   return (
     <section
       className="mx-chart mx-fail-col"
-      aria-label="Failures over the last 60 seconds"
+      aria-label={`Failed work over the last ${WINDOW_TEXT}`}
     >
       <ChartHead
-        caption="Failures"
+        caption="Failed work"
         captionTerm="error-rate"
-        unit="/s"
+        unit="/wk"
         unitTerm="rps"
         value={healthy ? (empty ? NA : '0') : formatCompact(total)}
         tone={healthy ? 'ok' : 'danger'}
@@ -1032,7 +1040,7 @@ const FailureChart = memo(function FailureChart({
             ? idleText
             : windowHadFailures
               ? 'Recovered. Nothing is failing now.'
-              : 'Nothing has failed in the last 60 seconds.'}
+              : `Nothing has failed in the last ${WINDOW_TEXT}.`}
         </p>
       ) : (
         <ul className="mx-legend mx-legend-stack">
@@ -1195,11 +1203,11 @@ const RouteChart = memo(function RouteChart({
   return (
     <section
       className="mx-chart"
-      aria-label="Each traffic source over the last 60 seconds"
+      aria-label={`Each source of work over the last ${WINDOW_TEXT}`}
     >
       <header className="mx-head">
         <span className="label mx-eyebrow">
-          <Term id="traffic-source">By traffic source</Term>
+          <Term id="traffic-source">By source of work</Term>
         </span>
         <span className="mx-seg" role="group" aria-label="Show">
           <button
@@ -1269,7 +1277,7 @@ const RouteChart = memo(function RouteChart({
 
 export interface MetricsProps {
   snapshot: SimSnapshot;
-  /** The design being costed. Absent means nothing to price. */
+  /** The design, for the Cost panel. Unused while that panel is hidden. */
   nodes?: readonly SimNode[];
   /** Node id to display name, for the trace panel. */
   nodeNames?: Record<string, string>;
@@ -1293,7 +1301,7 @@ export type ChartsIdle = 'no-client' | 'not-started';
 const NO_HISTORY: HistoryPoint[] = [];
 
 const IDLE_TEXT: Record<ChartsIdle, string> = {
-  'no-client': 'Add a client to send traffic.',
+  'no-client': 'Add incoming work to start the flow.',
   'not-started': 'Press play to start the clock.',
 };
 
@@ -1303,7 +1311,7 @@ const EMPTY_BY: Record<FailureReason, number> = Object.fromEntries(
   REASON_ORDER.map((r) => [r, 0]),
 ) as Record<FailureReason, number>;
 
-export function Metrics({ snapshot, nodeNames, nodes, routes, idle }: MetricsProps) {
+export function Metrics({ snapshot, nodeNames, routes, idle }: MetricsProps) {
   const { system, history, failuresByReason } = snapshot;
 
   /* The trace names nodes by id; the reader knows them by the label on the
@@ -1455,7 +1463,7 @@ export function Metrics({ snapshot, nodeNames, nodes, routes, idle }: MetricsPro
   // happened", where the truth is that there is nothing to measure.
   const plotted = idle === 'no-client' ? NO_HISTORY : windowed;
   const noTraffic = plotted.length === 0;
-  const emptyLabel = idle ? IDLE_TEXT[idle] : 'Waiting for traffic';
+  const emptyLabel = idle ? IDLE_TEXT[idle] : 'Waiting for work';
 
   return (
     <div className="mx">
@@ -1480,7 +1488,7 @@ export function Metrics({ snapshot, nodeNames, nodes, routes, idle }: MetricsPro
         failures={failuresNow}
         noTraffic={noTraffic}
         emptyLabel={emptyLabel}
-        idleText={idle ? IDLE_TEXT[idle] : 'No traffic yet.'}
+        idleText={idle ? IDLE_TEXT[idle] : 'No work has arrived yet.'}
       />
       {routes && routes.length > 1 ? (
         <RouteChart routes={routes} history={windowed} nameOf={nameOf} />
@@ -1490,8 +1498,8 @@ export function Metrics({ snapshot, nodeNames, nodes, routes, idle }: MetricsPro
         nameOf={nameOf}
         idleText={idle ? IDLE_TEXT[idle] : undefined}
       />
-      {/* Renders nothing on generic, where there are no prices to show. */}
-      <Cost nodes={nodes ?? []} />
+      {/* No Cost panel: server prices have no startup counterpart. Cost.tsx
+          stays for when one is designed. */}
     </div>
   );
 }

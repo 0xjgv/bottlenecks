@@ -12,8 +12,10 @@ import { formatCount, formatMs, formatPct, formatRateBare } from '../components/
 import { formatFactor } from '../components/faultWiring';
 
 /**
- * "Find the problem": which one part is holding the system back right now,
- * and why, in a sentence a student can act on.
+ * "Find the problem": which one step is the constraint right now, why, and
+ * what to do about it, in sentences a founder or manager can act on. The
+ * advice follows _The Goal_: find the constraint, protect its time, make
+ * everything else serve it, then add capacity there.
  *
  * Read from one snapshot and nothing else. Every number in the sentence is a
  * field of that snapshot, so the answer can be checked against the canvas.
@@ -43,7 +45,7 @@ export type Verdict =
 
 /** Share of slots taken at which a part counts as full. */
 export const FULL = 0.95;
-/** Below this many per second a refusal or timeout rate is noise. */
+/** Below this many per week a refusal or timeout rate is noise. */
 export const MIN_RATE = 0.5;
 /** System error rate past which "nothing is full" needs a second sentence. */
 const ERRORS_WORTH_NAMING = 0.01;
@@ -86,11 +88,11 @@ export interface Reading {
   s: NodeStats;
   /** 0..1 share of the part's capacity in use, held slots included. */
   fill: number;
-  /** Requests waiting for a slot, or in the buffers it pulls from. */
+  /** Items waiting for a slot, or in the buffers it pulls from. */
   line: number;
-  /** Work refused per second that the part did not choose to refuse. */
+  /** Work refused per week that the part did not choose to refuse. */
   refused: number;
-  /** Requests this part gave up on per second (caller timeouts). */
+  /** Items this part gave up on per week (caller timeouts). */
   gaveUp: number;
   struggling: boolean;
 }
@@ -190,7 +192,7 @@ function callers(topology: Topology, id: string): string[] {
   return topology.edges.filter((e) => !e.control && e.to === id).map((e) => e.from);
 }
 
-/** Every part reachable through request edges from `id`, nearest first. */
+/** Every part reachable through work edges from `id`, nearest first. */
 function downstream(topology: Topology, id: string): string[] {
   const seen = new Set([id]);
   const order: string[] = [];
@@ -222,7 +224,7 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
   if (!(snapshot.system.offeredRps > 0)) {
     return {
       kind: 'idle',
-      text: 'No traffic is flowing, so nothing can struggle yet.',
+      text: 'No work is arriving, so nothing can pile up yet.',
     };
   }
 
@@ -265,7 +267,7 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
     return {
       kind: 'problem',
       nodeId: log.node.id,
-      text: `${log.node.label}: its slowest reader is ${formatCount(log.s.consumerLag ?? log.s.queued)} messages behind, and ${rate(log.s.retentionDropRate ?? 0)} a second expire before they are read.`,
+      text: `${log.node.label}: its slowest reader is ${formatCount(log.s.consumerLag ?? log.s.queued)} posts behind, and ${rate(log.s.retentionDropRate ?? 0)} a week scroll away before anyone reads them. Find the group that reads slowest and give it time or people.`,
     };
   }
 
@@ -281,12 +283,12 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
     if (!slowest) continue;
     const blame =
       caller.gaveUp >= MIN_RATE
-        ? `${caller.node.label} is giving up on it, ${rate(caller.gaveUp)} timeouts a second.`
-        : `${caller.node.label} has every slot waiting on it.`;
+        ? `${caller.node.label} is giving up on it, ${rate(caller.gaveUp)} items a week.`
+        : `${caller.node.label} has every task blocked waiting on it.`;
     return {
       kind: 'problem',
       nodeId: slowest.node.id,
-      text: `${slowest.node.label} is slow to answer, p99 ${formatMs(slowest.s.p99)}. ${blame}`,
+      text: `${slowest.node.label} is slow to answer: its slowest 1 in 100 asks takes ${formatMs(slowest.s.p99)}. ${blame} ${caller.node.label} is not the problem; it is waiting on ${slowest.node.label}.`,
     };
   }
 
@@ -299,14 +301,14 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
     return {
       kind: 'on-purpose',
       nodeId: gate.r.node.id,
-      text: `Nothing is full. ${gate.r.node.label} is turning away ${rate(gate.n)} a second on purpose, which is its job.`,
+      text: `Nothing is full. ${gate.r.node.label} is turning away ${rate(gate.n)} items a week on purpose, which is its job.`,
     };
   }
 
   const busiest = readings.filter((r) => r.fill > 0).sort((a, b) => b.fill - a.fill)[0];
   const base = busiest
-    ? `Nothing is struggling right now. The busiest part is ${busiest.node.label} at ${formatPct(busiest.fill)}.`
-    : 'Nothing is struggling right now.';
+    ? `Nothing is piling up right now. The busiest step is ${busiest.node.label} at ${formatPct(busiest.fill)}; if work grows, it is the likely constraint.`
+    : 'Nothing is piling up right now.';
 
   // Errors with nothing full: name where they come from rather than hide them.
   if (snapshot.system.errorRate >= ERRORS_WORTH_NAMING) {
@@ -317,7 +319,7 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
       return {
         kind: 'problem',
         nodeId: failing.node.id,
-        text: `Nothing is full, but ${failing.node.label} is failing ${formatPct(failing.s.errorRate)} of its requests.`,
+        text: `Nothing is full, but ${failing.node.label} is bouncing ${formatPct(failing.s.errorRate)} of its work. Rework steals time from the constraint, so fix quality at the source.`,
       };
     }
   }
@@ -327,7 +329,7 @@ export function findBottleneck(topology: Topology, snapshot: SimSnapshot): Verdi
 
 /* ---------------- the sentences ---------------- */
 
-/** "all 6 slots busy, 34 waiting in line", or the closest honest phrase for the kind. */
+/** "all 6 task slots busy, 34 tasks waiting", or the closest honest phrase for the kind. */
 export function stateClause(
   r: Reading,
   byId: ReadonlyMap<string, Reading>,
@@ -341,18 +343,18 @@ export function stateClause(
       // Full only because calls hold slots: the box reads busy as the working
       // share alone, so a bare "all busy" would contradict it.
       parts.push(
-        `all ${formatCount(slots)} slots taken, ${formatCount(r.s.inFlight)} working and ${formatCount(held)} waiting on its calls`,
+        `all ${slotWords(r.node, slots)} taken, ${formatCount(r.s.inFlight)} in progress and ${formatCount(held)} blocked waiting on others`,
       );
     } else if (slots !== null) {
-      parts.push(`all ${formatCount(slots)} slots busy`);
+      parts.push(`all ${slotWords(r.node, slots)} busy`);
     } else if (r.node.kind === 'shard') {
-      parts.push(`its busiest partition is at ${formatPct(r.fill)}`);
+      parts.push(`its busiest owner is at ${formatPct(r.fill)}`);
     } else if (r.node.kind === 'lambda') {
       parts.push(
-        `all ${formatCount(r.node.config.maxConcurrency ?? 0)} copies running`,
+        `all ${formatCount(r.node.config.maxConcurrency ?? 0)} contractors working`,
       );
     } else if (r.node.kind === 'websocket') {
-      parts.push(`all ${formatCount(r.s.maxConnections ?? 0)} connections in use`);
+      parts.push(`all ${formatCount(r.s.maxConnections ?? 0)} seats taken`);
     } else {
       parts.push(`${formatPct(r.fill)} busy`);
     }
@@ -361,13 +363,13 @@ export function stateClause(
     if (behaviourFor(r.node.kind).pullsFromQueues) {
       const feed = feedingBuffer(r, byId, topology);
       parts.push(
-        `${formatCount(r.line)} waiting in ${feed ? feed.node.label : 'line'}`,
+        `${formatCount(r.line)} ${r.line < 2 ? 'task' : 'tasks'} waiting in ${feed ? feed.node.label : 'its backlog'}`,
       );
     } else {
-      parts.push(`${formatCount(r.line)} waiting in line`);
+      parts.push(`${formatCount(r.line)} ${r.line < 2 ? 'task' : 'tasks'} waiting`);
     }
   }
-  if (r.refused >= MIN_RATE) parts.push(`turning away ${rate(r.refused)} a second`);
+  if (r.refused >= MIN_RATE) parts.push(`turning away ${rate(r.refused)} items a week`);
   return parts.join(', ');
 }
 
@@ -376,7 +378,37 @@ function struggleText(
   topology: Topology,
   byId: ReadonlyMap<string, Reading>,
 ): string {
-  return `${r.node.label}: ${stateClause(r, byId, topology)}.${feedText(r, topology, byId)}${upstreamText(r, topology, byId)}`;
+  return `${r.node.label} is the constraint: ${stateClause(r, byId, topology)}.${feedText(r, topology, byId)}${upstreamText(r, topology, byId)} ${nextStep(r.node.kind)}`;
+}
+
+/**
+ * The _Goal_ step for a constraint of this kind: protect its time first,
+ * then add capacity there. Cheap, kind-level advice; the numbers above say
+ * where, this says what to try.
+ */
+export function nextStep(kind: NodeKind): string {
+  switch (kind) {
+    case 'db':
+      return 'Protect its time: fewer asks should need it. A playbook or deputies in front, or less chasing, help more than helpers, because its decisions still queue one behind another.';
+    case 'worker':
+    case 'transcoder':
+      return 'Protect its time: cut the hands-on time per task or send it only work that needs it. Then add people to the crew.';
+    case 'shard':
+      return 'One owner is carrying the load. Split the biggest account or area further, or give that owner help.';
+    case 'lambda':
+      return 'Raise the cap on contractors, or keep a few on call so new ones skip the ramp-up.';
+    case 'websocket':
+      return 'Shorter meetings or more seats free the room. Every minute a meeting runs holds a seat.';
+    default:
+      return 'Protect its time: take work off it that someone else can do, add a playbook so fewer asks reach it, or add people.';
+  }
+}
+
+/** "6 people" when each person holds one task, else "6 task slots". */
+function slotWords(node: SimNode, slots: number): string {
+  return node.config.capacity === 1
+    ? `${formatCount(slots)} ${slots === 1 ? 'person' : 'people'}`
+    : `${formatCount(slots)} task slots`;
 }
 
 /** For a part that pulls from a buffer: is that buffer overflowing, or still filling? */
@@ -389,7 +421,7 @@ function feedText(
   const feed = feedingBuffer(r, byId, topology);
   if (!feed) return '';
   if (feed.s.shedRate >= MIN_RATE) {
-    return ` ${feed.node.label} is full and turning away ${rate(feed.s.shedRate)} a second.`;
+    return ` ${feed.node.label} is full and turning away ${rate(feed.s.shedRate)} items a week.`;
   }
   // A queue's own "out" counts what it accepted, so the drain rate is the
   // reader's. Only stated when this part is the buffer's one reader.
@@ -398,7 +430,7 @@ function feedText(
       byId.get(id) && behaviourFor(byId.get(id)?.node.kind ?? 'client').pullsFromQueues,
   );
   if (readers.length === 1 && feed.s.arrivalRate > r.s.throughput + MIN_RATE) {
-    return ` ${feed.node.label} takes in ${rate(feed.s.arrivalRate)} a second but only ${rate(r.s.throughput)} a second get done, so the line keeps growing.`;
+    return ` ${feed.node.label} takes in ${rate(feed.s.arrivalRate)} a week but only ${rate(r.s.throughput)} a week get done, so the backlog keeps growing.`;
   }
   return '';
 }
@@ -416,13 +448,13 @@ function upstreamText(
     .filter((c) => c.gaveUp >= MIN_RATE)
     .sort((a, b) => b.gaveUp - a.gaveUp)[0];
   if (givingUp) {
-    return ` ${givingUp.node.label} is giving up on it, ${rate(givingUp.gaveUp)} timeouts a second.`;
+    return ` ${givingUp.node.label} is giving up on it, ${rate(givingUp.gaveUp)} items a week.`;
   }
   const waiting = behind
     .filter((c) => (c.s.waitingOnDownstream ?? 0) >= 1)
     .sort((a, b) => (b.s.waitingOnDownstream ?? 0) - (a.s.waitingOnDownstream ?? 0))[0];
   if (waiting) {
-    return ` ${waiting.node.label} is stuck behind it, with ${formatCount(waiting.s.waitingOnDownstream)} requests waiting on its calls.`;
+    return ` ${waiting.node.label} is not the problem; it is stuck behind it, with ${formatCount(waiting.s.waitingOnDownstream)} tasks blocked waiting on it.`;
   }
   return '';
 }
@@ -472,23 +504,23 @@ function faultText(
   const name = r.node.label;
   switch (f.kind) {
     case 'crash':
-      return `${name}: you crashed it, so everything sent to it fails.`;
+      return `${name}: you took the whole team out, so nothing sent to it gets done.`;
     case 'errors':
-      return `${name}: you made it fail ${formatPct(f.rate ?? 0)} of requests.`;
+      return `${name}: you made ${formatPct(f.rate ?? 0)} of its work bounce back.`;
     case 'partition': {
       const cut = f.edgeIds?.length ?? 0;
-      return `${name}: you cut ${cut === 1 ? 'one of its links' : `${cut} of its links`}, so requests across them fail.`;
+      return `${name}: you broke ${cut === 1 ? 'one of its handoffs' : `${cut} of its handoffs`}, so work sent across them is lost.`;
     }
     case 'crash-instance':
     case 'slow': {
       const did =
         f.kind === 'slow'
           ? `you slowed it ${formatFactor(f.factor ?? 1)}`
-          : 'you crashed one of its machines';
+          : 'you sent one of its people home sick';
       if (!r.struggling) {
         return `${name}: ${did}, and it is keeping up for now.`;
       }
-      return `${name}: ${did}. Now ${stateClause(r, byId, topology)}.${feedText(r, topology, byId)}${upstreamText(r, topology, byId)}`;
+      return `${name}: ${did}. Now it is the constraint: ${stateClause(r, byId, topology)}.${feedText(r, topology, byId)}${upstreamText(r, topology, byId)}`;
     }
   }
 }

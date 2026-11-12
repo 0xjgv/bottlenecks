@@ -119,7 +119,7 @@ describe('the on-the-diagram key', () => {
     setPreference('tooltips', true);
     render('service', stats({ waitingOnDownstream: 37 }));
     expect(container.querySelector('[data-term="waiting-on-calls"]')?.textContent).toBe(
-      'Waiting on its calls',
+      'Blocked on others',
     );
   });
 });

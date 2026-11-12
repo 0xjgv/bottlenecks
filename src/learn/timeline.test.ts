@@ -92,9 +92,9 @@ describe('timeline: Single server, Database slowed 5x', () => {
   it('tells the story in order, cause first', () => {
     const order = [
       'Database slowed down 5x.',
-      'Database: all 6 slots busy',
+      'Database: all 6 task slots busy',
       'Database started turning away',
-      'The fault on Database was cleared.',
+      'Database is back to normal.',
       'Database is keeping up again.',
     ].map((s) => r.lines.indexOf(line(r.lines, s)));
     expect(order).toEqual([...order].sort((a, b) => a - b));
@@ -109,21 +109,21 @@ describe('timeline: Single server, Database slowed 5x', () => {
   });
 
   it('carries the numbers of the snapshot at the time it names', () => {
-    const full = line(r.lines, 'Database: all 6 slots busy');
+    const full = line(r.lines, 'Database: all 6 task slots busy');
     const snap = snapAt(r, full.atMs);
     const queued = snap.nodes[db]?.queued ?? -1;
-    expect(full.text).toBe(`Database: all 6 slots busy, ${queued} waiting in line.`);
+    expect(full.text).toBe(`Database: all 6 task slots busy, ${queued} tasks waiting.`);
 
-    const errs = r.lines.find((e) => e.text.endsWith('of requests started failing.'));
+    const errs = r.lines.find((e) => e.text.endsWith('of work started failing.'));
     expect(errs).toBeDefined();
     if (errs) {
       const pct = Math.round((snapAt(r, errs.atMs).system.errorRate ?? 0) * 100);
-      expect(errs.text).toBe(`${pct}% of requests started failing.`);
+      expect(errs.text).toBe(`${pct}% of work started failing.`);
     }
   });
 
   it('holds a condition for a second before it is a line', () => {
-    const full = line(r.lines, 'Database: all 6 slots busy');
+    const full = line(r.lines, 'Database: all 6 task slots busy');
     const fault = line(r.lines, 'Database slowed down 5x.');
     expect(full.atMs - fault.atMs).toBeGreaterThanOrEqual(1000);
   });
@@ -157,12 +157,12 @@ describe('timeline: what the student changed', () => {
         };
       }
     });
-    const loads = r.lines.filter((e) => e.text.startsWith('You raised the load'));
+    const loads = r.lines.filter((e) => e.text.startsWith('You raised incoming work'));
     expect(loads.map((e) => e.text)).toEqual([
-      'You raised the load from 50 to 270 a second.',
+      'You raised incoming work from 50 to 270 a week.',
     ]);
     expect(loads[0]?.atMs).toBe(2000);
-    line(r.lines, "You changed Database's slots per instance from 6 to 12.");
+    line(r.lines, "You changed Database's tasks per person from 6 to 12.");
     const fixed = line(r.lines, 'Database is keeping up again.');
     expect(fixed.atMs).toBeGreaterThan(12000);
     expect(r.lines.at(-1)?.tone).toBe('better');

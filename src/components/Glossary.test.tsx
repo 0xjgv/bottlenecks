@@ -97,7 +97,7 @@ describe('rendering', () => {
     const el = entries().find((e) => e.dataset.entry === 'p99');
     const text = el?.textContent ?? '';
     expect(text).toContain('p99');
-    expect(text).toContain('The slowest 1 in 100 requests');
+    expect(text).toContain('The slowest 1 in 100 tasks');
     expect(text).toContain('The number to watch');
   });
 });
@@ -124,7 +124,7 @@ describe('search', () => {
     expect(document.querySelector('.gl-count')?.textContent).toBe(
       `${GLOSSARY.length} terms`,
     );
-    type('p99');
+    type('backlog');
     const shown = entries().length;
     expect(document.querySelector('.gl-count')?.textContent).toBe(
       `${shown} of ${GLOSSARY.length} terms`,

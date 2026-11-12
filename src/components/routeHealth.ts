@@ -70,24 +70,27 @@ export function routeCondition(r: RouteStats, prev?: RouteCondition): RouteCondi
     : 'between';
 }
 
-/** How a route's failures read after "mostly". */
-const MOSTLY: Record<FailureReason, string> = {
-  timeout: 'timing out',
-  shed: 'turned away by a full queue',
-  error: 'answered with errors',
-  'no-route': 'finding nowhere to go',
-  depth: 'going round in a loop',
-  throttled: 'held back by a rate limiter',
-  rejected: 'refused by an open circuit breaker',
-  crashed: 'hitting a crashed component',
-  partitioned: 'stopped by a cut network link',
-  'region-down': 'finding no region serving',
-  'conn-refused': 'refused a connection',
-  unauthorized: 'failing to sign in',
-  'bulkhead-full': 'refused by a full bulkhead',
-  'acquire-timeout': 'waiting too long for a free slot',
-  deprioritized: 'dropped to protect other traffic',
-  'packet-loss': 'lost on the network',
+/**
+ * What happened to failed work, read after "mostly" here and after "it was"
+ * in the trace.
+ */
+export const FAILURE_WORDS: Record<FailureReason, string> = {
+  timeout: 'abandoned after waiting too long',
+  shed: 'turned away by a full backlog',
+  error: 'sent back as wrong',
+  'no-route': 'left with nobody to take it',
+  depth: 'passed around in a loop',
+  throttled: 'held back by an intake limit',
+  rejected: 'refused by a stop-the-line rule',
+  crashed: 'sent to a team that is out',
+  partitioned: 'lost in a broken handoff',
+  'region-down': 'left with no owner on duty',
+  'conn-refused': 'turned away from a full meeting',
+  unauthorized: 'refused at the front desk',
+  'bulkhead-full': 'refused because reserved capacity was full',
+  'acquire-timeout': 'abandoned waiting for a free person',
+  deprioritized: 'dropped to protect higher-priority work',
+  'packet-loss': 'lost between teams',
 };
 
 /** The reason behind at least half of a route's failures, if one is. */
@@ -119,9 +122,9 @@ function trouble(r: RouteStats): string {
   if (r.errorRate >= ROUTE_HURT_ERR) {
     const why = dominantReason(r);
     const failing = `${formatPct(r.errorRate)} failing`;
-    return why ? `${failing}, mostly ${MOSTLY[why]}` : failing;
+    return why ? `${failing}, mostly ${FAILURE_WORDS[why]}` : failing;
   }
-  return `slow, 1 in 100 requests take ${formatMs(r.p99)} or longer`;
+  return `slow, 1 in 100 items take ${formatMs(r.p99)} or longer`;
 }
 
 /** Worst first: by share failing, then by p99. */

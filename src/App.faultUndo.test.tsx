@@ -117,39 +117,39 @@ describe('a fault control', () => {
     mount();
     selectService();
     expect(must('Undo').disabled).toBe(true);
-    press(must('Crash'));
-    expect(status()).toMatch(/^Crashed at/);
+    press(must('Take out'));
+    expect(status()).toMatch(/^Out since/);
     expect(must('Undo').disabled).toBe(false);
 
     press(must('Undo'));
     expect(status()).toBe('Working normally.');
-    expect(toast()).toBe('Undid crash');
+    expect(toast()).toBe('Undid take out');
 
     press(must('Redo'));
-    expect(status()).toMatch(/^Crashed at/);
-    expect(toast()).toBe('Redid crash');
+    expect(status()).toMatch(/^Out since/);
+    expect(toast()).toBe('Redid take out');
   });
 
   it('is undone by Ctrl+Z', () => {
     mount();
     selectService();
-    press(must('Crash'));
+    press(must('Take out'));
     key('KeyZ', { ctrlKey: true });
     expect(status()).toBe('Working normally.');
-    expect(toast()).toBe('Undid crash');
+    expect(toast()).toBe('Undid take out');
   });
 
   it('leaves a crash in place when the edit after it is undone', () => {
     mount();
     selectService();
-    press(must('Crash'));
+    press(must('Take out'));
     // A discrete design edit after the crash.
     key('KeyD', { ctrlKey: true });
     expect(document.querySelectorAll('[data-hit="node"]').length).toBe(3);
     press(must('Undo'));
     expect(document.querySelectorAll('[data-hit="node"]').length).toBe(2);
     selectService();
-    expect(status()).toMatch(/^Crashed at/);
+    expect(status()).toMatch(/^Out since/);
   });
 });
 
@@ -160,7 +160,7 @@ describe('Forget saved faults', () => {
   it('is undone by Ctrl+Z without touching the node, and redone by Ctrl+Shift+Z', () => {
     mount();
     selectService();
-    press(must('Crash'));
+    press(must('Take out'));
     press(must('Fix'));
     expect(saved()).toMatch(/^2 faults are saved/);
 
@@ -195,7 +195,7 @@ describe('a fault on a design opened from a share link', () => {
     expect(nodes()).toBe(shared.nodes.length);
 
     press(document.querySelector('[data-hit="node"][data-kind="db"]')!);
-    press(must('Crash'));
+    press(must('Take out'));
     press(must('Undo'));
     press(must('Redo'));
     await wait(1200);

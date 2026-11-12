@@ -91,7 +91,7 @@ describe('Find the problem across runs', () => {
   it('does not bring an old answer back after a Reset', () => {
     run(2000);
     press(button('Find the problem'));
-    expect(answer()).toMatch(/^Nothing is struggling right now\./);
+    expect(answer()).toMatch(/^Nothing is piling up right now\./);
     press(button('Reset simulation'));
     expect(answer()).toBe('');
     // Well past the time the old answer was read at.

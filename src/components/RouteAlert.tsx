@@ -23,7 +23,10 @@ export const RouteAlert = memo(function RouteAlert({
   routes,
   nodeNames,
 }: RouteAlertProps) {
-  const nameOf = useCallback((id: string) => nodeNames[id] || 'Client', [nodeNames]);
+  const nameOf = useCallback(
+    (id: string) => nodeNames[id] || 'Incoming work',
+    [nodeNames],
+  );
   // Stepped once per new reading, during render, so the line on screen is
   // never a frame behind the routes it describes.
   const [seen, setSeen] = useState({ routes, state: ROUTE_ALERT_START });

@@ -54,7 +54,7 @@ const nameOf = (id: string) => NAMES[id] ?? id;
 describe('which route is hurting', () => {
   it('names the failing route and the fine one', () => {
     expect(routeSentence([failing('checkout', 0.4), route('browse')], nameOf)).toBe(
-      'Checkout users: 40% failing, mostly timing out. Browsers: fine.',
+      'Checkout users: 40% failing, mostly abandoned after waiting too long. Browsers: fine.',
     );
   });
 
@@ -88,13 +88,15 @@ describe('which route is hurting', () => {
     // Beside one that is hurting, it is named with its own figure.
     expect(
       routeSentence([failing('checkout', 0.5), failing('browse', 0.05)], nameOf),
-    ).toBe('Checkout users: 50% failing, mostly timing out. Browsers: 5% failing.');
+    ).toBe(
+      'Checkout users: 50% failing, mostly abandoned after waiting too long. Browsers: 5% failing.',
+    );
   });
 
   it('calls a slow route hurting even when nothing fails', () => {
     const slow = route('checkout', { p99: 2300 });
     expect(routeSentence([slow, route('browse')], nameOf)).toBe(
-      'Checkout users: slow, 1 in 100 requests take 2.3wk or longer. Browsers: fine.',
+      'Checkout users: slow, 1 in 100 items take 2.3wk or longer. Browsers: fine.',
     );
   });
 
@@ -123,8 +125,8 @@ describe('which route is hurting', () => {
       nameOf,
     );
     expect(text).toBe(
-      'Checkout users: 60% failing, mostly timing out. ' +
-        'Browsers: 20% failing, mostly turned away by a full queue. ' +
+      'Checkout users: 60% failing, mostly abandoned after waiting too long. ' +
+        'Browsers: 20% failing, mostly turned away by a full backlog. ' +
         'Searchers: 3% failing. a and b: fine.',
     );
   });
@@ -185,7 +187,7 @@ describe('the line holds still', () => {
     expect(s.shown).toBeNull();
     s = step(s, bad, 2000 + ROUTE_DWELL_MS);
     expect(s.shown?.text).toBe(
-      'Checkout users: 40% failing, mostly timing out. Browsers: fine.',
+      'Checkout users: 40% failing, mostly abandoned after waiting too long. Browsers: fine.',
     );
     expect(s.spoken).toBe(s.shown?.text);
     s = step(s, fine, 5000);
@@ -208,7 +210,7 @@ describe('the line holds still', () => {
     const both = [failing('checkout', 0.5), failing('browse', 0.03)];
     s = step(step(s, both, 3000), both, 3000 + ROUTE_DWELL_MS);
     expect(s.shown?.text).toBe(
-      'Checkout users: 50% failing, mostly timing out. Browsers: 3% failing.',
+      'Checkout users: 50% failing, mostly abandoned after waiting too long. Browsers: 3% failing.',
     );
     expect(s.spoken).toBe(first);
   });

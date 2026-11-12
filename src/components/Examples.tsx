@@ -143,7 +143,7 @@ export function Examples({
               Examples
             </h2>
             <p className="ex-sub">
-              Load a system that already works, then take it apart.
+              Load a workflow that already keeps up, then take it apart.
             </p>
           </div>
           <div className="ex-head-actions">
@@ -189,7 +189,7 @@ export function Examples({
 
         {shown.length === 0 && shownIncidents.length === 0 ? (
           <p className="ex-empty">
-            Nothing matches “{query}”. Try a component name like cache or queue.
+            Nothing matches “{query}”. Try a component name like backlog or playbook.
           </p>
         ) : (
           <div className="ex-scroll">
@@ -228,7 +228,7 @@ export function Examples({
                   Real incidents
                 </h3>
                 <p className="inc-section-sub">
-                  Real outages as simplified models. Watch one happen, then fix it.
+                  Real events as simplified models. Watch one happen, then fix it.
                 </p>
                 <ul className="ex-grid">
                   {shownIncidents.map((incident) => (

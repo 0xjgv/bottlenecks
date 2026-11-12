@@ -105,10 +105,11 @@ export function NodeFaultControls({
           aria-describedby={`${id}-crash`}
           onClick={guarded(crashed, onCrash)}
         >
-          Crash
+          Take out
         </button>
         <p id={`${id}-crash`} className="ins-hint">
-          Stops it completely. Work it was holding is lost.
+          Everyone here is out (leave, an offsite, a resignation). Work they were
+          holding is lost.
         </p>
       </div>
 
@@ -121,11 +122,11 @@ export function NodeFaultControls({
             aria-describedby={`${id}-crash-one`}
             onClick={guarded(oneDown, onCrashOne)}
           >
-            Crash one instance
+            One person out
           </button>
           <p id={`${id}-crash-one`} className="ins-hint">
-            Stops one of its {instances} machines. The work on that machine is lost, and
-            the other {instances - 1} keep serving with fewer slots between them.
+            One of its {instances} people is out sick. The work they held is lost, and
+            the other {instances - 1} carry on with less room between them.
           </p>
         </div>
       )}
@@ -155,19 +156,19 @@ export function NodeFaultControls({
             aria-describedby={`${id}-slow`}
             onClick={guarded(slowInert, () => onSlow(factor))}
           >
-            Slow
+            Slow down
           </button>
         </div>
         <p id={`${id}-slow`} className="ins-hint">
           {canSlow
-            ? 'Every request takes that many times longer to handle.'
-            : 'It does no work of its own that takes time, so there is nothing here to slow down. Try it on a component that handles requests.'}
+            ? 'Every task takes that many times longer (context switching, burnout, a new hire).'
+            : 'It does no hands-on work of its own, so there is nothing here to slow down. Try it on a team that does the work.'}
         </p>
       </div>
 
       <div className="ins-fault-row">
         <label className="row-k" htmlFor={`${id}-rate`}>
-          Requests that fail
+          Work that bounces back
         </label>
         <div className="ins-fault-pair">
           <select
@@ -189,11 +190,12 @@ export function NodeFaultControls({
             aria-describedby={`${id}-glitch`}
             onClick={guarded(glitchSame, () => onGlitch(rate))}
           >
-            Glitch
+            Let quality slip
           </button>
         </div>
         <p id={`${id}-glitch`} className="ins-hint">
-          It stays up, but that share of its answers are errors.
+          They keep working, but that share of what they hand on is wrong and comes
+          back.
         </p>
       </div>
 
@@ -210,14 +212,14 @@ export function NodeFaultControls({
 
       {cables.length > 0 && (
         <div className="ins-fault-cables">
-          <h3 className="label ins-fault-sub">Cables</h3>
+          <h3 className="label ins-fault-sub">Handoffs</h3>
           <ul className="ins-fault-list">
             {cables.map((c) => (
               <li key={c.id} className="ins-fault-cable">
                 <span className={c.state === 'connected' ? 'row-k' : 'row-k is-danger'}>
                   {c.label}
                   {c.state === 'connected' ? null : (
-                    <span className="sr-only">, cut</span>
+                    <span className="sr-only">, broken</span>
                   )}
                 </span>
                 <CableButton cable={c} onCut={onCut} onRestore={onRestore} named />
@@ -298,10 +300,10 @@ function CableButton({
       <button
         type="button"
         className="btn btn-sm btn-danger"
-        aria-label={named ? `Cut cable${suffix}` : undefined}
+        aria-label={named ? `Break handoff${suffix}` : undefined}
         onClick={() => onCut(cable.id)}
       >
-        Cut cable
+        Break handoff
       </button>
     );
   }
@@ -342,12 +344,12 @@ export function EdgeFaultControls({
 }: EdgeFaultControlsProps) {
   const status =
     cable.state === 'connected'
-      ? 'Connected.'
+      ? 'Working.'
       : cable.state === 'cut'
-        ? 'Cut. Nothing crosses this cable until you restore it.'
+        ? 'Broken. Nothing gets handed over here until you restore it.'
         : cutBy
-          ? `Cut because ${cutBy} is cut off from its cables. Fix ${cutBy} to reconnect it.`
-          : 'Cut because a component at one end is cut off from its cables. Fix that component to reconnect it.';
+          ? `Broken because ${cutBy} is cut off from everyone. Fix ${cutBy} to reconnect it.`
+          : 'Broken because the team at one end is cut off from everyone. Fix that team to reconnect it.';
   return (
     <div className="ins-fault">
       <p
@@ -396,12 +398,12 @@ export function LinkLossControls({ lossRate, onLoss }: LinkLossControlsProps) {
         role="status"
       >
         {lossRate > 0
-          ? `Losing ${formatPct(lossRate)} of the requests sent across it. A caller with retries sends a lost request again.`
-          : 'Delivers every request sent across it.'}
+          ? `Losing ${formatPct(lossRate)} of the work handed over here. A sender who chases sends lost work again.`
+          : 'Every item handed over here arrives.'}
       </p>
       <div className="ins-fault-row">
         <label className="row-k" htmlFor={`${id}-loss`}>
-          Requests lost on the way
+          Work lost on the way
         </label>
         <div className="ins-fault-pair">
           <select
@@ -427,8 +429,8 @@ export function LinkLossControls({ lossRate, onLoss }: LinkLossControlsProps) {
           </button>
         </div>
         <p id={`${id}-hint`} className="ins-hint">
-          Saved with the design, so it stays after Reset. The component at the other end
-          never sees a lost request.
+          Saved with the design, so it stays after Reset. The team at the other end
+          never sees lost work.
         </p>
       </div>
     </div>

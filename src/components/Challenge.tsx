@@ -71,17 +71,17 @@ export interface ChallengePanelProps {
 
 /** A goal's name in its row. The percentile names are taught, not assumed. */
 const LABEL: Record<GoalMetric, string> = {
-  p99: 'Slowest 1 in 100 requests (p99)',
-  p95: 'Slowest 1 in 20 requests (p95)',
-  errorRate: 'Requests lost',
-  lostWrites: 'Saves that never reached the database',
-  lostJobs: 'Accepted jobs that failed later',
-  queueDepth: 'Jobs still waiting in the queue',
+  p99: 'Slowest 1 in 100 work items (p99)',
+  p95: 'Slowest 1 in 20 work items (p95)',
+  errorRate: 'Work lost',
+  lostWrites: 'Promised records never written down',
+  lostJobs: 'Accepted tasks that failed later',
+  queueDepth: 'Tasks still waiting in the backlog',
 };
 
 /**
- * A goal's name, with the traffic source it is about when it is about one:
- * "Checkout users: requests lost".
+ * A goal's name, with the source of work it is about when it is about one:
+ * "Sales: work lost".
  */
 function goalName(goal: Goal, nameOf: (id: string) => string): string {
   if (goal.route === undefined) return LABEL[goal.metric];
@@ -127,49 +127,49 @@ function missLine(
   const a = formatGoal(goal.metric, actual);
   const one = actual === 1;
   const end = `and the goal is ${limit(goal)}.`;
-  const requests =
-    goal.route === undefined ? 'requests' : `requests from ${nameOf(goal.route)}`;
+  const items =
+    goal.route === undefined ? 'work items' : `work items from ${nameOf(goal.route)}`;
   switch (goal.metric) {
     case 'p99':
-      return `The slowest 1 in 100 ${requests} took ${a}, ${end}`;
+      return `The slowest 1 in 100 ${items} took ${a}, ${end}`;
     case 'p95':
-      return `The slowest 1 in 20 ${requests} took ${a}, ${end}`;
+      return `The slowest 1 in 20 ${items} took ${a}, ${end}`;
     case 'errorRate':
-      return `${a} of ${requests} were lost, ${end}`;
+      return `${a} of ${items} were lost, ${end}`;
     case 'lostWrites':
-      return `${a} ${one ? 'save' : 'saves'} never reached the database, ${end}`;
+      return `${a} promised ${one ? 'record was' : 'records were'} never written down, ${end}`;
     case 'lostJobs':
-      return `${a} accepted ${one ? 'job' : 'jobs'} failed later, ${end}`;
+      return `${a} accepted ${one ? 'task' : 'tasks'} failed later, ${end}`;
     case 'queueDepth':
-      return `${a} ${one ? 'job was' : 'jobs were'} still waiting in the queue at the end, ${end}`;
+      return `${a} ${one ? 'task was' : 'tasks were'} still waiting in the backlog at the end, ${end}`;
   }
 }
 
 /**
- * Why requests were lost, finishing "Most lost requests were ...". One line,
+ * Why work was lost, finishing "Most lost work items were ...". One line,
  * from the run's own counts, so a failed check points somewhere instead of
  * only saying no.
  */
 const REASON_PHRASE: Record<FailureReason, string> = {
-  shed: 'turned away because every slot was taken and the line was full',
-  timeout: 'given up on because the caller stopped waiting',
-  error: 'answered with an error',
-  crashed: 'lost when a component crashed',
-  'no-route': 'sent somewhere with nothing connected to take them',
-  depth: 'passed along too many hops',
-  throttled: 'refused by a rate limiter',
-  rejected: 'refused by an open circuit breaker',
-  partitioned: 'stopped by a cut connection',
-  'packet-loss': 'dropped by a connection losing packets',
-  'region-down': 'sent while no region was serving',
-  'conn-refused': 'refused because every connection was taken',
-  unauthorized: 'refused because they failed authentication',
-  'bulkhead-full': 'refused by a full bulkhead',
-  'acquire-timeout': 'dropped after waiting too long for a bulkhead slot',
-  deprioritized: 'dropped to make room for more important traffic',
+  shed: 'turned away because everyone was busy and the backlog was full',
+  timeout: 'given up on because the requester stopped waiting',
+  error: 'sent back as failed',
+  crashed: 'lost when someone was out',
+  'no-route': 'sent somewhere with nobody connected to take them',
+  depth: 'handed along too many times',
+  throttled: 'refused by an intake limit',
+  rejected: 'refused by a stop-the-line rule',
+  partitioned: 'lost at a broken handoff',
+  'packet-loss': 'dropped by a handoff that loses messages',
+  'region-down': 'sent while no owner was available',
+  'conn-refused': 'refused because every open line was taken',
+  unauthorized: 'refused because they failed the checks',
+  'bulkhead-full': 'refused because the reserved capacity was full',
+  'acquire-timeout': 'dropped after waiting too long for reserved capacity',
+  deprioritized: 'dropped to make room for more important work',
 };
 
-/** The commonest reason a run lost requests, as a sentence, or null. */
+/** The commonest reason a run lost work, as a sentence, or null. */
 function reasonLine(run: RunResult): string | null {
   let top: FailureReason | null = null;
   let most = 0;
@@ -184,11 +184,11 @@ function reasonLine(run: RunResult): string | null {
   }
   if (top === null || run.failed <= 0) return null;
   const phrase = REASON_PHRASE[top];
-  if (most >= run.failed) return `Every lost request was ${phrase}.`;
+  if (most >= run.failed) return `Every lost work item was ${phrase}.`;
   const share = formatShareDown(most / run.failed);
   return most * 2 > run.failed
-    ? `Most lost requests (${share}) were ${phrase}.`
-    : `The largest share of lost requests (${share}) were ${phrase}.`;
+    ? `Most lost work items (${share}) were ${phrase}.`
+    : `The largest share of lost work items (${share}) were ${phrase}.`;
 }
 
 /** "run 2", numbered the way the reader counts them rather than by seed. */
@@ -225,13 +225,13 @@ function verdictLine(verdict: Verdict, nameOf: (id: string) => string): VerdictL
     case 'nothing-completed':
       return {
         word: 'Not yet',
-        why: 'No request got an answer at all.',
+        why: 'No work item got finished at all.',
         tone: 'danger',
       };
     case 'falling-behind':
       return {
         word: 'Not yet',
-        why: `Only ${formatShareDown(verdict.deciding.keptUp)} of the requests sent got an answer by the end, and the rest were still waiting.`,
+        why: `Only ${formatShareDown(verdict.deciding.keptUp)} of the work sent got finished by the end, and the rest was still waiting.`,
         tone: 'danger',
       };
     case 'over-budget':
@@ -258,23 +258,23 @@ function headline(verdict: Verdict, nameOf: (id: string) => string): string {
 function unjudgeableLine(why: Unjudgeable, nameOf: (id: string) => string): string {
   switch (why.reason) {
     case 'no-traffic':
-      return 'There is no client left to send traffic. Put one back.';
+      return 'There is no incoming work left. Put it back.';
     case 'fault-target-missing':
       return `The brief breaks ${nameOf(why.target)} on purpose, and this design no longer has one it can break that way. Put it back.`;
     case 'traffic-added':
-      return 'This design has a client the brief does not. Take the new one out.';
+      return 'This design has a source of incoming work the brief does not. Take the new one out.';
     case 'component-missing':
-      return `Requests no longer reach every ${KIND_NAME[why.kind].toLowerCase()} the brief started with. Put it back or connect it again.`;
+      return `Work no longer reaches every ${KIND_NAME[why.kind].toLowerCase()} the brief started with. Put it back or connect it again.`;
     case 'connection-cut':
-      return `Requests no longer get from ${nameOf(why.from)} to ${nameOf(why.to)}. Connect them again; you can put new parts in between.`;
+      return `Work no longer gets from ${nameOf(why.from)} to ${nameOf(why.to)}. Connect them again; you can put new steps in between.`;
     case 'connection-added':
-      return `${nameOf(why.from)} now sends requests straight to ${nameOf(why.to)}, which skips part of the system. Take that connection out.`;
+      return `${nameOf(why.from)} now sends work straight to ${nameOf(why.to)}, which skips part of the flow. Take that connection out.`;
     case 'shortcut-added':
       return why.allowed > 0
         ? `This brief allows one new ${KIND_NAME[why.kind].toLowerCase()}, and this design adds more. A row of them hides the problem instead of fixing it, so take the extra ones out.`
-        : `A new ${KIND_NAME[why.kind].toLowerCase()} would answer requests before the work behind it is done, and this brief does not allow one. Take it out.`;
+        : `A new ${KIND_NAME[why.kind].toLowerCase()} would answer asks before the work behind it is done, and this brief does not allow one. Take it out.`;
     case 'dead-end-added':
-      return `${nameOf(why.nodeId)} answers requests without passing them on, so they never reach the rest of the system. Connect it onward or take it out.`;
+      return `${nameOf(why.nodeId)} answers work without passing it on, so it never reaches the rest of the flow. Connect it onward or take it out.`;
   }
 }
 
@@ -660,8 +660,8 @@ export function ChallengePanel({
               </p>
               <p className="chal-note">
                 The check plays your design {CHECK_SEEDS.length} times, each with
-                slightly different random traffic. It counts from {warmS}s to {endS}s of
-                each run.
+                slightly different random arrivals of work. It counts from week {warmS}{' '}
+                to week {endS} of each run.
               </p>
               {check.status === 'checking' ? (
                 <>
@@ -688,15 +688,15 @@ export function ChallengePanel({
               {deciding ? (
                 <p className="chal-note">
                   {passed ? 'Closest call' : 'Decided by'}: {runName(deciding)}, with{' '}
-                  <span className="num">{formatCount(deciding.arrived)}</span> requests
-                  counted.
+                  <span className="num">{formatCount(deciding.arrived)}</span> work
+                  items counted.
                 </p>
               ) : null}
               {reason ? <p className="chal-note">{reason}</p> : null}
               {verdict?.status === 'over-budget' ? (
                 <p className="chal-note">
-                  A slot is one request a component can work on at once. Take some away
-                  and it gets checked.
+                  A slot is one task a person can work on at once. Take some away and it
+                  gets checked.
                 </p>
               ) : null}
               <div className="chal-actions">

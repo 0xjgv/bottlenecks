@@ -118,21 +118,27 @@ export function GrowthPanel({ topology, nameOf, onClose, onPlay }: Props) {
             <table className="grw-table">
               <thead>
                 <tr>
-                  <th scope="col">Work</th>
-                  <th scope="col">Finished</th>
+                  <th scope="col">Work in</th>
+                  <th scope="col">Done</th>
                   <th scope="col">Dropped</th>
-                  <th scope="col">Slowest 1 in 100</th>
-                  <th scope="col">Busiest step</th>
-                  <th scope="col">
-                    <span className="sr-only">Play</span>
+                  <th scope="col" title="The slowest 1 in 100 items">
+                    Slowest
                   </th>
+                  <th scope="col">Busiest step</th>
                 </tr>
               </thead>
               <tbody>
                 {view.forecast.steps.map((s) => (
                   <tr key={s.multiple} className={s.broken ? 'is-broken' : undefined}>
                     <th scope="row">
-                      <span className="grw-mult">{s.multiple}x</span>
+                      <button
+                        type="button"
+                        className="btn btn-sm grw-play"
+                        title={`Play the canvas at ${s.multiple}x today's work`}
+                        onClick={() => onPlay(s.multiple)}
+                      >
+                        {s.multiple}x
+                      </button>
                       <span className="grw-sub">{formatRate(s.offeredPerWeek)}</span>
                     </th>
                     <td>{formatRate(s.deliveredPerWeek)}</td>
@@ -156,25 +162,17 @@ export function GrowthPanel({ topology, nameOf, onClose, onPlay }: Props) {
                         'none'
                       )}
                     </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        onClick={() => onPlay(s.multiple)}
-                      >
-                        Play
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <p className="chal-note">
               Each row plays your company for 20 weeks with incoming work at that
-              multiple of today. A row turns red when more than 2 in 100 items are
-              dropped, or the slowest items take more than twice as long as today. The
-              busiest step sets the pace for everyone: an hour saved there is an hour
-              for the whole company; an hour saved anywhere else changes nothing.
+              multiple of today. Press a multiple to play it on the canvas. A row turns
+              red when more than 2 in 100 items are dropped, or the slowest items take
+              more than twice as long as today. The busiest step sets the pace for
+              everyone: an hour saved there is an hour for the whole company; an hour
+              saved anywhere else changes nothing.
             </p>
           </>
         )}

@@ -241,7 +241,7 @@ describe('the check', () => {
     render({ check: { status: 'verdict', verdict: missed } });
     // 200.4ms printed as 200ms would read as on the line.
     expect(text()).toContain(
-      `Not yet. The slowest 1 in 100 requests took ${formatGoalMs(p99Goal.max + 1)}, and the goal is ${formatGoalMs(p99Goal.max)} or less.`,
+      `Not yet. The slowest 1 in 100 work items took ${formatGoalMs(p99Goal.max + 1)}, and the goal is ${formatGoalMs(p99Goal.max)} or less.`,
     );
     expect(container.querySelector('.chal-chip')?.textContent).toBe('Not yet');
   });
@@ -249,7 +249,7 @@ describe('the check', () => {
   it('gives one reason line from the run counts', () => {
     render({ check: { status: 'verdict', verdict: missed } });
     expect(text()).toContain(
-      'Most lost requests (80%) were turned away because every slot was taken and the line was full.',
+      'Most lost work items (80%) were turned away because everyone was busy and the backlog was full.',
     );
   });
 
@@ -260,7 +260,7 @@ describe('the check', () => {
       deciding: run({ keptUp: 0.9799, outcome: 'falling-behind' }),
     });
     render({ check: { status: 'verdict', verdict: behind } });
-    expect(text()).toContain('Only 97.9% of the requests sent');
+    expect(text()).toContain('Only 97.9% of the work sent');
     expect(container.querySelector('.chal-chip')?.textContent).toBe('Falling behind');
   });
 
@@ -295,22 +295,25 @@ describe('the check', () => {
 
   it('says what a design changed that the brief does not allow', () => {
     const cases: [Unjudgeable, string][] = [
-      [{ reason: 'traffic-added' }, 'This design has a client the brief does not.'],
+      [
+        { reason: 'traffic-added' },
+        'This design has a source of incoming work the brief does not.',
+      ],
       [
         { reason: 'component-missing', kind: 'db' },
-        'Requests no longer reach every decision maker the brief started with.',
+        'Work no longer reaches every decision maker the brief started with.',
       ],
       [
         { reason: 'connection-cut', from: 'api', to: 'db' },
-        'Requests no longer get from the api to the db.',
+        'Work no longer gets from the api to the db.',
       ],
       [
         { reason: 'connection-added', from: 'client', to: 'db' },
-        'the client now sends requests straight to the db',
+        'the client now sends work straight to the db',
       ],
       [
         { reason: 'shortcut-added', kind: 'queue', allowed: 0 },
-        'A new backlog would answer requests',
+        'A new backlog would answer asks',
       ],
       [
         { reason: 'shortcut-added', kind: 'cache', allowed: 1 },
@@ -318,7 +321,7 @@ describe('the check', () => {
       ],
       [
         { reason: 'dead-end-added', nodeId: 'sink', kind: 'service' },
-        'the sink answers requests without passing them on',
+        'the sink answers work without passing it on',
       ],
     ];
     for (const [why, line] of cases) {
@@ -342,7 +345,7 @@ describe('the check', () => {
     });
     render({ check: { status: 'verdict', verdict: lost } });
     expect(text()).toContain(
-      '312 saves never reached the database, and the goal is none.',
+      '312 promised records were never written down, and the goal is none.',
     );
   });
 
@@ -407,7 +410,7 @@ describe('what a student sees first', () => {
     for (const inside of [
       'Right now on screen',
       'Closest call: run 2',
-      'from 15s to 60s',
+      'from week 15 to week 60',
     ])
       expect(body.textContent).toContain(inside);
     expect(body.contains(button('Watch run 2'))).toBe(true);

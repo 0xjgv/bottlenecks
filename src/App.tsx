@@ -24,7 +24,6 @@ import type {
   Topology,
 } from './sim/types';
 import { useCoarsePointer } from './useCoarsePointer';
-import { useGithubStars, useCountUp, formatStars } from './useGithubStars';
 import { Engine } from './sim/engine';
 import { PRESETS, makeNode } from './sim/presets';
 import { CHALLENGES, challengeById } from './sim/challenges';
@@ -36,6 +35,7 @@ import type { Verdict } from './sim/judge';
 import { ChallengePanel } from './components/Challenge';
 import { IncidentPanel } from './components/Incidents';
 import { BreakPanel } from './components/BreakIt';
+import { GrowthPanel } from './components/Growth';
 import type { Names } from './components/breakCopy';
 import { secs } from './components/breakCopy';
 import { formatGoalMs, formatGoalPct, formatShareDown } from './components/format';
@@ -234,8 +234,6 @@ const clampPanel = (key: PanelKey, v: unknown): number => {
  * problem as a phone; a tablet in landscape has neither.
  */
 const PHONE_QUERY = '(max-width: 720px)';
-
-const SOURCE_URL = 'https://github.com/workersio/breakscale';
 
 function subscribePhone(onChange: () => void): () => void {
   if (typeof window === 'undefined' || !window.matchMedia) return () => {};
@@ -885,6 +883,12 @@ export default function App() {
   const [challengesOpen, setChallengesOpen] = useState(false);
   /** "Can you break it?" is open. Only in the reader's own workspace. */
   const [breakOpen, setBreakOpen] = useState(false);
+  /**
+   * The design as it was when the growth forecast opened, or null when it is
+   * shut. The forecast plays this copy, so pressing Play on a row (which
+   * changes the live load) does not restart it with a new "today".
+   */
+  const [growthBase, setGrowthBase] = useState<Topology | null>(null);
   /** The real incident whose panel is open, by id. Only in the reader's own workspace. */
   const [incidentId, setIncidentId] = useState<string | null>(null);
   const [pathOpen, setPathOpen] = useState(false);
@@ -959,11 +963,6 @@ export default function App() {
 
   const phone = useSyncExternalStore(subscribePhone, isPhone, isPhoneServer);
   const coarse = useCoarsePointer();
-  /* The real count names the link; the tweened one is only ever drawn, so a
-     screen reader is never read a number the animation happened to be
-     passing through. */
-  const starCount = useGithubStars();
-  const stars = useCountUp(starCount);
 
   /**
    * Where the bar actually ends, so everything that must clear it can.
@@ -1194,21 +1193,8 @@ export default function App() {
         icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
         onSelect: () => setSettingsOpen(true),
       },
-      /* The phone header has no room for the GitHub link, so it moves here
-         rather than going missing. */
-      ...(phone
-        ? [
-            {
-              label: 'Source on GitHub',
-              icon: 'M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6',
-              onSelect: () => {
-                window.open(SOURCE_URL, '_blank', 'noopener,noreferrer');
-              },
-            },
-          ]
-        : []),
     ],
-    [openGlossary, coarse, phone],
+    [openGlossary, coarse],
   );
 
   /**
@@ -3107,7 +3093,7 @@ export default function App() {
      was when it closes. Hidden, not ended: its first step says to break it
      on purpose, and that is not a reason to lose it. An incident's panel
      takes the same room. */
-  const tourShown = tour.open && !breakShown && !incident;
+  const tourShown = tour.open && !breakShown && !incident && growthBase === null;
   const breakSearch = useBreakSearch(breakShown, topology);
   const breakView = breakSearch.view;
 
@@ -3115,10 +3101,10 @@ export default function App() {
   const breakBlocked = useMemo(() => {
     const clients = topology.nodes.filter((n) => n.kind === 'client');
     if (clients.length === 0)
-      return 'Add a client first, so there is traffic to break.';
+      return 'Add incoming work first, so there is work to break.';
     const ids = new Set(clients.map((c) => c.id));
     if (!topology.edges.some((e) => ids.has(e.from))) {
-      return 'Add something behind the client to break.';
+      return 'Add a team behind the incoming work to break.';
     }
     return null;
   }, [topology.nodes, topology.edges]);
@@ -3134,7 +3120,7 @@ export default function App() {
       node: label,
       edge: (id: string) => {
         const e = topology.edges.find((x) => x.id === id);
-        return e ? `the cable from ${label(e.from)} to ${label(e.to)}` : id;
+        return e ? `the handoff from ${label(e.from)} to ${label(e.to)}` : id;
       },
     };
   }, [nodeNames, topology.edges]);
@@ -3318,20 +3304,22 @@ export default function App() {
     if (!breakWatch || breakWatchSec < 0) return null;
     const now = engine.now;
     const { firstMs, goal } = breakWatch;
-    const until = ` The first fault lands at ${secs(firstMs)} (in ${Math.ceil((firstMs - now) / 1000)}s).`;
+    // One simulated second is one working week.
+    const left = Math.ceil((firstMs - now) / 1000);
+    const lands = `first fault lands at ${secs(firstMs)} (in ${left} ${left === 1 ? 'week' : 'weeks'}).`;
+    const until = ` The ${lands}`;
     const tally = now < BREAK_WARMUP_MS ? null : engine.readTally();
-    if (!tally)
-      return `Replay: the first fault lands at ${secs(firstMs)} (in ${Math.ceil((firstMs - now) / 1000)}s).`;
+    if (!tally) return `Replay: the ${lands}`;
     const run = measureSeed(goal, tally, 0);
     // The verdict's own order: nothing through, then a backlog, then the
-    // goal. Partway through, requests still on their way look like a
+    // goal. Partway through, work still on its way looks like a
     // backlog, so that only counts once the window is over.
     const ended = now >= BREAK_END_MS;
     const figure =
       run.outcome === 'nothing-completed'
         ? 'nothing got through'
         : ended && run.outcome === 'falling-behind'
-          ? `requests piled up faster than they finished (${formatShareDown(run.keptUp)} got an answer), which counts as broken`
+          ? `work piled up faster than it got done (${formatShareDown(run.keptUp)} got finished), which counts as broken`
           : goal.metric === 'errorRate'
             ? run.actual === null
               ? 'nothing has settled'
@@ -3367,8 +3355,24 @@ export default function App() {
     else {
       setBreakOpen(true);
       setIncidentId(null);
+      setGrowthBase(null);
     }
   }, [breakShown, handleCloseBreak]);
+
+  /* ---------------- what if we grow? ---------------- */
+
+  const growthShown = growthBase !== null && !challenge && !breakShown && !incident;
+  const handleToggleGrowth = useCallback(() => {
+    setGrowthBase((b) => (b ? null : topology));
+  }, [topology]);
+  const handlePlayGrowth = useCallback(
+    (multiple: number) => {
+      if (!growthBase) return;
+      const today = findClients(growthBase).reduce((sum, c) => sum + c.config.rps, 0);
+      handleRpsChange(Math.round(today * multiple));
+    },
+    [growthBase, handleRpsChange],
+  );
   /* ---------------- real incidents ---------------- */
 
   /** Bumped when a card is opened, to move focus to the panel. */
@@ -3779,8 +3783,10 @@ export default function App() {
             voice. Two words, sentence case, no abbreviation — a student
             opening this should be able to say what it is out loud. */}
           <div className="app-brand">
-            <h1 className="app-title">Breakscale</h1>
-            <p className="app-tagline">Build it, load it, watch it break</p>
+            <h1 className="app-title">Bottlenecks</h1>
+            <p className="app-tagline">
+              Map how work flows through your startup. Find what slows it down.
+            </p>
           </div>
 
           {/*
@@ -3889,64 +3895,38 @@ export default function App() {
           here leaves the bar carrying only what changes while the simulation
           runs, which is the thing a reader is actually watching.
         */}
-          {/*
-            The one outward link in the bar.
-
-            It sits here rather than in the menu because it is the only thing
-            on this surface addressed to someone deciding whether to trust the
-            project, and a reader who has to open a menu to find the source
-            has usually stopped looking. Chrome, so the canvas ignores it.
-          */}
-          <a
-            className={`btn btn-icon app-source-link${stars !== null ? ' has-stars' : ''}`}
-            href={SOURCE_URL}
-            target="_blank"
-            rel="noreferrer noopener"
-            aria-label={
-              starCount !== null
-                ? `Source on GitHub, ${starCount} stars`
-                : 'Source on GitHub'
-            }
-            title="Source on GitHub"
-            data-chrome=""
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path d="M12 1.5a10.5 10.5 0 0 0-3.32 20.47c.53.1.72-.23.72-.5v-1.8c-2.92.63-3.54-1.41-3.54-1.41-.48-1.21-1.17-1.54-1.17-1.54-.95-.65.07-.64.07-.64 1.06.08 1.61 1.09 1.61 1.09.94 1.6 2.46 1.14 3.06.87.1-.68.37-1.14.67-1.4-2.33-.27-4.78-1.17-4.78-5.19 0-1.15.41-2.09 1.08-2.82-.11-.27-.47-1.34.1-2.79 0 0 .88-.28 2.88 1.07a9.9 9.9 0 0 1 5.24 0c2-1.35 2.88-1.07 2.88-1.07.57 1.45.21 2.52.1 2.79.67.73 1.08 1.67 1.08 2.82 0 4.03-2.45 4.92-4.79 5.18.38.33.71.97.71 1.96v2.9c0 .28.19.61.72.5A10.5 10.5 0 0 0 12 1.5z" />
-            </svg>
-            {/* Absent until the fetch resolves, not rendered empty and filled
-                later: a reserved-but-blank slot would shift nothing today but
-                invites a layout-shift bug the day the icon gets a neighbour
-                that shows before this does. aria-hidden because the accessible
-                name above already carries the count. A bare number next to
-                the mark reads as nothing in particular, so a small star
-                glyph says what it is without a word of copy. */}
-            {stars !== null && (
-              <span className="app-source-stars" aria-hidden="true">
-                <span className="app-source-star-wrap">
-                  <svg
-                    className="app-source-star-glyph"
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="currentColor"
-                  >
-                    <path d="M12 2.5l2.9 6.6 7.1.7-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7-5.4-4.7 7.1-.7z" />
-                  </svg>
-                </span>
-                {formatStars(stars)}
-              </span>
-            )}
-          </a>
-
           {/* Labelled, and in the bar rather than three levels down inside
               Settings. Sending a design to someone is a thing people want
               to do often, and a feature nobody can find has not shipped. */}
+          {challenge ? null : (
+            <button
+              type="button"
+              className="btn app-share-btn"
+              onClick={handleToggleGrowth}
+              disabled={breakBlocked !== null}
+              aria-expanded={growthShown}
+              title={
+                breakBlocked ??
+                'Play this company at 1x to 4x today\u2019s work and see what breaks first'
+              }
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M22 7 13.5 15.5 8.5 10.5 2 17" />
+                <path d="M16 7h6v6" />
+              </svg>
+              <span>What if we grow?</span>
+            </button>
+          )}
           {/* Hidden inside a brief, which owns its faults and its check. */}
           {challenge ? null : (
             <button
@@ -4227,6 +4207,14 @@ export default function App() {
                 focusSignal={incidentFocus}
                 foldOnStart={false}
                 onSheetResize={handleSheetResize}
+              />
+            ) : null}
+            {growthShown && growthBase ? (
+              <GrowthPanel
+                topology={growthBase}
+                nameOf={(id) => nodeNames[id] ?? id}
+                onClose={() => setGrowthBase(null)}
+                onPlay={handlePlayGrowth}
               />
             ) : null}
             {breakShown ? (

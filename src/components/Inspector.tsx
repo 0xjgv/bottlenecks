@@ -35,7 +35,6 @@ import { Term } from './Tooltip';
 import { readoutFor } from './Canvas';
 import { readoutTermFor } from './readoutTerms';
 import { GLOSSARY_BY_ID } from '../content/glossary';
-import { VendorPanel } from './VendorPanel';
 import {
   EdgeFaultControls,
   LinkLossControls,
@@ -382,67 +381,67 @@ const HAS_THROUGHPUT_CEILING: ReadonlySet<NodeKind> = new Set<NodeKind>([
  */
 const KIND_BLURB: Record<NodeKind, string> = {
   client:
-    'Offers load and waits for an answer. Its timeout decides when a slow reply becomes a failure.',
-  lb: 'Spreads requests across its targets. Its own pool and backlog can saturate before theirs do.',
+    'Where work comes from: customers, sales, the roadmap. It sends work at a steady rate and gives up if the answer takes too long.',
+  lb: 'A lead handing work out across people. Nearly free, until their own pile fills before the team’s does.',
   service:
-    'The workhorse. How many it handles at once, divided by how long each takes, is the ceiling everything else queues behind.',
+    'People doing the work. They hold a task while they wait on what they asked others for, so a slow team downstream ties them up too.',
   cache:
-    'Answers hits without touching downstream. Each cache rolls its own hit chance, independently of the others, so stacking them multiplies misses rather than treating later caches as filters on earlier misses.',
-  db: 'Slots and service time. It does not retry for you, so its queue is where pressure shows.',
+    'Docs, templates and FAQs that answer a share of asks with no person involved. Each playbook rolls its own chance, independently of the others, so a second one is not a net for what the first missed.',
+  db: 'The founder or approver everyone waits on. Decisions conflict and queue, and adding helpers does not fix it.',
   queue:
-    'A buffer. Depth is the whole story: it absorbs bursts up to the limit, then sheds.',
+    'An async handoff. The sender moves on and the work waits for whoever pulls it, up to a limit, then it is dropped.',
   worker:
-    'Drains a queue at its own pace. Too few workers and the backlog never recovers.',
+    'People pulling tickets from a backlog at their own pace. Too few of them and the backlog never shrinks.',
   replica:
-    'Reads scale with the replica count, but a read can arrive before the last write has propagated. Watch the stale rate as you raise the lag.',
+    'They answer questions for the owner but are behind on the latest context, so some answers are stale. Decisions still go to the owner.',
   shard:
-    'Splits data across partitions by key, so capacity adds up, until one key gets hot and a single shard has to carry it alone.',
+    'Accounts or areas split between owners, so capacity adds up, until one huge customer lands on a single owner.',
   autoscaler:
-    'Watches one node and adds capacity when it runs hot. New capacity takes warmup time to arrive, so load always leads it.',
+    'Adds headcount when a team runs hot. Hiring and onboarding take weeks, so help always arrives late.',
   region:
-    'Sends traffic to one region at a time. If that region dies, failover costs you a full outage window before the next one takes over.',
-  cdn: 'An edge cache in front of everything. At a 0.9 hit rate one CDN leaves a tenth of the traffic for the origin, and that chance is rolled independently of every other cache on the path. It is still the cheapest capacity you will ever add.',
+    'One owner at a time, with backups. When the owner is out, nothing moves until the handover is done.',
+  cdn: 'Public self-serve that deflects asks before they reach anyone. Its share is rolled independently of every other playbook on the way, and it is still the cheapest capacity you will ever add.',
   ratelimiter:
-    'A token bucket. Refuses excess traffic instantly instead of queueing it, which is what stops a busy system turning into a dead one.',
+    'Takes on a fixed amount of new work a week and says no to the rest right away, instead of letting it pile up.',
   breaker:
-    'Watches its downstream and stops calling it once it is failing. Cutting the traffic to zero is what gives a struggling dependency room to recover.',
+    'After repeated failures from a partner, it stops sending work there for a while, which gives them room to recover.',
   objectstore:
-    'Blob storage. Every request pays a high flat latency, but the pool is wide enough that saturating it takes deliberate effort. Not a database, and that is the point.',
+    'Every lookup costs the same slow, flat time, but there is room for many at once, so it rarely fills up.',
   searchindex:
-    'Searches are cheap; writes pay an indexing surcharge and only become searchable after the refresh lag. The stale-search rate is that lag made visible.',
+    'Finding prior work is cheap. Recording it costs extra, and it only shows up in search after a delay.',
   timeseriesdb:
-    'Built to swallow appends by the thousand. A range query costs hundreds of appends, so a few percent of them dominates the store, which is why metrics do not live in your main database.',
+    'Logging a number is cheap. One report reads hundreds of entries, so a few reports can swamp it.',
   graphdb:
-    'Stores relationships. Every extra hop of traversal depth multiplies the edges visited by three, so a friends-of-friends query costs triple and one more hop triples it again.',
+    'Answers that need other teams. Every extra team you have to ask multiplies the cost.',
   coldstorage:
-    'The archive tier: cheap to keep, seconds to read. Fine for a trickle of restores behind a queue, hopeless for anything a user is waiting on.',
+    'Cheap to keep, slow to dig out. Fine for the odd lookup, hopeless for anything someone is waiting on.',
   vectordb:
-    'Similarity search over embeddings. Cost grows with the log of the corpus and explodes as recall approaches perfect, so the recall slider is a latency slider read backwards.',
+    'Answers by finding similar past work. More accuracy costs more time, and the last bit costs the most.',
   streambroker:
-    'A partitioned, replayable log. Producers are acked instantly; each outgoing edge is an independent consumer group whose lag grows when its consumers are slower than the producers. Partition count, not consumer count, caps how fast a group can drain.',
+    'Posts land instantly. Each group of readers works through them at its own pace, and a slow group falls behind.',
   pubsub:
-    'One publish becomes one delivery per subscriber. A slow subscriber sheds at its own node without delaying the others, but the total load is multiplied by the fan-out, whether you noticed or not.',
+    'One message becomes work for every team that hears it. More teams listening means more total work.',
   websocket:
-    'Holds long-lived connections. Capacity is concurrent connections held, not requests per second: at 30 new connections a second held 8 seconds each, 240 slots are simply occupied. Chat systems run out of sockets long before they run out of CPU.',
+    'Capacity is seats in the room, held for the whole meeting, however little gets said.',
   apigateway:
-    'The front door: authenticates, rate limits, and routes each request to the backend its weights choose. Three components worth of refusals happen here so the backends only ever see traffic worth serving.',
+    'Checks each ask, limits how many get in, and routes the rest to the right team.',
   sidecar:
-    'A proxy beside one service. It charges its service time on every single request, and pays you back with retries, a per-attempt deadline, and ejecting the upstream after repeated failures. Put one at every hop and watch the taxes stack; that is a service mesh.',
+    'A tax on every item: status updates, compliance, sign-offs. It chases failures and stops sending to a team that keeps failing.',
   lambda:
-    'Scales instantly with load, up to its concurrency cap, and there is no queue past it. The catch is the cold start: a request that finds no warm instance pays a large extra latency, so idle periods and bursts are exactly when it is slowest.',
-  cron: 'Fires on a schedule and dumps its whole batch at once. The database that handles the steady daytime load falls over at midnight not because traffic grew, but because this arrived all in the same instant.',
+    'They scale up on demand to a cap, but each new one needs ramp-up time, so a rush after a quiet spell is slowest.',
+  cron: 'Planning, reporting, payroll: a batch of work dropped all at once on a schedule.',
   bulkhead:
-    'Caps how many calls may be outstanding to the dependency behind it. When that dependency slows down, the pool fills within one round trip and the excess fails fast here, instead of queueing behind a sick service.',
+    'Caps the work outstanding with one partner, so one slow partner cannot eat everyone’s time.',
   retryqueue:
-    'Acks the sender instantly, delivers downstream itself, and redelivers failures with backoff. Messages that fail every attempt land on the dead letter shelf: counted, not vanished.',
+    'Failed work comes back later for another go. What fails every time is set aside and counted, not lost.',
   transcoder:
-    'A batch farm: jobs take seconds, so throughput is boxes times jobs-per-box divided by job time. Feed it from a queue, and size it against arrivals, because a structural deficit grows the backlog forever.',
+    'Long specialist jobs: design, video, content. Size it against what arrives, or the backlog grows forever.',
   edgecompute:
-    'A small function running in the PoP. The share of requests it can fully answer never touches your origin; the rest pass through. Unlike a CDN hit rate, that share is a property of your code, not your traffic.',
+    'The frontline resolves a share of asks at first contact. The rest go on to the team.',
   writebehind:
-    'Acknowledges writes from memory and flushes them to the store later. The caller sees a one-millisecond write; the store sees the same load smoothed. Crash it, and every write still in the buffer is lost after being confirmed.',
+    'Say yes now, record it later. If the person leaves, the unrecorded yeses are lost.',
   loadshedder:
-    'A token bucket that refuses by priority: low-priority traffic must leave a reserve untouched, so under saturation it is dropped first while the traffic that matters keeps being admitted. Degradation as a policy, not an accident.',
+    'Under load, it drops low-priority work first so what matters keeps moving.',
 };
 
 /* ------------------------------------------------------------------ *
@@ -524,19 +523,19 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   rps: {
     control: 'slider',
     term: 'offered',
-    label: 'Offered load',
-    unit: 'requests per second',
+    label: 'Work arriving',
+    unit: 'per week',
     min: 1,
-    max: 5000,
+    max: 2000,
     step: 1,
     display: (v) => formatRate(v),
   },
   instances: {
     control: 'number',
     term: 'instances',
-    label: 'Instances',
-    unit: 'machines',
-    hint: 'How many copies of this component are running. This is what an autoscaler adds and removes.',
+    label: 'People',
+    unit: 'people',
+    hint: 'Headcount on this team. This is what a hiring plan adds and removes.',
     min: 1,
     max: 512,
     step: 1,
@@ -544,9 +543,9 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   capacity: {
     control: 'number',
     term: 'capacity',
-    label: 'Slots per instance',
-    unit: 'at once, on one machine',
-    hint: 'How many requests ONE machine handles at a time. Total parallelism is instances x this.',
+    label: 'Tasks each person juggles at once',
+    unit: 'tasks per person',
+    hint: 'Work in progress for ONE person. The whole team handles people x this at once.',
     min: 1,
     max: 4096,
     step: 1,
@@ -554,28 +553,28 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   serviceMs: {
     control: 'slider',
     term: 'service-time',
-    label: 'Service time',
-    unit: 'milliseconds',
-    min: 0.1,
-    max: 500,
-    step: 0.1,
+    label: 'Hands-on time per task',
+    unit: 'working time',
+    min: 1,
+    max: 4000,
+    step: 1,
     display: (v) => formatMs(v),
   },
   serviceCv: {
     control: 'slider',
     term: 'service-cv',
     label: 'How uneven the work is',
-    unit: 'coefficient of variation',
+    unit: 'spread of task sizes',
     min: 0,
     max: 2,
     step: 0.05,
-    display: (v) => (v === 0 ? 'every one the same' : v.toFixed(2)),
+    display: (v) => (v === 0 ? 'every task the same' : v.toFixed(2)),
   },
   queueLimit: {
     control: 'number',
     term: 'queue-limit',
-    label: 'Most that can wait in line',
-    unit: 'at most',
+    label: 'Most that can sit in the backlog',
+    unit: 'tasks',
     min: 0,
     max: 20000,
     step: 1,
@@ -583,9 +582,9 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   hitRate: {
     control: 'slider',
     term: 'hit-rate',
-    label: 'Hit rate you set',
-    unit: 'percent',
-    hint: 'Each cache or CDN rolls this chance on its own. Two at 80% leave about 4% of traffic for whatever is behind them, because the chances multiply.',
+    label: 'Share answered without a person',
+    unit: 'percent of asks',
+    hint: 'Each playbook or help center rolls this chance on its own. Two at 80% leave about 4% of asks for the people behind them, because the chances multiply.',
     min: 0,
     max: 1,
     step: 0.01,
@@ -594,8 +593,8 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   errorRate: {
     control: 'slider',
     term: 'error-rate',
-    label: 'Error rate',
-    unit: 'percent',
+    label: 'Share that bounces back',
+    unit: 'percent of tasks',
     min: 0,
     max: 1,
     step: 0.005,
@@ -604,17 +603,17 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   timeoutMs: {
     control: 'slider',
     term: 'timeout',
-    label: 'Timeout',
-    unit: 'milliseconds',
+    label: 'Requester gives up after',
+    unit: 'working time',
     min: 0,
-    max: 5000,
-    step: 10,
-    display: (v) => (v === 0 ? 'none' : formatMs(v)),
+    max: 10000,
+    step: 25,
+    display: (v) => (v === 0 ? 'never' : formatMs(v)),
   },
   retries: {
     control: 'number',
     term: 'retry',
-    label: 'Retries',
+    label: 'Times they chase it',
     unit: 'extra tries',
     min: 0,
     max: 10,
@@ -623,9 +622,9 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   replicaCount: {
     control: 'number',
     term: 'read-replica',
-    label: 'Read replicas',
-    unit: 'copies, besides the primary',
-    hint: 'Read-only copies behind the primary. They add READ capacity only; every write still goes through the one primary.',
+    label: 'Deputies',
+    unit: 'besides the owner',
+    hint: 'People who answer questions for the owner. They add answering capacity only; every decision still goes to the one owner.',
     min: 1,
     max: 64,
     step: 1,
@@ -633,18 +632,18 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   replicationLagMs: {
     control: 'slider',
     term: 'replication-lag',
-    label: 'Replication lag',
-    unit: 'milliseconds',
+    label: 'Deputies are behind by',
+    unit: 'working time',
     min: 0,
-    max: 2000,
-    step: 5,
-    display: (v) => (v === 0 ? 'synchronous' : formatMs(v)),
+    max: 5000,
+    step: 25,
+    display: (v) => (v === 0 ? 'always current' : formatMs(v)),
   },
   readFraction: {
     control: 'slider',
     term: 'read-fraction',
-    label: 'Reads, as a share of traffic',
-    unit: 'percent of traffic',
+    label: 'Questions, not decisions',
+    unit: 'percent of asks',
     min: 0,
     max: 1,
     step: 0.01,
@@ -653,9 +652,9 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   shardCount: {
     control: 'number',
     term: 'shard',
-    label: 'Shards',
-    unit: 'partitions',
-    hint: 'How many partitions the data is split across. A key goes to exactly one of them.',
+    label: 'Owners',
+    unit: 'owners',
+    hint: 'How many owners the accounts are split between. Each account belongs to exactly one of them.',
     min: 1,
     max: 64,
     step: 1,
@@ -663,9 +662,9 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   shardCapacity: {
     control: 'number',
     term: 'capacity',
-    label: 'Slots per shard',
-    unit: 'at once, on one shard',
-    hint: 'How many requests ONE partition handles at a time. A hot key can only ever use its own shard\u2019s slots.',
+    label: 'Tasks each owner juggles at once',
+    unit: 'tasks per owner',
+    hint: 'Work in progress for ONE owner. A huge customer can only ever use their own owner’s time.',
     min: 1,
     max: 512,
     step: 1,
@@ -673,8 +672,8 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   hotKeyFraction: {
     control: 'slider',
     term: 'hot-key',
-    label: 'Traffic hitting one hot key',
-    unit: 'percent onto one shard',
+    label: 'Work from one huge customer',
+    unit: 'percent onto one owner',
     min: 0,
     max: 1,
     step: 0.01,
@@ -683,7 +682,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   targetUtil: {
     control: 'slider',
     term: 'target-util',
-    label: 'Keep utilisation near',
+    label: 'Keep people about this busy',
     unit: 'percent',
     min: 0.1,
     max: 0.95,
@@ -692,16 +691,16 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   },
   minCapacity: {
     control: 'number',
-    label: 'Never scale below',
-    unit: 'at once',
+    label: 'Never go below',
+    unit: 'people',
     min: 1,
     max: 512,
     step: 1,
   },
   maxCapacity: {
     control: 'number',
-    label: 'Never scale above',
-    unit: 'at once',
+    label: 'Never go above',
+    unit: 'people',
     min: 1,
     max: 512,
     step: 1,
@@ -709,17 +708,17 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   cooldownMs: {
     control: 'slider',
     term: 'autoscaler',
-    label: 'Wait between changes',
-    unit: 'milliseconds',
+    label: 'Wait between hiring decisions',
+    unit: 'working time',
     min: 0,
     max: 30000,
-    step: 250,
-    display: (v) => formatMs(v),
+    step: 200,
+    display: (v) => (v === 0 ? 'none' : formatMs(v)),
   },
   scaleStepPct: {
     control: 'slider',
-    label: 'Change capacity by',
-    unit: 'percent of capacity',
+    label: 'Grow or shrink the team by',
+    unit: 'percent of headcount',
     min: 0.05,
     max: 1,
     step: 0.05,
@@ -728,19 +727,19 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   warmupMs: {
     control: 'slider',
     term: 'warmup',
-    label: 'New capacity takes',
-    unit: 'milliseconds',
+    label: 'Time to hire and onboard',
+    unit: 'working time',
     min: 0,
     max: 60000,
-    step: 500,
+    step: 200,
     display: (v) => (v === 0 ? 'instant' : formatMs(v)),
   },
   regions: {
     control: 'number',
     term: 'region',
-    label: 'Regions',
-    unit: 'regions',
-    hint: 'How many regions exist in total. Only one of them serves traffic at a time; which one is a separate number, below.',
+    label: 'Owners in rotation',
+    unit: 'people',
+    hint: 'How many people can own this in total. Only one owns it at a time; which one is a separate number, below.',
     min: 1,
     max: 8,
     step: 1,
@@ -748,9 +747,9 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   activeRegion: {
     control: 'number',
     term: 'region',
-    label: 'Serving from region',
+    label: 'Current owner',
     unit: 'number',
-    hint: 'WHICH region is serving right now, not how many exist. Change it to move service to a different region without crashing anything.',
+    hint: 'WHICH person owns it right now, not how many there are. Change it to hand over without anyone being out.',
     min: 0,
     max: 7,
     step: 1,
@@ -758,29 +757,29 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   failoverMs: {
     control: 'slider',
     term: 'region',
-    label: 'Failover takes',
-    unit: 'milliseconds',
-    hint: 'How long every request fails for after the active region goes down and before the next one takes over. Nothing is served in that window, however many healthy regions are left.',
+    label: 'Handover takes',
+    unit: 'working time',
+    hint: 'How long nothing moves after the owner is out and before the next one takes over. Nothing gets done in that window, however many backups are left.',
     min: 0,
-    max: 60000,
-    step: 500,
+    max: 10000,
+    step: 25,
     display: (v) => (v === 0 ? 'instant' : formatMs(v)),
   },
   rateLimitRps: {
     control: 'slider',
     term: 'rate-limiter',
-    label: 'Rate limit',
-    unit: 'requests per second',
+    label: 'Takes on at most',
+    unit: 'items per week',
     min: 0,
     max: 2000,
     step: 5,
-    display: (v) => (v === 0 ? 'unlimited' : formatRate(Math.round(v))),
+    display: (v) => (v === 0 ? 'no limit' : formatRate(Math.round(v))),
   },
   burst: {
     control: 'number',
     term: 'burst',
-    label: 'Burst allowance',
-    unit: 'requests',
+    label: 'Extra it can take in a rush',
+    unit: 'items',
     min: 1,
     max: 5000,
     step: 1,
@@ -788,7 +787,7 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   errorThreshold: {
     control: 'slider',
     term: 'breaker',
-    label: 'Trip when errors reach',
+    label: 'Stop when failures reach',
     unit: 'percent',
     min: 0,
     max: 1,
@@ -798,68 +797,68 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   windowMs: {
     control: 'slider',
     label: 'Measured over',
-    unit: 'milliseconds',
+    unit: 'working time',
     min: 200,
     max: 30000,
-    step: 100,
+    step: 200,
     display: (v) => formatMs(v),
   },
   openMs: {
     control: 'slider',
     term: 'breaker',
-    label: 'Stay open for',
-    unit: 'milliseconds',
-    min: 100,
-    max: 60000,
-    step: 100,
+    label: 'Stop sending for',
+    unit: 'working time',
+    min: 25,
+    max: 30000,
+    step: 25,
     display: (v) => formatMs(v),
   },
   halfOpenProbes: {
     control: 'number',
     term: 'breaker',
-    label: 'Test requests before closing',
-    unit: 'requests',
+    label: 'Test tasks before resuming',
+    unit: 'tasks',
     min: 1,
     max: 50,
     step: 1,
   },
   indexMs: {
     control: 'slider',
-    label: 'Indexing cost per write',
-    unit: 'extra milliseconds per write',
-    hint: 'What a write pays ON TOP of the service time, to update the index. Searches never pay it.',
+    label: 'Extra time to record each item',
+    unit: 'extra working time per record',
+    hint: 'What recording costs ON TOP of the hands-on time, so others can find it later. Searches never pay it.',
     min: 0,
-    max: 500,
+    max: 1000,
     step: 5,
     display: (v) => (v === 0 ? 'free' : `+${formatMs(v)}`),
   },
   indexLagMs: {
     control: 'slider',
     term: 'stale-search',
-    label: 'Searchable after',
-    unit: 'milliseconds after a write commits',
-    hint: 'The refresh interval: how long after a write commits before searches can see it. Searches inside that window read the old index.',
+    label: 'Findable after',
+    unit: 'working time after it is recorded',
+    hint: 'How long after something is recorded before a search can find it. Searches inside that window miss it.',
     min: 0,
     max: 10000,
-    step: 100,
+    step: 25,
     display: (v) => (v === 0 ? 'instantly' : formatMs(v)),
   },
   rangeQueryFraction: {
     control: 'slider',
     term: 'range-query',
-    label: 'Traffic that is range queries',
-    unit: 'percent of traffic',
+    label: 'Asks that are reports',
+    unit: 'percent of asks',
     min: 0,
     max: 1,
     step: 0.01,
-    display: (v) => (v === 0 ? 'appends only' : formatPct(v)),
+    display: (v) => (v === 0 ? 'logging only' : formatPct(v)),
   },
   rangeQueryMs: {
     control: 'slider',
     term: 'range-query',
-    label: 'Range query costs',
-    unit: 'extra milliseconds per range query',
-    hint: 'What a range query pays ON TOP of the service time, to scan and aggregate. Appends never pay it.',
+    label: 'A report costs',
+    unit: 'extra working time per report',
+    hint: 'What a report costs ON TOP of the hands-on time, to pull and add up the numbers. Logging never pays it.',
     min: 0,
     max: 2000,
     step: 10,
@@ -868,31 +867,31 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   traversalDepth: {
     control: 'number',
     term: 'traversal-depth',
-    label: 'Traversal depth',
-    unit: 'hops',
-    hint: 'How many hops each query walks. Every extra hop multiplies the work by about 3, so depth 3 costs 9x depth 1.',
+    label: 'Teams to ask',
+    unit: 'teams deep',
+    hint: 'How many teams each answer has to go through. Every extra team multiplies the work by about 3, so 3 deep costs 9x one.',
     min: 1,
     max: 6,
     step: 1,
   },
   indexSizeK: {
     control: 'slider',
-    label: 'Index size',
-    unit: 'thousands of vectors',
+    label: 'Past work it searches',
+    unit: 'thousands of documents',
     min: 1,
     max: 100000,
     step: 1,
     display: (v) =>
       v >= 1000
-        ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}M vectors`
-        : `${Math.round(v)}K vectors`,
+        ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)}M documents`
+        : `${Math.round(v)}K documents`,
   },
   recallTarget: {
     control: 'slider',
     term: 'recall',
-    label: 'Recall target',
-    unit: 'fraction of true neighbours found',
-    hint: 'How close to perfect the search must be. Cost scales with 1 / (1 - recall): the last percent costs more than everything before it.',
+    label: 'Accuracy target',
+    unit: 'share of the right answers found',
+    hint: 'How close to perfect each answer must be. Cost scales with 1 / (1 - accuracy): the last percent costs more than everything before it.',
     min: 0.5,
     max: 0.99,
     step: 0.01,
@@ -901,9 +900,9 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   partitions: {
     control: 'number',
     term: 'partitions',
-    label: 'Partitions',
-    unit: 'partitions',
-    hint: 'A message lands in one partition by key, and a consumer group takes at most one message per partition at a time, so this is the most a group can do in parallel.',
+    label: 'Threads',
+    unit: 'threads',
+    hint: 'Each post lands in one thread, and a group of readers handles at most one post per thread at a time, so this is the most a group can work on at once.',
     min: 1,
     max: 64,
     step: 1,
@@ -911,18 +910,18 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   connectionMs: {
     control: 'slider',
     term: 'connection-slot',
-    label: 'Connection lifetime',
-    unit: 'milliseconds held',
-    hint: 'How long each accepted connection occupies a slot. Held connections settle at rate x lifetime, which is the number that actually saturates.',
-    min: 500,
-    max: 120000,
-    step: 500,
+    label: 'Meeting length',
+    unit: 'working time held',
+    hint: 'How long each meeting holds its seats. Seats in use settle at meetings per week x length, which is the number that fills the room.',
+    min: 25,
+    max: 60000,
+    step: 25,
     display: (v) => formatMs(v),
   },
   authFailRate: {
     control: 'slider',
-    label: 'Failing auth',
-    unit: 'percent of requests',
+    label: 'Turned back as incomplete',
+    unit: 'percent of asks',
     min: 0,
     max: 0.5,
     step: 0.005,
@@ -930,9 +929,9 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   },
   outlierAfter: {
     control: 'number',
-    label: 'Eject after',
-    unit: 'consecutive failures',
-    hint: 'Straight downstream failures before the proxy stops calling it for a while. Simpler than the breaker on purpose; this is how sidecar outlier detection actually works.',
+    label: 'Stop sending after',
+    unit: 'failures in a row',
+    hint: 'Failures in a row from the team behind it before this step stops sending there for a while. Simpler than the stop-the-line rule on purpose.',
     min: 1,
     max: 50,
     step: 1,
@@ -940,47 +939,47 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   coldStartMs: {
     control: 'slider',
     term: 'cold-start',
-    label: 'Cold start costs',
-    unit: 'extra milliseconds',
+    label: 'Ramp-up for a new one',
+    unit: 'extra working time',
     min: 0,
-    max: 5000,
+    max: 10000,
     step: 25,
-    display: (v) => (v === 0 ? 'free' : formatMs(v)),
+    display: (v) => (v === 0 ? 'none' : formatMs(v)),
   },
   keepWarmMs: {
     control: 'slider',
     term: 'cold-start',
-    label: 'Instances stay warm',
-    unit: 'milliseconds after finishing',
-    hint: 'How long a finished instance waits, warm, before the platform reclaims it. Shorter keep-warm means more cold starts on the next burst.',
+    label: 'Kept on after their last task for',
+    unit: 'working time',
+    hint: 'How long a contractor with nothing to do stays available before they are let go. Shorter means more ramp-ups in the next rush.',
     min: 0,
-    max: 60000,
-    step: 500,
-    display: (v) => (v === 0 ? 'reclaim at once' : formatMs(v)),
+    max: 20000,
+    step: 100,
+    display: (v) => (v === 0 ? 'let go at once' : formatMs(v)),
   },
   maxConcurrency: {
     control: 'number',
     term: 'capacity',
-    label: 'Concurrency cap',
-    unit: 'invocations at once',
-    hint: 'The platform limit. Past it requests are throttled immediately; a lambda has no queue to wait in.',
+    label: 'Most contractors at once',
+    unit: 'contractors',
+    hint: 'The cap. Past it, work is turned away at once; there is no backlog to wait in.',
     min: 1,
     max: 1000,
     step: 1,
   },
   intervalMs: {
     control: 'slider',
-    label: 'Fires every',
-    unit: 'milliseconds',
-    min: 1000,
-    max: 120000,
-    step: 1000,
+    label: 'Happens every',
+    unit: 'working time',
+    min: 200,
+    max: 60000,
+    step: 200,
     display: (v) => formatMs(v),
   },
   batchSize: {
     control: 'number',
-    label: 'Requests per firing',
-    unit: 'per outgoing edge, at once',
+    label: 'Tasks each time',
+    unit: 'per team it feeds, at once',
     min: 1,
     max: 2000,
     step: 1,
@@ -988,56 +987,56 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   bulkheadMax: {
     control: 'number',
     term: 'bulkhead',
-    label: 'Calls in flight, at most',
-    unit: 'to the dependency behind it',
-    hint: 'The pool. Roughly this divided by the dependency\u2019s latency in seconds is the admission ceiling.',
+    label: 'Most tasks out with this partner',
+    unit: 'at once',
+    hint: 'The cap. Roughly this divided by how long the partner takes, in weeks, is the most that gets through in a week.',
     min: 1,
     max: 512,
     step: 1,
   },
   bulkheadMode: {
     control: 'choice',
-    label: 'When the pool is full',
-    unit: 'admission behavior',
-    hint: 'Reject fails immediately. Wait holds a request until a connection opens, or its acquire timeout expires.',
+    label: 'When the cap is reached',
+    unit: 'what happens to new work',
+    hint: 'Refuse fails it right away. Wait holds it until a spot opens, or until it has waited too long.',
     options: [
-      { value: 'reject', label: 'Reject' },
+      { value: 'reject', label: 'Refuse' },
       { value: 'wait', label: 'Wait' },
     ],
   },
   acquireQueueMax: {
     control: 'number',
-    label: 'Waiting acquires, at most',
-    unit: 'requests',
+    label: 'Most waiting for a spot',
+    unit: 'tasks',
     min: 0,
     max: 10000,
     step: 1,
   },
   acquireTimeoutMs: {
     control: 'slider',
-    label: 'Acquire timeout',
-    unit: 'milliseconds',
+    label: 'Gives up waiting for a spot after',
+    unit: 'working time',
     min: 0,
-    max: 30000,
-    step: 50,
-    display: (v) => formatMs(v),
+    max: 10000,
+    step: 25,
+    display: (v) => (v === 0 ? 'never waits' : formatMs(v)),
   },
   flushDelayMs: {
     control: 'slider',
     term: 'dirty-write',
-    label: 'Writes sit dirty for',
-    unit: 'milliseconds',
-    hint: 'Time between the ack and the flush landing. Everything inside this window is lost if the node crashes.',
+    label: 'Written down after',
+    unit: 'working time',
+    hint: 'Time between saying yes and writing it down. Everything inside this window is lost if the person leaves.',
     min: 0,
     max: 10000,
-    step: 50,
-    display: (v) => (v === 0 ? 'instant flush' : formatMs(v)),
+    step: 25,
+    display: (v) => (v === 0 ? 'right away' : formatMs(v)),
   },
   edgeShare: {
     control: 'slider',
     term: 'edgecompute',
-    label: 'Answered at the edge',
-    unit: 'percent of requests',
+    label: 'Resolved at first contact',
+    unit: 'percent of asks',
     min: 0,
     max: 1,
     step: 0.01,
@@ -1046,9 +1045,9 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   lowPriorityShare: {
     control: 'slider',
     term: 'loadshedder',
-    label: 'Low-priority traffic',
-    unit: 'percent of traffic',
-    hint: 'Derived from the request key, so the same caller is always the same priority.',
+    label: 'Low-priority work',
+    unit: 'percent of work',
+    hint: 'Set by who is asking, so the same requester always gets the same priority.',
     min: 0,
     max: 1,
     step: 0.01,
@@ -1057,9 +1056,9 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   priorityReserve: {
     control: 'slider',
     term: 'loadshedder',
-    label: 'Reserved for high priority',
-    unit: 'percent of the bucket',
-    hint: 'Low-priority requests must leave this share of tokens untouched, which is why they are dropped first.',
+    label: 'Held back for high priority',
+    unit: 'percent of intake',
+    hint: 'Low-priority work must leave this share of the intake untouched, which is why it is dropped first.',
     min: 0,
     max: 0.9,
     step: 0.05,
@@ -1068,31 +1067,31 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   lockMs: {
     control: 'slider',
     term: 'lock-contention',
-    label: 'Lock wait per concurrent write',
-    unit: 'milliseconds each',
-    hint: 'Each write entering service waits this long for every write already in flight. Fleet size does not appear in that sentence, which is the lesson.',
+    label: 'Wait per conflicting decision',
+    unit: 'working time each',
+    hint: 'Each decision waits this long for every other decision already in progress. Headcount does not appear in that sentence, which is the lesson.',
     min: 0,
-    max: 100,
+    max: 200,
     step: 1,
-    display: (v) => (v === 0 ? 'no contention' : formatMs(v)),
+    display: (v) => (v === 0 ? 'no conflicts' : formatMs(v)),
   },
   prefixRps: {
     control: 'slider',
     term: 'prefix-ceiling',
-    label: 'Ceiling per key prefix',
-    unit: 'requests per second, each prefix',
-    hint: 'Keys map onto 8 prefixes. Evenly spread traffic sustains 8x this; a hot prefix gets exactly 1x and then slowdowns, however idle the pool is.',
+    label: 'Most per folder',
+    unit: 'items per week, each folder',
+    hint: 'Files sit in 8 folders. Evenly spread work gets 8x this; a busy folder gets exactly 1x and then slows down, however much room is left.',
     min: 0,
     max: 1000,
     step: 10,
-    display: (v) => (v === 0 ? 'no limit' : `${v}/s`),
+    display: (v) => (v === 0 ? 'no limit' : formatRate(v)),
   },
   renditions: {
     control: 'number',
     term: 'rendition',
-    label: 'Renditions per job',
-    unit: 'output files, per finished job',
-    hint: 'The quality ladder. Storage behind the farm sees this many uploads per job, so its write load is this times the job rate.',
+    label: 'Deliverables per job',
+    unit: 'per finished job',
+    hint: 'Each finished job hands this many pieces downstream, so whoever stores them gets this times the job rate.',
     min: 1,
     max: 12,
     step: 1,
@@ -1100,13 +1099,13 @@ const FIELD_SPECS: Record<Field, FieldSpec> = {
   cpuMsCap: {
     control: 'slider',
     term: 'cpu-budget',
-    label: 'CPU budget per request',
-    unit: 'milliseconds of execution',
-    hint: 'A request that runs past this is killed at the edge and sent to the origin anyway. Heavier edge code blows the budget more often.',
+    label: 'Time allowed per ask',
+    unit: 'working time',
+    hint: 'An ask that takes longer than this at first contact is passed on to the team anyway. Harder asks blow the budget more often.',
     min: 0,
-    max: 50,
-    step: 0.5,
-    display: (v) => (v === 0 ? 'no budget' : formatMs(v)),
+    max: 200,
+    step: 1,
+    display: (v) => (v === 0 ? 'no limit' : formatMs(v)),
   },
 };
 
@@ -1128,36 +1127,35 @@ const KIND_FIELD_OVERRIDES: Partial<
   Record<NodeKind, Partial<Record<Field, Partial<FieldSpec>>>>
 > = {
   websocket: {
+    instances: { label: 'Rooms', unit: 'rooms' },
     capacity: {
       // Overrides the shared `capacity` term too: a slot here is a held
       // connection, and pointing this at the generic capacity entry would
       // explain the wrong idea to the one kind that most needs the right one.
       term: 'connection-slot',
-      label: 'Connections per instance',
-      unit: 'held at once, on one machine',
-      hint: 'A slot here is a held connection, not a request in service. Held connections settle at connect rate x lifetime, which is the number that saturates.',
+      label: 'Seats per room',
+      unit: 'held at once',
+      hint: 'A seat is held for the whole meeting, not per task. Seats in use settle at meetings per week x length, which is the number that fills the room.',
     },
   },
   writebehind: {
     capacity: {
       term: 'dirty-write',
-      label: 'Dirty writes held',
-      unit: 'buffered at once',
-      hint: 'The buffer is memory: how many acknowledged writes may sit dirty at once. It is not a thread count.',
+      label: 'Unrecorded yeses held',
+      unit: 'at once',
+      hint: 'How many yeses can wait to be written down at once. It is memory, not hands.',
     },
   },
   streambroker: {
     queueLimit: {
       term: 'retention',
-      label: 'Retention',
-      unit: 'messages kept, per partition',
-      hint: 'How far back the log keeps messages. A consumer group that falls further behind than this skips ahead, and the skipped messages are lost to it.',
+      label: 'Posts kept',
+      unit: 'per thread',
+      hint: 'How far back the channel keeps posts. A group of readers that falls further behind than this skips ahead, and the skipped posts are lost to it.',
     },
   },
-  autoscaler: {
-    minCapacity: { unit: 'instances' },
-    maxCapacity: { unit: 'instances' },
-    scaleStepPct: { label: 'Change the fleet by', unit: 'percent of instances' },
+  searchindex: {
+    readFraction: { label: 'Searches, not new records' },
   },
 };
 
@@ -1279,7 +1277,7 @@ function fillPct(value: number, min: number, max: number): string {
  */
 function lockNoteFor(kind: NodeKind): string {
   return kind === 'client'
-    ? 'Fixed for this challenge: it is how the people sending requests behave, not part of your design.'
+    ? 'Fixed for this challenge: it is how the people sending the work behave, not part of your design.'
     : 'Fixed for this challenge: it describes the work, not your design.';
 }
 
@@ -1541,7 +1539,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function Meter({
   value,
   tone,
-  label = 'Utilisation',
+  label = 'How busy',
 }: {
   value: number;
   tone?: string;
@@ -1605,13 +1603,13 @@ function VitalsMeter({
         <div className="ins-util">
           <div className="ins-util-head">
             <span className="label">
-              <Term id="rate-limiter">Tokens left</Term>
+              <Term id="rate-limiter">Room left this week</Term>
             </span>
             <span className={tone ? `num num-md ${tone}` : 'num num-md'}>
               {formatCount(tokens)} / {formatCount(burst)}
             </span>
           </div>
-          <Meter value={fill} tone={tone} label="Tokens left" />
+          <Meter value={fill} tone={tone} label="Room left this week" />
         </div>
       );
     }
@@ -1627,13 +1625,13 @@ function VitalsMeter({
         <div className="ins-util">
           <div className="ins-util-head">
             <span className="label">
-              <Term id="bulkhead">Pool in use</Term>
+              <Term id="bulkhead">Spots in use</Term>
             </span>
             <span className={tone ? `num num-md ${tone}` : 'num num-md'}>
               {formatCount(used)} / {formatCount(limit)}
             </span>
           </div>
-          <Meter value={fill} tone={tone} label="Pool in use" />
+          <Meter value={fill} tone={tone} label="Spots in use" />
         </div>
       );
     }
@@ -1648,13 +1646,13 @@ function VitalsMeter({
         <div className="ins-util">
           <div className="ins-util-head">
             <span className="label">
-              <Term id="consumer-lag">Worst lag vs retention</Term>
+              <Term id="consumer-lag">Furthest behind vs posts kept</Term>
             </span>
             <span className={tone ? `num num-md ${tone}` : 'num num-md'}>
               {formatCount(lag)} / {formatCount(retention)}
             </span>
           </div>
-          <Meter value={fill} tone={tone} label="Consumer lag" />
+          <Meter value={fill} tone={tone} label="Furthest behind" />
         </div>
       );
     }
@@ -1669,13 +1667,13 @@ function VitalsMeter({
         <div className="ins-util">
           <div className="ins-util-head">
             <span className="label">
-              <Term id="connection-slot">Connections held</Term>
+              <Term id="connection-slot">Seats taken</Term>
             </span>
             <span className={tone ? `num num-md ${tone}` : 'num num-md'}>
               {formatCount(open)} / {formatCount(max)}
             </span>
           </div>
-          <Meter value={fill} tone={tone} label="Connections held" />
+          <Meter value={fill} tone={tone} label="Seats taken" />
         </div>
       );
     }
@@ -1754,12 +1752,12 @@ function CronPanel({ stats }: { stats: NodeStats }) {
   return (
     <Section title="What it is doing">
       <div className="ins-stats">
-        <StatRow label="Next firing in" value={formatMs(stats.nextFireInMs)} />
-        <StatRow label="Requests per firing" value={formatCount(stats.burstSize)} />
+        <StatRow label="Next one in" value={formatMs(stats.nextFireInMs)} />
+        <StatRow label="Tasks each time" value={formatCount(stats.burstSize)} />
         <StatRow label="Sent since start" value={formatCount(stats.batchEmitted)} />
       </div>
       <p className="ins-hint">
-        Between firings it does nothing at all. The whole batch lands downstream in the
+        Between rounds it does nothing at all. The whole batch lands on the teams in the
         same instant, which is exactly what makes it dangerous.
       </p>
     </Section>
@@ -1779,18 +1777,18 @@ function RegionPanel({ stats }: { stats: NodeStats }) {
     <Section title="What it is doing">
       <div className="ins-stats">
         <StatRow
-          label="Serving from"
-          value={dark ? 'nowhere' : `region ${stats.activeRegion ?? 0}`}
+          label="Owned by"
+          value={dark ? 'nobody, owner out' : `owner ${stats.activeRegion ?? 0}`}
           tone={dark ? 'is-danger' : undefined}
         />
         <StatRow
-          label="Regions healthy"
+          label="Owners available"
           value={`${formatCount(healthy)} of ${formatCount(total)}`}
           tone={healthy === 0 ? 'is-danger' : healthy < total ? 'is-warn' : undefined}
         />
         {dark && (
           <StatRow
-            label="Traffic resumes in"
+            label="Work resumes in"
             value={formatMs(stats.failoverRemainingMs)}
             tone="is-danger"
           />
@@ -1798,8 +1796,8 @@ function RegionPanel({ stats }: { stats: NodeStats }) {
       </div>
       {dark && (
         <p className="ins-hint is-danger">
-          Mid-failover: every request arriving right now fails. This window is what
-          failover costs, and it is never free.
+          Mid-handover: every task arriving right now fails. This window is what a
+          handover costs, and it is never free.
         </p>
       )}
     </Section>
@@ -1827,7 +1825,7 @@ function KindStatRows({
     case 'cache':
       return (
         <StatRow
-          label="Hit rate right now"
+          label="Answered without a person"
           term="hit-rate"
           value={formatPct(stats.hitRate)}
         />
@@ -1837,12 +1835,12 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="Hit rate right now"
+            label="Answered without a person"
             term="hit-rate"
             value={formatPct(stats.hitRate)}
           />
           <StatRow
-            label="Fetched from origin"
+            label="Passed on to people"
             value={formatRate(stats.originFetchRate)}
           />
         </>
@@ -1851,9 +1849,9 @@ function KindStatRows({
     case 'ratelimiter':
       return (
         <>
-          <StatRow label="Admitted" value={formatRate(stats.admittedRate)} />
+          <StatRow label="Taken on" value={formatRate(stats.admittedRate)} />
           <StatRow
-            label="Refused (throttled)"
+            label="Refused, over the limit"
             term="throttled"
             value={formatRate(stats.throttledRate)}
             tone={(stats.throttledRate ?? 0) > 0 ? 'is-warn' : undefined}
@@ -1866,14 +1864,14 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="Circuit"
+            label="The line"
             term="breaker"
             value={
               state === 'open'
-                ? 'OPEN, failing fast'
+                ? 'STOPPED, refusing at once'
                 : state === 'half-open'
-                  ? 'probing'
-                  : 'closed'
+                  ? 'testing'
+                  : 'flowing'
             }
             tone={
               state === 'open'
@@ -1884,20 +1882,20 @@ function KindStatRows({
             }
           />
           <StatRow
-            label="Downstream errors, windowed"
+            label="Partner failures, recent"
             value={formatPct(stats.breakerErrorRate)}
             tone={toneClass(healthOfErr(stats.breakerErrorRate))}
           />
           {state === 'open' && (
-            <StatRow label="Probes again in" value={formatMs(stats.openRemainingMs)} />
+            <StatRow label="Tests again in" value={formatMs(stats.openRemainingMs)} />
           )}
           <StatRow
-            label="Failing fast"
+            label="Refused at once"
             value={formatRate(stats.rejectedRate)}
             tone={(stats.rejectedRate ?? 0) > 0 ? 'is-danger' : undefined}
           />
           <StatRow
-            label="Times tripped"
+            label="Times stopped"
             term="breaker"
             value={formatCount(stats.breakerTrips)}
           />
@@ -1910,13 +1908,13 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="Upstream"
+            label="Next team"
             value={
               state === 'open'
-                ? 'EJECTED'
+                ? 'PAUSED'
                 : state === 'half-open'
-                  ? 'probing'
-                  : 'proxying'
+                  ? 'testing'
+                  : 'flowing'
             }
             tone={
               state === 'open'
@@ -1927,21 +1925,21 @@ function KindStatRows({
             }
           />
           <StatRow
-            label="Upstream failures"
+            label="Failures from the next team"
             value={formatRate(stats.upstreamFailRate)}
           />
           <StatRow
-            label="Consecutive failures"
+            label="Failures in a row"
             value={formatCount(stats.consecutiveFails)}
             tone={(stats.consecutiveFails ?? 0) > 0 ? 'is-warn' : undefined}
           />
           <StatRow
-            label="Failing fast"
+            label="Refused at once"
             value={formatRate(stats.rejectedRate)}
             tone={(stats.rejectedRate ?? 0) > 0 ? 'is-danger' : undefined}
           />
           <StatRow
-            label="Times ejected"
+            label="Times paused"
             term="outlier-ejection"
             value={formatCount(stats.breakerTrips)}
           />
@@ -1952,9 +1950,9 @@ function KindStatRows({
     case 'websocket':
       return (
         <>
-          <StatRow label="New connections" value={formatRate(stats.connectRate)} />
+          <StatRow label="Meetings starting" value={formatRate(stats.connectRate)} />
           <StatRow
-            label="Connections refused"
+            label="Turned away, room full"
             term="conn-refused"
             value={formatRate(stats.connectionRejectRate)}
             tone={(stats.connectionRejectRate ?? 0) > 0 ? 'is-danger' : undefined}
@@ -1966,15 +1964,15 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="Cold starts"
+            label="Needed ramp-up"
             term="cold-start"
             value={formatPct(stats.coldStartRate)}
             tone={(stats.coldStartRate ?? 0) > 0.5 ? 'is-warn' : undefined}
           />
-          <StatRow label="Running now" value={formatCount(stats.runningNow)} />
-          <StatRow label="Warm and idle" value={formatCount(stats.warmIdle)} />
+          <StatRow label="Working now" value={formatCount(stats.runningNow)} />
+          <StatRow label="Ready and idle" value={formatCount(stats.warmIdle)} />
           <StatRow
-            label="Throttled"
+            label="Turned away, at the cap"
             value={formatRate(stats.throttledRate)}
             tone={(stats.throttledRate ?? 0) > 0 ? 'is-danger' : undefined}
           />
@@ -1985,13 +1983,13 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="Worst group lag"
+            label="Furthest behind"
             term="consumer-lag"
             value={formatCount(stats.consumerLag)}
           />
-          <StatRow label="Delivering" value={formatRate(stats.deliveryRate)} />
+          <StatRow label="Reaching readers" value={formatRate(stats.deliveryRate)} />
           <StatRow
-            label="Lost to retention"
+            label="Lost, too old"
             term="retention"
             value={formatRate(stats.retentionDropRate)}
             tone={(stats.retentionDropRate ?? 0) > 0 ? 'is-danger' : undefined}
@@ -2003,26 +2001,26 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="Subscribers"
+            label="Teams listening"
             term="fan-out"
             value={formatCount(stats.fanout)}
           />
-          <StatRow label="Delivering" value={formatRate(stats.deliveryRate)} />
+          <StatRow label="Work created" value={formatRate(stats.deliveryRate)} />
         </>
       );
 
     case 'apigateway':
       return (
         <>
-          <StatRow label="Admitted" value={formatRate(stats.admittedRate)} />
+          <StatRow label="Taken on" value={formatRate(stats.admittedRate)} />
           <StatRow
-            label="Refused (throttled)"
+            label="Refused, over the limit"
             term="throttled"
             value={formatRate(stats.throttledRate)}
             tone={(stats.throttledRate ?? 0) > 0 ? 'is-warn' : undefined}
           />
           <StatRow
-            label="Refused (bad auth)"
+            label="Refused, incomplete"
             term="unauthorized"
             value={formatRate(stats.authRejectRate)}
             tone={(stats.authRejectRate ?? 0) > 0 ? 'is-warn' : undefined}
@@ -2033,10 +2031,10 @@ function KindStatRows({
     case 'db':
       return (
         <>
-          <StatRow label="Reads" value={formatRate(stats.readRate)} />
-          <StatRow label="Writes" value={formatRate(stats.writeRate)} />
+          <StatRow label="Questions" value={formatRate(stats.readRate)} />
+          <StatRow label="Decisions" value={formatRate(stats.writeRate)} />
           <StatRow
-            label="Lock wait per write"
+            label="Conflict wait per decision"
             term="lock-contention"
             value={formatMs(stats.lockWaitMs)}
             tone={
@@ -2053,7 +2051,7 @@ function KindStatRows({
     case 'objectstore':
       return (
         <StatRow
-          label="Slowdowns, hot prefix"
+          label="Slowed down, busy folder"
           term="prefix-ceiling"
           value={formatRate(stats.slowdownRate)}
           tone={(stats.slowdownRate ?? 0) > 0 ? 'is-danger' : undefined}
@@ -2063,9 +2061,9 @@ function KindStatRows({
     case 'coldstorage':
       return (
         <>
-          <StatRow label="Restore jobs running" value={formatCount(stats.inFlight)} />
+          <StatRow label="Being dug out now" value={formatCount(stats.inFlight)} />
           <StatRow
-            label="Refused, quota full"
+            label="Refused, too many at once"
             term="throttled"
             value={formatRate(stats.throttledRate)}
             tone={(stats.throttledRate ?? 0) > 0 ? 'is-danger' : undefined}
@@ -2076,7 +2074,7 @@ function KindStatRows({
     case 'transcoder':
       return (
         <StatRow
-          label="Renditions out"
+          label="Deliverables out"
           term="rendition"
           value={formatRate(stats.outputRate)}
         />
@@ -2086,22 +2084,22 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="Stale searches"
+            label="Searches that miss recent work"
             term="stale-search"
             value={formatPct(stats.staleSearchRate)}
             tone={(stats.staleSearchRate ?? 0) > 0.2 ? 'is-warn' : undefined}
           />
           <StatRow label="Searches" value={formatRate(stats.searchRate)} />
-          <StatRow label="Index writes" value={formatRate(stats.indexWriteRate)} />
+          <StatRow label="New records" value={formatRate(stats.indexWriteRate)} />
         </>
       );
 
     case 'timeseriesdb':
       return (
         <>
-          <StatRow label="Appends" value={formatRate(stats.appendRate)} />
+          <StatRow label="Numbers logged" value={formatRate(stats.appendRate)} />
           <StatRow
-            label="Range queries"
+            label="Reports"
             term="range-query"
             value={formatRate(stats.rangeQueryRate)}
           />
@@ -2111,7 +2109,7 @@ function KindStatRows({
     case 'graphdb':
       return (
         <StatRow
-          label="Cost per traversal, measured"
+          label="Cost per answer, measured"
           term="traversal-depth"
           value={formatMs(stats.traversalCostMs)}
         />
@@ -2120,7 +2118,7 @@ function KindStatRows({
     case 'vectordb':
       return (
         <StatRow
-          label="Cost per query, measured"
+          label="Cost per answer, measured"
           term="recall"
           value={formatMs(stats.queryCostMs)}
         />
@@ -2130,11 +2128,11 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="Pool in use"
+            label="Spots in use"
             value={`${formatCount(stats.bulkheadInFlight ?? 0)} of ${formatCount(stats.bulkheadLimit ?? 0)}`}
           />
           <StatRow
-            label="Refused, pool full"
+            label="Refused, at the cap"
             term="bulkhead-full"
             value={formatRate(stats.bulkheadRejectedRate)}
             tone={(stats.bulkheadRejectedRate ?? 0) > 0 ? 'is-danger' : undefined}
@@ -2142,11 +2140,11 @@ function KindStatRows({
           {config.bulkheadMode === 'wait' && (
             <>
               <StatRow
-                label="Waiting to acquire"
+                label="Waiting for a spot"
                 value={formatCount(stats.bulkheadWaiting ?? 0)}
               />
               <StatRow
-                label="Last acquire wait, measured"
+                label="Last wait for a spot, measured"
                 value={
                   stats.bulkheadAcquireLatencyMs === undefined
                     ? NA
@@ -2154,7 +2152,7 @@ function KindStatRows({
                 }
               />
               <StatRow
-                label="Acquire timeouts"
+                label="Gave up waiting"
                 value={formatRate(stats.bulkheadAcquireTimeoutRate)}
                 tone={
                   (stats.bulkheadAcquireTimeoutRate ?? 0) > 0 ? 'is-danger' : undefined
@@ -2170,17 +2168,17 @@ function KindStatRows({
         <>
           <StatRow label="Delivered" value={formatRate(stats.deliveredRate)} />
           <StatRow
-            label="Redelivering"
+            label="Sent back for another go"
             value={formatRate(stats.redeliveryRate)}
             tone={(stats.redeliveryRate ?? 0) > 0 ? 'is-warn' : undefined}
           />
           <StatRow
-            label="Dead-lettering"
+            label="Set aside"
             value={formatRate(stats.deadLetterRate)}
             tone={(stats.deadLetterRate ?? 0) > 0 ? 'is-danger' : undefined}
           />
           <StatRow
-            label="Dead letters, total"
+            label="Set aside, total"
             term="dead-letter"
             value={formatCount(stats.deadLetters)}
             tone={(stats.deadLetters ?? 0) > 0 ? 'is-warn' : undefined}
@@ -2192,13 +2190,13 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="Dirty writes held"
+            label="Yeses not yet recorded"
             term="dirty-write"
             value={formatCount(stats.dirtyWrites)}
           />
-          <StatRow label="Flushing" value={formatRate(stats.flushedRate)} />
+          <StatRow label="Being recorded" value={formatRate(stats.flushedRate)} />
           <StatRow
-            label="Flushes failing"
+            label="Recording failing"
             value={formatRate(stats.flushFailRate)}
             tone={(stats.flushFailRate ?? 0) > 0 ? 'is-danger' : undefined}
           />
@@ -2209,15 +2207,15 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="Answered at the edge"
+            label="Resolved at first contact"
             value={formatRate(stats.edgeHandledRate)}
           />
           <StatRow
-            label="Passed to origin"
+            label="Passed to the team"
             value={formatRate(stats.passedThroughRate)}
           />
           <StatRow
-            label="Killed by the CPU budget"
+            label="Passed on, took too long"
             term="cpu-budget"
             value={formatRate(stats.cpuExceededRate)}
             tone={(stats.cpuExceededRate ?? 0) > 0 ? 'is-warn' : undefined}
@@ -2229,11 +2227,11 @@ function KindStatRows({
       return (
         <>
           <StatRow
-            label="High priority admitted"
+            label="High priority taken on"
             value={formatRate(stats.highAdmittedRate)}
           />
           <StatRow
-            label="Low priority admitted"
+            label="Low priority taken on"
             value={formatRate(stats.lowAdmittedRate)}
           />
           <StatRow
@@ -2384,8 +2382,8 @@ export function Inspector({
             <>
               <p className="ins-empty">
                 {selectedEdgeCount === 1
-                  ? '1 connection selected.'
-                  : `${selectedEdgeCount} connections selected.`}
+                  ? '1 handoff selected.'
+                  : `${selectedEdgeCount} handoffs selected.`}
               </p>
               {faults?.edge && selectedEdgeCount === 1 ? (
                 <>
@@ -2393,7 +2391,7 @@ export function Inspector({
                     {faults.edge.label}. Press Delete to remove it.
                   </p>
                   {onEdgeLoss ? (
-                    <Section title="Packet loss">
+                    <Section title="Lost in the handoff">
                       <LinkLossControls
                         key={faults.edge.id}
                         lossRate={faults.edge.lossRate}
@@ -2403,7 +2401,7 @@ export function Inspector({
                       />
                     </Section>
                   ) : null}
-                  <Section title="Break it on purpose">
+                  <Section title="What could go wrong">
                     <EdgeFaultControls
                       cable={faults.edge}
                       cutBy={faults.edge.cutBy}
@@ -2416,7 +2414,7 @@ export function Inspector({
                 </>
               ) : (
                 <p className="ins-empty ins-empty-hint">
-                  Connections have nothing to configure. Press Delete to remove them.
+                  Handoffs have nothing to set. Press Delete to remove them.
                 </p>
               )}
             </>
@@ -2494,25 +2492,25 @@ function AutoscalerPanel({ stats }: { stats: NodeStats }) {
   const booting = stats.pendingInstances ?? 0;
   const util = stats.watchedUtil ?? 0;
   const setpoint = stats.setpoint ?? 0;
-  const secs = Math.max(0, Math.round((stats.phaseRemainingMs ?? 0) / 100) / 10);
+  const left = formatMs(Math.max(0, stats.phaseRemainingMs ?? 0));
 
   /* Each phase gets a plain-language line. Only 'steady' is silent about
      time, because it is the only one that is not waiting for anything. */
   const phaseText =
     phase === 'observing'
-      ? `Still measuring. It will not act for another ${secs}s.`
+      ? `Still watching. It will not act for another ${left}.`
       : phase === 'warming'
-        ? `${formatCount(booting)} more booting. They start serving in ${secs}s.`
+        ? `${formatCount(booting)} more onboarding. They start working in ${left}.`
         : phase === 'cooldown'
-          ? `Just acted. It will not act again for ${secs}s.`
-          : 'Holding steady. Load does not call for a change.';
+          ? `Holding after a change. It will not act again for ${left}.`
+          : 'Holding steady. The workload does not call for a change.';
 
   if (!watching) {
     return (
       <Section title="What it is doing">
         <p className="ins-blurb">
-          Not wired to anything yet. Draw a connection from this autoscaler to the
-          component it should scale, and it will start watching it.
+          Not wired to anything yet. Draw a connection from this hiring plan to the team
+          it should grow, and it will start watching it.
         </p>
       </Section>
     );
@@ -2528,8 +2526,8 @@ function AutoscalerPanel({ stats }: { stats: NodeStats }) {
     return (
       <Section title="What it is doing">
         <p className="ins-blurb">
-          Watching <strong>{watching}</strong>, which has no instances to add or remove.
-          This autoscaler cannot help it.
+          Watching <strong>{watching}</strong>, which has no headcount to add or remove.
+          This hiring plan cannot help it.
         </p>
         <div className="ins-stats">
           <StatRow
@@ -2539,9 +2537,9 @@ function AutoscalerPanel({ stats }: { stats: NodeStats }) {
           />
         </div>
         <p className="ins-hint">
-          A managed store is one logical service rather than a pool of machines, so
-          there is no fleet to grow. If it is overloaded, the answer is spreading the
-          load across its keyspace rather than adding capacity.
+          It is a shared resource rather than a team of people, so there is no one to
+          hire. If it is overloaded, the answer is spreading the work across it more
+          evenly rather than adding people.
         </p>
       </Section>
     );
@@ -2559,16 +2557,12 @@ function AutoscalerPanel({ stats }: { stats: NodeStats }) {
           value={formatPct(util)}
           tone={toneClass(healthOfLoad(util))}
         />
-        <StatRow label="Instances running" term="instances" value={formatCount(have)} />
+        <StatRow label="People working" term="instances" value={formatCount(have)} />
         {want !== have && (
-          <StatRow
-            label="Instances wanted"
-            term="autoscaler"
-            value={formatCount(want)}
-          />
+          <StatRow label="People wanted" term="autoscaler" value={formatCount(want)} />
         )}
         {booting > 0 && (
-          <StatRow label="Booting now" value={formatCount(booting)} tone="is-warn" />
+          <StatRow label="Onboarding now" value={formatCount(booting)} tone="is-warn" />
         )}
       </div>
       <p className={phase === 'warming' ? 'ins-hint is-warn' : 'ins-hint'}>
@@ -2668,25 +2662,25 @@ function ReplicaSetSection({ per, stats }: { per: number[]; stats: NodeStats }) 
   const stale = useLingering(stats.staleReadRate > 0);
   const hint = writeBound ? 'write-bound' : stale ? 'stale' : null;
   return (
-    <Section title="Across the set">
+    <Section title="Owner and deputies">
       <div className="ins-stats">
         <StatRow
-          label="Primary (writes)"
+          label="Owner (decisions)"
           value={formatPct(primary)}
           tone={toneClass(healthOfLoad(primary))}
         />
         <StatRow
-          label="Read replicas"
+          label="Deputies"
           term="read-replica"
           value={formatCount(reads.length)}
         />
         <StatRow
-          label="Read replicas, average"
+          label="Deputies, average"
           value={formatPct(readAvg)}
           tone={toneClass(healthOfLoad(readAvg))}
         />
         <StatRow
-          label="Reads served stale"
+          label="Answers out of date"
           term="stale-read"
           value={formatPct(stats.staleReadRate)}
           tone={toneClass(healthOfErr(stats.staleReadRate))}
@@ -2694,12 +2688,12 @@ function ReplicaSetSection({ per, stats }: { per: number[]; stats: NodeStats }) 
       </div>
       <div className="ins-hint-stack">
         <p className="ins-hint is-warn" data-active={hint === 'write-bound'}>
-          The primary is the bottleneck, not the replicas. Adding more read replicas
-          will not help; every write still goes through the one primary.
+          The owner is the bottleneck, not the deputies. Adding more deputies will not
+          help; every decision still goes to the one owner.
         </p>
         <p className="ins-hint" data-active={hint === 'stale'}>
-          Some reads are answered by a replica that has not caught up with the latest
-          write yet. Lower the replication lag to reduce this.
+          Some questions are answered by a deputy who has not caught up on the latest
+          decision yet. Shorten how far behind they are to reduce this.
         </p>
       </div>
     </Section>
@@ -2727,9 +2721,9 @@ function UnitsPanel({ node, stats }: { node: SimNode; stats: NodeStats }) {
     // the rest idle. The gap is the signature, so it is named as one.
     const skewed = hot - cold > 0.5;
     return (
-      <Section title="Across the partitions">
+      <Section title="Across the owners">
         <div className="ins-stats">
-          <StatRow label="Partitions" term="shard" value={formatCount(per.length)} />
+          <StatRow label="Owners" term="shard" value={formatCount(per.length)} />
           <StatRow
             label="Busiest one"
             value={formatPct(hot)}
@@ -2740,8 +2734,8 @@ function UnitsPanel({ node, stats }: { node: SimNode; stats: NodeStats }) {
         </div>
         {skewed && (
           <p className="ins-hint is-warn">
-            Badly uneven. One partition is doing most of the work while the others sit
-            idle. Adding shards will not help until the keys spread out.
+            Badly uneven. One owner is doing most of the work while the others sit idle.
+            Adding owners will not help until the work spreads out.
           </p>
         )}
       </Section>
@@ -2754,17 +2748,17 @@ function UnitsPanel({ node, stats }: { node: SimNode; stats: NodeStats }) {
   const booting = stats.instancesPending ?? 0;
   if (per.length <= 1 && booting === 0) return null;
   return (
-    <Section title="The fleet">
+    <Section title="The team">
       <div className="ins-stats">
-        <StatRow label="Instances serving" value={formatCount(per.length)} />
+        <StatRow label="People working" value={formatCount(per.length)} />
         {booting > 0 && (
-          <StatRow label="Booting now" value={formatCount(booting)} tone="is-warn" />
+          <StatRow label="Onboarding now" value={formatCount(booting)} tone="is-warn" />
         )}
       </div>
       {booting > 0 && (
         <p className="ins-hint is-warn">
-          These are not serving traffic yet. Requests can still fail while they boot;
-          that gap is why capacity always lags a spike.
+          These people are not up to speed yet. Work can still fail while they ramp up;
+          that gap is why hiring always lags a rush.
         </p>
       )}
     </Section>
@@ -2789,7 +2783,7 @@ function QueuePanel({ stats }: { stats: NodeStats }) {
     stats.shedRate,
   );
   return (
-    <Section title="The line">
+    <Section title="The backlog">
       <div className="ins-util">
         <div className="ins-util-head">
           <span className="label">
@@ -2807,10 +2801,10 @@ function QueuePanel({ stats }: { stats: NodeStats }) {
       <div className="ins-hint-stack">
         <p className="ins-hint is-danger" data-active={hint.state === 'shedding'}>
           Full. It is turning away {formatRate(hint.shedRate)}. Work arriving now is
-          being destroyed, not delayed. The consumers cannot keep up.
+          being dropped, not delayed. Whoever pulls from it cannot keep up.
         </p>
         <p className="ins-hint" data-active={hint.state === 'queued'}>
-          Work is waiting here because the consumers are slower than the producers. It
+          Work is waiting here because it is pulled more slowly than it arrives. It
           drains once they catch up.
         </p>
       </div>
@@ -2902,9 +2896,6 @@ function SingleInspector({
       : null;
   const lockNote = lockNoteFor(node.kind);
 
-  const serviceMsLabel =
-    cfg.serviceMs < 10 ? cfg.serviceMs.toFixed(1) : String(Math.round(cfg.serviceMs));
-
   /* Group this kind's fields. A group with nothing in it is dropped, so a
      ratelimiter shows one group and a replica shows two — the filtering
      invariant is preserved because the groups only ever PARTITION the
@@ -2930,7 +2921,7 @@ function SingleInspector({
             type="text"
             value={node.label}
             spellCheck={false}
-            aria-label="Node name"
+            aria-label="Component name"
             onFocus={(e) => {
               labelAtFocusRef.current = e.currentTarget.value;
             }}
@@ -3046,13 +3037,13 @@ function SingleInspector({
               />
               <p className="ins-expr">
                 {fleet > 1
-                  ? `${formatCount(up)} ${down > 0 ? 'running ' : ''}${up === 1 ? 'instance' : 'instances'} x ${formatCount(cfg.capacity)} slots ÷ ${serviceMsLabel}ms each`
-                  : `${formatCount(cfg.capacity)} at once ÷ ${serviceMsLabel}ms each`}
-                {blocking && ', if its calls answered at once'}
+                  ? `${formatCount(up)} ${down > 0 ? 'working ' : ''}${up === 1 ? 'person' : 'people'} x ${formatCount(cfg.capacity)} tasks ÷ ${formatMs(cfg.serviceMs)} each`
+                  : `${formatCount(cfg.capacity)} at once ÷ ${formatMs(cfg.serviceMs)} each`}
+                {blocking && ', if others answered at once'}
               </p>
               {blocking && stats && (
                 <StatRow
-                  label="Slots held"
+                  label="Tasks held"
                   value={`${formatCount(held)} / ${formatCount(slots)}`}
                   tone={toneClass(healthOfLoad(heldShare))}
                 />
@@ -3078,7 +3069,7 @@ function SingleInspector({
         {/* Placed above "Right now" so the readings a fault moves sit
             directly under the button that caused it. */}
         {faults && (
-          <Section title="Break it on purpose">
+          <Section title="What could go wrong">
             <NodeFaultControls
               fault={faults.fault}
               cables={faults.cables}
@@ -3117,18 +3108,18 @@ function SingleInspector({
                 {!GATE_KINDS.has(node.kind) && (
                   <>
                     <StatRow
-                      label="Being handled now"
+                      label="Being worked on"
                       value={formatCount(stats.inFlight)}
                     />
                     {stats.waitingOnDownstream !== undefined && (
                       <StatRow
-                        label="Waiting on its calls"
+                        label="Blocked on others"
                         term="waiting-on-calls"
                         value={formatCount(stats.waitingOnDownstream)}
                       />
                     )}
                     <StatRow
-                      label="Waiting in line"
+                      label="In the backlog"
                       term={node.kind === 'queue' ? 'backlog' : 'queue-time'}
                       value={formatCount(stats.queued)}
                     />
@@ -3146,23 +3137,23 @@ function SingleInspector({
                 />
                 <KindStatRows kind={node.kind} config={node.config} stats={stats} />
                 <StatRow
-                  label="Typical request"
+                  label="Cycle time, typical"
                   term="p50"
                   value={formatMs(stats.p50)}
                 />
                 <StatRow
-                  label="Slower requests"
+                  label="Cycle time, slow 1 in 20"
                   term="p95"
                   value={formatMs(stats.p95)}
                 />
                 <StatRow
-                  label="Slowest requests"
+                  label="Cycle time, slowest 1 in 100"
                   term="p99"
                   value={formatMs(stats.p99)}
                   tone={toneClass(healthOfLatency(stats.p99))}
                 />
                 <StatRow
-                  label="Errors"
+                  label="Bounced back"
                   term="error-rate"
                   value={formatPct(stats.errorRate)}
                   tone={toneClass(healthOfErr(stats.errorRate))}
@@ -3177,7 +3168,7 @@ function SingleInspector({
                 )}
                 {stats.timeoutRate > 0 && (
                   <StatRow
-                    label="Timed out"
+                    label="Requester gave up"
                     term="timeout"
                     value={formatRate(stats.timeoutRate)}
                     tone="is-danger"
@@ -3197,16 +3188,6 @@ function SingleInspector({
             )}
           </Section>
         )}
-
-        {/* Last, because it is context rather than a knob. A student is here
-            to change capacity and service time; what the thing is called at
-            a cloud vendor is worth knowing and worth reading after. */}
-        <VendorPanel
-          nodeId={node.id}
-          kind={node.kind}
-          config={node.config}
-          onChange={(patch) => onChange(node.id, patch)}
-        />
       </div>
 
       <div className="ins-foot">
@@ -3315,7 +3296,7 @@ function MultiInspector({
                 {' + '}
                 <span className="num num-md">{formatCount(edgeCount)}</span>{' '}
                 <span className="ins-multi-word">
-                  {edgeCount === 1 ? 'connection' : 'connections'}
+                  {edgeCount === 1 ? 'handoff' : 'handoffs'}
                 </span>
               </>
             ) : null}
@@ -3565,7 +3546,7 @@ export function TrafficControl({
             target steal the label's activation.
           */}
           <label className="label" htmlFor={sliderId}>
-            <Term id="offered">Offered load</Term>
+            <Term id="offered">Work arriving</Term>
           </label>
           <span className="traffic-load-readout">
             {noTrafficSource ? (
@@ -3575,7 +3556,7 @@ export function TrafficControl({
                  drags, nothing happens, and the number tells them the number
                  is the answer. Saying what is missing puts the reason where
                  the eye already is. */
-              <span className="traffic-load-none">No traffic source</span>
+              <span className="traffic-load-none">No incoming work</span>
             ) : (
               <>
                 {/* num-lg, not the hero. The slider's own value is feedback
@@ -3585,7 +3566,7 @@ export function TrafficControl({
                     size. */}
                 <span className="num num-lg">{formatRateBare(rps)}</span>
                 <span className="label traffic-load-unit">
-                  <Term id="rps">requests / sec</Term>
+                  <Term id="rps">per week</Term>
                 </span>
               </>
             )}
@@ -3609,8 +3590,8 @@ export function TrafficControl({
             aria-describedby={locked ? `${sliderId}-locked` : undefined}
             aria-valuetext={
               noTrafficSource
-                ? 'No traffic source on the canvas'
-                : `${Math.round(rps)} request${Math.round(rps) === 1 ? '' : 's'} per second`
+                ? 'No incoming work on the canvas'
+                : `${Math.round(rps)} item${Math.round(rps) === 1 ? '' : 's'} per week`
             }
             onChange={(e) => onRpsChange(positionToRps(Number(e.currentTarget.value)))}
             onKeyDown={(e) => {
@@ -3625,7 +3606,7 @@ export function TrafficControl({
             /* The scale describes a range the slider cannot reach, so it is
                replaced by the reason rather than sitting under a dead
                control. Says what to do, not what went wrong. */
-            <p className="traffic-scale-note">Add a client to send traffic.</p>
+            <p className="traffic-scale-note">Add incoming work to start the flow.</p>
           ) : locked ? (
             <p id={`${sliderId}-locked`} className="traffic-scale-note">
               Set by the challenge you are in.
@@ -3667,7 +3648,7 @@ export function TrafficControl({
           <>
             <div className="traffic-metric">
               <span className="label">
-                System <Term id="p99">p99</Term>
+                <Term id="p99">Slowest cycle time</Term>
               </span>
               <span className={p99Tone ? `num num-hero ${p99Tone}` : 'num num-hero'}>
                 {formatMs(p99)}
@@ -3677,13 +3658,13 @@ export function TrafficControl({
             <div className="traffic-metric-group">
               <div className="traffic-metric">
                 <span className="label">
-                  <Term id="goodput">Goodput</Term>
+                  <Term id="goodput">Delivered</Term>
                 </span>
                 <span className="num num-md">{formatRate(system.goodputRps)}</span>
               </div>
               <div className="traffic-metric">
                 <span className="label">
-                  <Term id="error-rate">Errors</Term>
+                  <Term id="error-rate">Bounced back</Term>
                 </span>
                 <span className={errTone ? `num num-md ${errTone}` : 'num num-md'}>
                   {formatPct(system.errorRate)}
@@ -3752,8 +3733,8 @@ export function TrafficControl({
           type="button"
           className="btn btn-icon"
           onClick={onStep}
-          aria-label="Step one tick"
-          title="Step one tick (S)"
+          aria-label="Step forward"
+          title="Step forward (S)"
         >
           <StepForward size={16} aria-hidden="true" />
         </button>

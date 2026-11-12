@@ -347,7 +347,7 @@ describe('the fixed fields', () => {
     startChallenge(hold.name);
     press(document.querySelector('[data-hit="node"][data-kind="db"]')!);
     const row = [...document.querySelectorAll('.ins .is-locked')].find(
-      (r) => r.querySelector('label')?.textContent?.trim() === 'Service time',
+      (r) => r.querySelector('label')?.textContent?.trim() === 'Hands-on time per task',
     )!;
     const input = row.querySelector('input')!;
     const before = input.value;
@@ -524,7 +524,7 @@ describe('the check', () => {
     const db = document.querySelector('[data-hit="node"][data-kind="db"]')!;
     press(db);
     const label = [...document.querySelectorAll('.ins label')].find(
-      (l) => l.textContent?.trim() === 'Slots per instance',
+      (l) => l.textContent?.trim() === 'Tasks each person juggles at once',
     );
     const input = document.getElementById(
       label!.getAttribute('for')!,
