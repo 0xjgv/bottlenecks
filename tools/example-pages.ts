@@ -32,44 +32,13 @@ import { PRESETS } from '../src/sim/presets.ts';
 import type { Preset } from '../src/sim/presets.ts';
 import { isNote } from '../src/sim/annotations.ts';
 import type { NodeKind, SimSnapshot, Topology } from '../src/sim/types.ts';
-
-/** Human label per kind, for the components table. */
-const KIND_LABEL: Partial<Record<NodeKind, string>> = {
-  client: 'Client',
-  lb: 'Load balancer',
-  cdn: 'CDN',
-  edge: 'Edge compute',
-  service: 'Service',
-  worker: 'Worker',
-  queue: 'Queue',
-  retryqueue: 'Retry queue',
-  transcoder: 'Transcoder',
-  db: 'Database',
-  cache: 'Cache',
-  writebehind: 'Write-behind cache',
-  replica: 'Read replicas',
-  shard: 'Sharded store',
-  objectstore: 'Object storage',
-  search: 'Search index',
-  timeseries: 'Time-series store',
-  graphdb: 'Graph database',
-  vectordb: 'Vector database',
-  coldstorage: 'Cold storage',
-  broker: 'Stream broker',
-  pubsub: 'Pub/sub topic',
-  websocket: 'WebSocket gateway',
-  lambda: 'Serverless function',
-  ratelimiter: 'Rate limiter',
-  breaker: 'Circuit breaker',
-  bulkhead: 'Bulkhead',
-  autoscaler: 'Autoscaler',
-  region: 'Region',
-  cron: 'Scheduled job',
-  loadgen: 'Load generator',
-};
+import { KIND_NAME } from '../src/components/nodeVisuals.ts';
+import { formatMs } from '../src/components/format.ts';
+import { siteUrl } from './site.ts';
 
 /**
- * Advance a topology by `seconds` of simulated time at 60fps, the same step
+ * Advance a topology by `seconds` of simulated time (one second is one
+ * working week) at 60fps, the same step
  * the app uses, so a number printed here is a number the reader can see.
  */
 function run(topology: Topology, seconds: number, seed = 7): SimSnapshot {
@@ -124,8 +93,8 @@ function mdx(s: string): string {
  * What the example does across a load sweep.
  *
  * Multipliers rather than absolute rates, because the presets are tuned to
- * very different scales: 45 rps for the retry storm, thousands for the
- * company designs. A multiple of the design's own baseline is the comparison
+ * very different scales: 18 a week for the retry storm, hundreds for the
+ * help center examples. A multiple of the design's own baseline is the comparison
  * that means the same thing on every page.
  *
  * Finer than doubling on purpose. These examples exist to teach that systems
@@ -160,12 +129,12 @@ function loadTable(rows: Row[]): string {
   const body = rows.map((r) => {
     // A percentile over zero completions is zero, which on a page reads as
     // "fast" when it means "nothing finished". Say so instead.
-    const p99 = r.goodput > 0 ? `${round(r.p99, 1)}ms` : 'nothing served';
+    const p99 = r.goodput > 0 ? formatMs(r.p99) : 'nothing finished';
     return `| ${r.offered} | ${round(r.goodput)} | ${p99} | ${round(r.errorPct, 1)}% |`;
   });
 
   return [
-    '| Offered | Goodput | p99 | Errors |',
+    '| Arriving a week | Finished a week | Slowest 1 in 100 | Dropped |',
     '| ---: | ---: | ---: | ---: |',
     ...body,
   ].join('\n');
@@ -176,7 +145,7 @@ function loadTable(rows: Row[]): string {
  * first one at which it does not. Derived from the same rows the table
  * prints, so it can never claim a cliff the numbers below it do not show.
  *
- * "Holding" is defined as under 1% errors, which is the threshold the app's
+ * "Holding" is defined as under 1% dropped work, which is the threshold the app's
  * own health colouring uses, rather than a number invented for this page.
  */
 function cliffLine(rows: Row[]): string {
@@ -184,7 +153,7 @@ function cliffLine(rows: Row[]): string {
   const lastGood = [...rows].reverse().find(healthy);
   const firstBad = rows.find((r) => !healthy(r));
   if (!lastGood || !firstBad || firstBad.offered <= lastGood.offered) return '';
-  return `This design holds ${lastGood.offered} requests a second with ${round(lastGood.errorPct, 1)}% errors. At ${firstBad.offered} it is losing ${round(firstBad.errorPct)}% of them.`;
+  return `This team holds ${lastGood.offered} items a week with ${round(lastGood.errorPct, 1)}% dropped. At ${firstBad.offered} it drops ${round(firstBad.errorPct)}% of them.`;
 }
 
 function componentsTable(topology: Topology): string {
@@ -193,9 +162,9 @@ function componentsTable(topology: Topology): string {
     counts.set(n.kind, (counts.get(n.kind) ?? 0) + 1);
   }
   const rows = [...counts.entries()]
-    .map(([kind, n]) => `| ${mdx(KIND_LABEL[kind] ?? kind)} | ${n} |`)
+    .map(([kind, n]) => `| ${mdx(KIND_NAME[kind])} | ${n} |`)
     .sort();
-  return ['| Component | Count |', '| --- | ---: |', ...rows].join('\n');
+  return ['| Role | Count |', '| --- | ---: |', ...rows].join('\n');
 }
 
 /** The notes written on the canvas, which are the lesson in the author's words. */
@@ -234,7 +203,7 @@ function page(preset: Preset): string {
     parts.push(
       '## Under load',
       '',
-      `Measured by running this design through the simulator at multiples of its own offered rate of ${base} requests a second. Twenty seconds of simulated time, one fixed seed, so the same numbers come out every time.`,
+      `Measured by running this design through the simulator at multiples of its own incoming work of ${base} items a week. Twenty simulated weeks, one fixed seed, so the same numbers come out every time.`,
       '',
     );
     if (cliff) parts.push(`<Note>${cliff}</Note>`, '');
@@ -242,8 +211,8 @@ function page(preset: Preset): string {
   }
 
   parts.push(
-    '<Card title="Open this example" icon="play" href="https://breakscale.tech">',
-    `  Load **${mdx(preset.name)}** from the Examples menu and drag the traffic slider yourself.`,
+    `<Card title="Open this example" icon="play" href="${siteUrl()}">`,
+    `  Load **${mdx(preset.name)}** from the Examples menu and drag the incoming work slider yourself.`,
     '</Card>',
     '',
   );
