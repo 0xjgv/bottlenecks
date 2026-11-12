@@ -1,7 +1,10 @@
 # Project coding standards
 
-Breakscale is a discrete-event system design simulator for CS students. `src/sim` is a pure
-simulation engine with no React, no DOM and no I/O; everything else is the interface around it.
+Bottlenecks maps the flow of work through a startup and finds what slows its output, in the
+spirit of _The Goal_. It is a fork of Breakscale: the discrete-event engine in `src/sim` is
+unchanged (pure, no React, no DOM, no I/O) and everything else is presented in startup terms.
+Read `docs/STARTUP_MODEL.md` first: the time scale (one simulated second is one working week),
+the vocabulary, and what each engine kind means.
 
 ## Communication
 
@@ -95,7 +98,7 @@ Step 7 is the bar. A kind that is another kind with different defaults does not 
 
 One lesson each. Stable at its default load, under 2 percent errors. Visibly degrades at 2-4x with
 the bottleneck being the lesson. No overlapping nodes. A node's ceiling is
-`capacity * instances * (1000 / serviceMs)` rps; do that arithmetic before tuning.
+`capacity * instances * (1000 / serviceMs)` items per week; do that arithmetic before tuning.
 
 Annotate it. Sections mark real architectural tiers and are named for what the tier does, never
 for what is inside it ("Starting a stream", not "Services"). One note must name the failure mode
@@ -106,9 +109,11 @@ asserts the geometry; run it rather than checking by eye, then load the example 
 
 ## Copy
 
-The reader is a first-year student who has not taken a queueing theory course.
+The reader is a startup founder, manager or operator who has not read about queueing theory.
 
-- Plain language: "requests waiting in line", not `queueLimit`.
+- Plain language: "tasks waiting in the backlog", not `queueLimit`.
+- Startup words, never server words: work, tasks, people, team, backlog, cycle time. Not
+  requests, servers, machines, latency.
 - Sentence case. No unexplained abbreviations.
 - Say why a number matters, not only what it is.
 - No em dashes. Use a comma, a semicolon, or a second sentence.
@@ -123,4 +128,4 @@ bun run lint
 bun run format
 ```
 
-A pre-push hook runs all of it. Do not commit; leave that to the maintainer.
+bun dev serves on :5174 here, so it can run beside Breakscale.

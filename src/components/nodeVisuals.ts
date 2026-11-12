@@ -84,7 +84,7 @@ import {
  */
 
 /** MIME type the palette sets on dragstart and the canvas checks for on drop. */
-export const NODE_DND_MIME = 'application/x-breakscale-node';
+export const NODE_DND_MIME = 'application/x-bottlenecks-node';
 
 /**
  * One Lucide icon as its raw SVG primitives: [tagName, attributes] pairs.
@@ -237,39 +237,39 @@ export const ICON_STROKE = 2;
 
 /** Human-readable kind names. Used by the canvas, the palette and the inspector. */
 export const KIND_NAME: Record<NodeKind, string> = {
-  client: 'Client',
-  lb: 'Load balancer',
-  service: 'Service',
-  cache: 'Cache',
-  db: 'Database',
-  queue: 'Queue',
-  worker: 'Worker',
-  replica: 'Read replicas',
-  shard: 'Sharded store',
-  autoscaler: 'Autoscaler',
-  region: 'Region',
-  cdn: 'CDN',
-  ratelimiter: 'Rate limiter',
-  breaker: 'Circuit breaker',
-  objectstore: 'Object storage',
-  searchindex: 'Search index',
-  timeseriesdb: 'Time-series store',
-  graphdb: 'Graph database',
-  coldstorage: 'Cold storage',
-  vectordb: 'Vector database',
-  streambroker: 'Stream broker',
-  pubsub: 'Pub/sub topic',
-  websocket: 'WebSocket gateway',
-  apigateway: 'API gateway',
-  sidecar: 'Sidecar proxy',
-  lambda: 'Lambda',
-  cron: 'Cron job',
-  bulkhead: 'Bulkhead',
-  retryqueue: 'Retry queue',
-  transcoder: 'Transcoder',
-  edgecompute: 'Edge compute',
-  writebehind: 'Write-behind cache',
-  loadshedder: 'Load shedder',
+  client: 'Incoming work',
+  lb: 'Dispatcher',
+  service: 'Team',
+  cache: 'Playbook',
+  db: 'Decision maker',
+  queue: 'Backlog',
+  worker: 'Ticket crew',
+  replica: 'Deputies',
+  shard: 'Split ownership',
+  autoscaler: 'Hiring plan',
+  region: 'Backup owner',
+  cdn: 'Help center',
+  ratelimiter: 'Intake limit',
+  breaker: 'Stop-the-line rule',
+  objectstore: 'Shared drive',
+  searchindex: 'Internal search',
+  timeseriesdb: 'Metrics tracker',
+  graphdb: 'Cross-team lookup',
+  coldstorage: 'Archive',
+  vectordb: 'AI assistant',
+  streambroker: 'Team channel',
+  pubsub: 'Announcement',
+  websocket: 'Standing meetings',
+  apigateway: 'Front desk',
+  sidecar: 'Process step',
+  lambda: 'Contractors',
+  cron: 'Recurring ritual',
+  bulkhead: 'Reserved capacity',
+  retryqueue: 'Rework queue',
+  transcoder: 'Production studio',
+  edgecompute: 'First-touch fix',
+  writebehind: 'Deferred paperwork',
+  loadshedder: 'Priority triage',
 };
 
 /**

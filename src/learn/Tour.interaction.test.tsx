@@ -104,7 +104,7 @@ describe('the first-visit tour', () => {
 
   it('does not open for a returning visitor', () => {
     localStorage.setItem(
-      'breakscale.session.v1',
+      'bottlenecks.session.v1',
       JSON.stringify({ topology: { nodes: [], edges: [] }, rps: 50, presetId: null }),
     );
     mount();

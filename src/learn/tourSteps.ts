@@ -20,9 +20,9 @@ import {
  * runs on the first example only, the one a first visit opens on.
  */
 
-export const TOUR_KEY = 'breakscale.tour.v1';
+export const TOUR_KEY = 'bottlenecks.tour.v1';
 /** The session key App writes; its presence means this is not a first visit. */
-const SESSION_KEY = 'breakscale.session.v1';
+const SESSION_KEY = 'bottlenecks.session.v1';
 /** The load step 1 asks for. Single server runs out near 200 a second. */
 export const TOUR_RPS = 300;
 /** System error rate a fixed design must be back under. */

@@ -7,6 +7,7 @@ import { CHALLENGES } from '../sim/challenges';
 import type { ChallengeResult } from '../sim/challenge';
 import type { RunResult, Unjudgeable, Verdict } from '../sim/judge';
 import type { CheckView } from '../useChallengeCheck';
+import { formatGoalMs } from './format';
 
 /**
  * The panel's promises: the live reading never declares a pass, the lesson
@@ -240,7 +241,7 @@ describe('the check', () => {
     render({ check: { status: 'verdict', verdict: missed } });
     // 200.4ms printed as 200ms would read as on the line.
     expect(text()).toContain(
-      `Not yet. The slowest 1 in 100 requests took ${p99Goal.max + 1}ms, and the goal is ${p99Goal.max}ms or less.`,
+      `Not yet. The slowest 1 in 100 requests took ${formatGoalMs(p99Goal.max + 1)}, and the goal is ${formatGoalMs(p99Goal.max)} or less.`,
     );
     expect(container.querySelector('.chal-chip')?.textContent).toBe('Not yet');
   });
@@ -297,7 +298,7 @@ describe('the check', () => {
       [{ reason: 'traffic-added' }, 'This design has a client the brief does not.'],
       [
         { reason: 'component-missing', kind: 'db' },
-        'Requests no longer reach every database the brief started with.',
+        'Requests no longer reach every decision maker the brief started with.',
       ],
       [
         { reason: 'connection-cut', from: 'api', to: 'db' },
@@ -309,11 +310,11 @@ describe('the check', () => {
       ],
       [
         { reason: 'shortcut-added', kind: 'queue', allowed: 0 },
-        'A new queue would answer requests',
+        'A new backlog would answer requests',
       ],
       [
         { reason: 'shortcut-added', kind: 'cache', allowed: 1 },
-        'This brief allows one new cache, and this design adds more.',
+        'This brief allows one new playbook, and this design adds more.',
       ],
       [
         { reason: 'dead-end-added', nodeId: 'sink', kind: 'service' },
@@ -377,10 +378,10 @@ describe('what a student sees first', () => {
     render({ check: { status: 'verdict', verdict: missed } });
     expect(container.querySelectorAll('.chal-body > .chal-goals').length).toBe(1);
     expect(goalStates()).toEqual([
-      [`${p99Goal.max + 1}ms`, 'Not met'],
+      [`${formatGoalMs(p99Goal.max + 1)}`, 'Not met'],
       ['0.2%', 'Met'],
     ]);
-    expect(text()).toContain(`Goal: ${p99Goal.max}ms or less`);
+    expect(text()).toContain(`Goal: ${formatGoalMs(p99Goal.max)} or less`);
   });
 
   it('shows checking, never a number or a verdict, while a check runs', () => {

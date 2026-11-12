@@ -146,7 +146,7 @@ import './App.css';
 /** Every brief the challenge store keeps attempts for, the incidents' too. */
 const ALL_BRIEFS: readonly Challenge[] = [...CHALLENGES, ...INCIDENT_BRIEFS];
 
-const STORAGE_KEY = 'breakscale.session.v1';
+const STORAGE_KEY = 'bottlenecks.session.v1';
 
 /* ------------------------------------------------------------------ *
  * Layout persistence
@@ -160,7 +160,7 @@ const STORAGE_KEY = 'breakscale.session.v1';
  * never see their settings again, with nothing on screen to explain why.
  * ------------------------------------------------------------------ */
 
-const LAYOUT_KEY = 'breakscale.layout.v1';
+const LAYOUT_KEY = 'bottlenecks.layout.v1';
 
 /**
  * How far a sheet must be pulled down before releasing closes it.

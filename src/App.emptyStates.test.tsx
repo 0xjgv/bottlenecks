@@ -28,7 +28,7 @@ class FakePointerEvent extends MouseEvent {
   }
 }
 
-const SESSION_KEY = 'breakscale.session.v1';
+const SESSION_KEY = 'bottlenecks.session.v1';
 
 let container: HTMLDivElement;
 let root: Root;

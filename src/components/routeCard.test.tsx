@@ -81,12 +81,12 @@ describe('the client card', () => {
       checkout,
     );
     // Every request times out, so nothing succeeds and there is no p99.
-    expect(hurt.a).toEqual({ value: '0/s', label: 'ok' });
+    expect(hurt.a).toEqual({ value: '0/wk', label: 'ok' });
     expect(hurt.b).toEqual({ value: '100%', label: 'failing' });
     expect(hurt.health).toBe('danger');
 
     const fine = readoutFor('client', snapshot.nodes.browse, node.config, 0, browse);
-    expect(fine.a).toEqual({ value: '10ms', label: 'p99' });
+    expect(fine.a).toEqual({ value: '24min', label: 'p99' });
     expect(fine.b).toEqual({ value: '0%', label: 'failing' });
     expect(fine.health).toBe('ok');
   });
@@ -146,7 +146,7 @@ describe('the client card', () => {
           ?.closest('g.cv-node')?.textContent ?? '';
       expect(card('checkout')).toContain('100%');
       expect(card('checkout')).toContain('failing');
-      expect(card('browse')).toContain('10ms');
+      expect(card('browse')).toContain('24min');
       expect(card('browse')).toContain('p99');
     });
   });

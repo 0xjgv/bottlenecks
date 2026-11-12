@@ -120,7 +120,7 @@ describe('who sees it', () => {
   });
 
   it('is never a returning visitor', () => {
-    localStorage.setItem('breakscale.session.v1', '{}');
+    localStorage.setItem('bottlenecks.session.v1', '{}');
     expect(tourWanted()).toBe(false);
   });
 

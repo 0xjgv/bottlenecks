@@ -17,9 +17,9 @@ import { downloadBlob } from './imageExport';
  * file may be truncated, hand-edited, or from a future version.
  * ------------------------------------------------------------------ */
 
-export const BACKUP_APP = 'breakscale-backup';
+export const BACKUP_APP = 'bottlenecks-backup';
 export const BACKUP_VERSION = 1;
-export const BACKUP_EXT = '.breakscale-backup.json';
+export const BACKUP_EXT = '.bottlenecks-backup.json';
 
 /**
  * The keys a backup carries.
@@ -29,13 +29,13 @@ export const BACKUP_EXT = '.breakscale-backup.json';
  * should never travel cannot be picked up by accident.
  */
 export const BACKED_UP_KEYS = [
-  'breakscale.designs.v1',
-  'breakscale.preferences.v1',
-  'breakscale.layout.v1',
-  'breakscale.session.v1',
+  'bottlenecks.designs.v1',
+  'bottlenecks.preferences.v1',
+  'bottlenecks.layout.v1',
+  'bottlenecks.session.v1',
   // Challenge attempts and passes. Losing them on a new machine would cost
   // someone every brief they had already worked through.
-  'breakscale.challenges.v1',
+  'bottlenecks.challenges.v1',
 ] as const;
 
 export interface BackupFile {
@@ -99,14 +99,14 @@ function acceptable(key: string, value: string): boolean {
     return false;
   }
 
-  if (key === 'breakscale.designs.v1') {
+  if (key === 'bottlenecks.designs.v1') {
     if (!Array.isArray(parsed)) return false;
     // Every entry must carry a topology the engine can actually run. One
     // bad row is dropped by the store's own loader; a value that is not a
     // list at all would make the shelf unreadable.
     return true;
   }
-  if (key === 'breakscale.session.v1') {
+  if (key === 'bottlenecks.session.v1') {
     if (!parsed || typeof parsed !== 'object') return false;
     const t = (parsed as { topology?: unknown }).topology;
     if (!isTopology(t)) return false;

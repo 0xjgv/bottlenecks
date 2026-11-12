@@ -94,7 +94,7 @@ describe('which route is hurting', () => {
   it('calls a slow route hurting even when nothing fails', () => {
     const slow = route('checkout', { p99: 2300 });
     expect(routeSentence([slow, route('browse')], nameOf)).toBe(
-      'Checkout users: slow, 1 in 100 requests take 2.3s or longer. Browsers: fine.',
+      'Checkout users: slow, 1 in 100 requests take 2.3wk or longer. Browsers: fine.',
     );
   });
 

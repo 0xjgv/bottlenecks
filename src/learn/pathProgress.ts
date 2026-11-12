@@ -17,7 +17,7 @@ import { LEARNING_PATH, type PathStep } from '../content/learningPath';
  * it again does not count.
  * ------------------------------------------------------------------ */
 
-export const PATH_KEY = 'breakscale.path.v1';
+export const PATH_KEY = 'bottlenecks.path.v1';
 /** Load, as a multiple of the example's own, that counts as pushing it. */
 export const EXPLORE_FACTOR = 2;
 /** Simulated time it has to run there. */

@@ -106,6 +106,7 @@ function siteOrigin(): Plugin {
 }
 
 export default defineConfig({
+  server: { port: 5174 },
   plugins: [
     react(),
     staticPage('glossary', renderGlossaryPage),

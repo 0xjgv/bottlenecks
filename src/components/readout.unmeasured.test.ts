@@ -46,15 +46,15 @@ describe('p99 on a box before anything is measured', () => {
     if (!db) throw new Error('no db stats');
     expect(db.throughput).toBeGreaterThan(0);
     const p99 = cells(t, 'db', db).find((c) => c.label === 'p99');
-    expect(p99?.value).toMatch(/^\d+(\.\d+)?ms$/);
+    expect(p99?.value).toMatch(/^\d+(\.\d+)?(min|h|d|wk)$/);
   });
 
-  it('keeps a measured 0ms when the box is serving', () => {
+  it('keeps a measured 0h when the box is serving', () => {
     const t = preset('single-server');
     const db = statsAfter(t, 5000).db;
     if (!db) throw new Error('no db stats');
     const p99 = cells(t, 'db', { ...db, p99: 0 }).find((c) => c.label === 'p99');
-    expect(p99?.value).toBe('0ms');
+    expect(p99?.value).toBe('0h');
   });
 
   it('reads n/a on a standby region that gets no traffic', () => {

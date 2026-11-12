@@ -31,7 +31,7 @@ class FakePointerEvent extends MouseEvent {
   }
 }
 
-const SESSION_KEY = 'breakscale.session.v1';
+const SESSION_KEY = 'bottlenecks.session.v1';
 
 function ownDesign(): Topology {
   const client = { ...makeNode('client', 0, 0), id: 'mine-client', label: 'My client' };

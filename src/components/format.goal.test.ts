@@ -10,13 +10,15 @@ import { formatGoalMs, formatGoalPct, formatShareDown } from './format';
 
 describe('against a goal', () => {
   it('prints a latency just over the goal as over it', () => {
-    expect(formatGoalMs(200.4)).toBe('201ms');
-    expect(formatGoalMs(200)).toBe('200ms');
-    expect(formatGoalMs(199.2)).toBe('200ms');
-    expect(formatGoalMs(1000.4)).toBe('1.1s');
-    expect(formatGoalMs(1000)).toBe('1s');
-    expect(formatGoalMs(4.01)).toBe('4.1ms');
-    expect(formatGoalMs(0)).toBe('0ms');
+    // One working day is 200ms, one week 1000ms, one hour 25ms.
+    expect(formatGoalMs(200.4)).toBe('1.1d');
+    expect(formatGoalMs(200)).toBe('1d');
+    expect(formatGoalMs(199.2)).toBe('8h');
+    expect(formatGoalMs(1000.4)).toBe('1.1wk');
+    expect(formatGoalMs(1000)).toBe('1wk');
+    expect(formatGoalMs(25.1)).toBe('1.1h');
+    expect(formatGoalMs(4.01)).toBe('10min');
+    expect(formatGoalMs(0)).toBe('0h');
     expect(formatGoalMs(null)).toBe('n/a');
   });
 

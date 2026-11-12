@@ -174,7 +174,7 @@ describe('fault controls on a selected node', () => {
       ['payments', 'crash'],
     ]);
     expect(status()).toBe(
-      'Crashed at 2.0s. Every request sent to it fails until you fix it.',
+      'Crashed at 2.0wk. Every request sent to it fails until you fix it.',
     );
     const g = nodeGroup('payments');
     expect(g.classList.contains('is-faulted')).toBe(true);
@@ -231,7 +231,7 @@ describe('fault controls on a selected node', () => {
       kind: 'slow',
       opts: { factor: DEFAULT_SLOW_FACTOR },
     });
-    expect(status()).toMatch(/^Running 5x slower since 2\.0s\./);
+    expect(status()).toMatch(/^Running 5x slower since 2\.0wk\./);
 
     const factor = container.querySelector<HTMLSelectElement>(
       '#' + labelFor('How much slower'),
@@ -250,7 +250,7 @@ describe('fault controls on a selected node', () => {
       kind: 'errors',
       opts: { rate: DEFAULT_GLITCH_RATE },
     });
-    expect(status()).toMatch(/^Failing 50% of requests since 2\.0s\./);
+    expect(status()).toMatch(/^Failing 50% of requests since 2\.0wk\./);
     expect(engine.faultSchedule()).toHaveLength(3);
   });
 

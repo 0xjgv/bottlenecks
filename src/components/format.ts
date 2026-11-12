@@ -14,7 +14,7 @@
  *      This is the "0% util at 18% load" bug, fixed at the source.
  *   2. A non-100% value never renders as `100%`. 0.996 -> `99.6%`.
  *   3. Percentages: integer at >=10%, one decimal below.
- *   4. Latency >=1000ms switches to seconds.
+ *   4. Durations read as working time: min, h, d, wk (see MS_PER_WEEK).
  *   5. Every formatter emits its own unit. No bare number relying on a
  *      neighbouring tspan for meaning.
  *   6. One sentinel for non-finite input: `n/a`, everywhere.
@@ -94,40 +94,74 @@ export const toneClass = (h: Health): string | undefined =>
  * Formatters
  * ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ *
+ * Work time.
+ *
+ * The engine counts milliseconds; the reader thinks in working hours. One
+ * simulated second is one working week of 40 hours, so the engine's rate
+ * window (one second) reads as "per week" and its latency window (five
+ * seconds) as five weeks. Every duration and rate on screen goes through
+ * these constants, so the scale changes in exactly one place.
+ * ------------------------------------------------------------------ */
+
+/** Simulated milliseconds in one working hour. */
+export const MS_PER_HOUR = 25;
+/** Simulated milliseconds in one working day (8 hours). */
+export const MS_PER_DAY = MS_PER_HOUR * 8;
+/** Simulated milliseconds in one working week (5 days). One simulated second. */
+export const MS_PER_WEEK = MS_PER_DAY * 5;
+/** Working weeks in a year, for the elapsed clock. */
+const WEEKS_PER_YEAR = 48;
+
+/** Engine milliseconds to working hours, for inputs that edit in hours. */
+export const msToHours = (ms: number): number => ms / MS_PER_HOUR;
+/** Working hours to engine milliseconds. */
+export const hoursToMs = (h: number): number => h * MS_PER_HOUR;
+
 /**
- * Latency in milliseconds.
+ * One duration in work time, rounded by `round` (nearest for readouts, up
+ * for goals so a miss never prints as a pass).
+ */
+function workTime(v: number, round: (x: number, step: number) => number): string {
+  const minutes = (v / MS_PER_HOUR) * 60;
+  if (v < MS_PER_HOUR) {
+    const m = round(minutes, 1);
+    return m < 1 ? '<1min' : `${m.toFixed(0)}min`;
+  }
+  if (v < MS_PER_DAY) return `${trim(round(v / MS_PER_HOUR, 0.1).toFixed(1))}h`;
+  if (v < MS_PER_WEEK) return `${trim(round(v / MS_PER_DAY, 0.1).toFixed(1))}d`;
+  if (v < MS_PER_WEEK * 10) return `${trim(round(v / MS_PER_WEEK, 0.1).toFixed(1))}wk`;
+  return `${group(round(v / MS_PER_WEEK, 1))}wk`;
+}
+
+const nearest = (x: number, step: number): number => Math.round(x / step) * step;
+
+/**
+ * A duration, given in engine milliseconds, as working time: minutes under
+ * an hour, hours under a day, days under a week, weeks beyond.
  *
- * Below 10ms one decimal keeps sub-millisecond differences visible; from 10ms
- * up the decimal is stochastic noise on a percentile, so it is dropped. At or
- * above 1000ms the reading switches to seconds rather than printing four
- * significant figures of a number that moves every window.
- *
- * A latency that is genuinely non-zero but rounds below the display step is
- * shown as `<0.1ms`, never `0`.
+ * A duration that is genuinely non-zero but rounds below a minute is shown
+ * as `<1min`, never `0`.
  */
 export function formatMs(ms: number | null | undefined): string {
   const v = finite(ms);
   if (v === null) return NA;
-  // A negative latency is not a small latency, it is a broken measurement.
+  // A negative duration is not a short one, it is a broken measurement.
   if (v < 0) return NA;
-  if (v === 0) return '0ms';
-  if (v < 0.1) return '<0.1ms';
-  if (v < 10) return `${trim(v.toFixed(1))}ms`;
-  if (v < 1000) return `${Math.round(v)}ms`;
-  if (v < 10_000) return `${trim((v / 1000).toFixed(1))}s`;
-  return `${group(Math.round(v / 1000))}s`;
+  if (v === 0) return '0h';
+  return workTime(v, nearest);
 }
 
 /**
- * A rate in requests per second. Anything at or above 1000 compacts to `k`
- * so the string cannot outgrow its slot.
+ * A rate in work items per week (the engine's per-second, see MS_PER_WEEK).
+ * Anything at or above 1000 compacts to `k` so the string cannot outgrow its
+ * slot.
  *
- * A trickle below 0.1/s reads `<0.1/s` rather than collapsing to zero — a
- * system shedding one request every twenty seconds is not a healthy one.
+ * A trickle below 0.1/wk reads `<0.1/wk` rather than collapsing to zero.
  */
 export function formatRate(rps: number | null | undefined): string {
   const bare = formatRateBare(rps);
-  return bare === NA ? NA : `${bare}/s`;
+  return bare === NA ? NA : `${bare}/wk`;
 }
 
 /**
@@ -231,20 +265,16 @@ export function formatCompact(n: number | null | undefined): string {
 }
 
 /**
- * Elapsed simulation time, as a human would say it.
- *
- * Under a minute reads as seconds with one decimal, because at that scale the
- * tenths are the interesting part — a student stepping frame by frame wants
- * to see the clock move. Past a minute the tenths are noise and the shape
- * "2m 05s" is what a person would actually say out loud.
+ * Elapsed simulation time in working weeks (one simulated second each).
+ * Under a year reads `12.3wk`; past it, `1y 04wk`.
  */
 export function formatElapsed(seconds: number | null | undefined): string {
   const v = finite(seconds);
   if (v === null || v < 0) return NA;
-  if (v < 60) return `${v.toFixed(1)}s`;
-  const m = Math.floor(v / 60);
-  const rest = Math.floor(v - m * 60);
-  return `${m}m ${String(rest).padStart(2, '0')}s`;
+  if (v < WEEKS_PER_YEAR) return `${v.toFixed(1)}wk`;
+  const y = Math.floor(v / WEEKS_PER_YEAR);
+  const rest = Math.floor(v - y * WEEKS_PER_YEAR);
+  return `${y}y ${String(rest).padStart(2, '0')}wk`;
 }
 
 /* ------------------------------------------------------------------ *
@@ -267,10 +297,8 @@ function ceilTo(v: number, step: number): number {
 export function formatGoalMs(ms: number | null | undefined): string {
   const v = finite(ms);
   if (v === null || v < 0) return NA;
-  if (v === 0) return '0ms';
-  if (v < 10) return `${trim(ceilTo(v, 0.1).toFixed(1))}ms`;
-  if (v < 1000) return `${ceilTo(v, 1).toFixed(0)}ms`;
-  return `${trim(ceilTo(v / 1000, 0.1).toFixed(1))}s`;
+  if (v === 0) return '0h';
+  return workTime(v, ceilTo);
 }
 
 /**

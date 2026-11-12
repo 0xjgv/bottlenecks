@@ -100,7 +100,7 @@ describe('What just happened', () => {
       const p = panel();
       expect(p?.getAttribute('aria-label')).toBe('What just happened');
       const first = p?.querySelector('.wh-line');
-      expect(first?.querySelector('.wh-at')?.textContent).toBe('2.0s');
+      expect(first?.querySelector('.wh-at')?.textContent).toBe('2.0wk');
       expect(first?.querySelector('.wh-text')?.textContent).toBe(
         'Database slowed down 5x.',
       );

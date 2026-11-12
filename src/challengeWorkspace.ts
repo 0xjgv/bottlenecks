@@ -15,12 +15,12 @@ import { isTopology } from './clipboard';
  * brief keeps its attempt here, so leaving one and coming back later picks
  * up where it was, and a reload in the middle of one comes back to it.
  *
- * Kept apart from `breakscale.session.v1`, which is the reader's own design
+ * Kept apart from `bottlenecks.session.v1`, which is the reader's own design
  * and is never written while a brief holds the canvas. That is the whole
  * promise: nothing done inside a challenge can reach their design.
  * ------------------------------------------------------------------ */
 
-export const CHALLENGES_KEY = 'breakscale.challenges.v1';
+export const CHALLENGES_KEY = 'bottlenecks.challenges.v1';
 
 /** One brief's attempt, as last saved. */
 export interface Attempt {
