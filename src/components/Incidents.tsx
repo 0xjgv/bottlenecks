@@ -169,8 +169,7 @@ export function IncidentPanel({
 
       <div id={bodyId} className="chal-body" hidden={collapsed}>
         <p className="inc-model">
-          A composite of what happens at many startups. Times and numbers here are from
-          the simulator. {incident.simNote}
+          Times and numbers here are from the simulator. {incident.simNote}
         </p>
         <p className="chal-brief inc-story">{incident.story.join(' ')}</p>
         <p className="inc-source">

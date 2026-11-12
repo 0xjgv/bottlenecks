@@ -132,7 +132,7 @@ describe('a real incident', () => {
     openIncident();
     const p = panel();
     expect(p?.textContent).toContain(s3.name);
-    expect(p?.textContent).toContain('A composite of what happens at many startups.');
+    expect(p?.textContent).toContain('Times and numbers here are from the simulator.');
     const link = p?.querySelector<HTMLAnchorElement>('.inc-source a');
     expect(link?.href).toBe(s3.source.url);
     expect(link?.textContent).toBe(s3.source.title);
