@@ -102,16 +102,19 @@ describe('fault schedule: no faults', () => {
    * slots to outlast the wait on what they call, and autoscaling-service's
    * database got faster and its API's own work 2ms shorter, so a slot held
    * across the database call still turns over in about 25ms. All five are
-   * the x86-64 hashes, the bytes Linux and Windows CI produce.
+   * the x86-64 hashes, the bytes Linux and Windows CI produce. All five were
+   * re-recorded again when the examples were retuned as startup flows, with
+   * the engine unchanged (recorded on arm64, where the previous hashes also
+   * matched).
    */
   const GOLDEN: Record<string, string> = {
-    'single-server': '9491f136831920eeee5f4f461174c811b3d5972d4aa5088c2318079bed1f6277',
+    'single-server': '61c9f76aeeba790481367c96699341c3aef403912f50cf9bf8ec0b1f28a1f2cf',
     'circuit-breaker':
-      '4f855031bfce6b6cb6830abd15c00302b0018f5f30751e376eac5605834217d4',
+      'd364a0f12b3b16571533b675abbab4ffe9dda2998657989b459e04220c6576bf',
     'autoscaling-service':
-      '278c25c15e0dcd3ff0af8be2a3aa4747759bbc3265f3e4590af74a0d615210c6',
-    'event-driven': '88a07c5a2eefdc7ee7de4ef759fd9fd56575a1dcac94ec3fcc445d79bd51d875',
-    'multi-region': 'cbfeda1fec110f5cc12c00f2417ddc356f9d7e0aaffc1951d65c61e20d19601c',
+      '405e0ba30c6a05f911250d040ec7615ce82e186371de19aba07c40bc0d7a0dca',
+    'event-driven': '6d0fb5fce6e0a75b96198d7383b7010a985d30a9541d6cdf0582898c3ee4ed85',
+    'multi-region': '21bebc5f745e4fc93768becb01b7317626c82207eb40b0b686425d19def7379a',
   };
 
   function hash(t: Topology): string {

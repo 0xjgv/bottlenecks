@@ -215,7 +215,7 @@ describe('the tally', () => {
           action: 'inject',
           nodeId: 'db',
           kind: 'slow',
-          opts: { factor: 4 },
+          opts: { factor: 8 },
         },
         { atMs: 8000, action: 'clear', nodeId: 'db' },
       ],

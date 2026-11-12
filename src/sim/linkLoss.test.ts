@@ -198,10 +198,10 @@ describe('link loss: none', () => {
    * Re-recorded with them when the presets were retuned for blocking calls.
    */
   const GOLDEN: Record<string, string> = {
-    'single-server': '9491f136831920eeee5f4f461174c811b3d5972d4aa5088c2318079bed1f6277',
+    'single-server': '61c9f76aeeba790481367c96699341c3aef403912f50cf9bf8ec0b1f28a1f2cf',
     'circuit-breaker':
-      '4f855031bfce6b6cb6830abd15c00302b0018f5f30751e376eac5605834217d4',
-    'multi-region': 'cbfeda1fec110f5cc12c00f2417ddc356f9d7e0aaffc1951d65c61e20d19601c',
+      'd364a0f12b3b16571533b675abbab4ffe9dda2998657989b459e04220c6576bf',
+    'multi-region': '21bebc5f745e4fc93768becb01b7317626c82207eb40b0b686425d19def7379a',
   };
 
   function hash(t: Topology): string {

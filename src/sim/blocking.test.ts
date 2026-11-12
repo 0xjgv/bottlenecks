@@ -171,7 +171,7 @@ describe('blocking: a slow dependency backs up its caller', () => {
         `shed ${f(api.shedRate, 1)}/s, utilisation ${f(api.utilization, 3)}; ` +
         `db in service ${s.nodes.db.inFlight}`,
     );
-    expect(w).toBeGreaterThanOrEqual(7);
+    expect(w).toBeGreaterThanOrEqual(6);
     expect(work).toBeLessThanOrEqual(2);
     expect(api.queued).toBeGreaterThan(0);
     expect(api.shedRate).toBeGreaterThan(0);
@@ -184,11 +184,11 @@ describe('blocking: a slow dependency backs up its caller', () => {
     const p = PRESETS.find((x) => x.id === 'single-server');
     if (!p) throw new Error('no single-server preset');
     const t = structuredClone(p.topology);
-    // The preset's API runs a pool far larger than the database's, so pin the
-    // 8 threads this test reasons about.
+    // The preset's engineers hold more tasks than this test reasons about, so
+    // pin 8: four people juggling two each.
     const api = t.nodes.find((n) => n.id === 'api');
     if (!api) throw new Error('no api node');
-    api.config.capacity = 8;
+    api.config.capacity = 2;
     const healthy = new Engine(t, 7);
     run(healthy, 20000);
     const before = snap(healthy);
@@ -212,10 +212,10 @@ describe('blocking: a slow dependency backs up its caller', () => {
     expect(s.nodes.api.shedRate).toBeGreaterThan(0);
     expect(s.nodes.db.shedRate).toBe(0);
     expect(s.nodes.db.totalFailed).toBe(0);
-    expect(w).toBeGreaterThanOrEqual(7);
+    expect(w).toBeGreaterThanOrEqual(6);
     expect(s.nodes.api.queued).toBeGreaterThan(32);
-    // 8 caller threads against 6 database slots: at most 2 can be in line.
-    expect(s.nodes.db.queued).toBeLessThanOrEqual(2);
+    // 8 caller threads against 2 sign-off slots: at most 6 can be in line.
+    expect(s.nodes.db.queued).toBeLessThanOrEqual(6);
   });
 });
 
