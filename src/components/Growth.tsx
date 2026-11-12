@@ -43,7 +43,6 @@ function useForecast(topology: Topology): View {
       setView({ status: 'running', done: r.value });
       timer = setTimeout(slice, 0);
     };
-    setView({ status: 'running', done: 0 });
     timer = setTimeout(slice, 0);
     return () => clearTimeout(timer);
   }, [topology]);
