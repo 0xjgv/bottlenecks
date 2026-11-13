@@ -123,4 +123,22 @@ export const LEARNING_PATH: readonly PathTrack[] = [
       ex('fintech-compliance', 'See a check on every item set the pace of everything.'),
     ],
   },
+  {
+    id: 'companies',
+    title: 'Real companies',
+    about: 'Where well-known companies say they get stuck, drawn from their own words.',
+    steps: [
+      ex('openai', 'See research and product slow together when shared compute fills.'),
+      ex('anthropic', 'See a usage limit turn work away until compute is added.'),
+      ex('spacex', 'See fast builders wait on a licence no hire can speed up.'),
+      ex('nvidia', 'See hiring change nothing when a supplier sets the pace.'),
+      ex('tesla', 'See two products stall on the one part they both need.'),
+      ex('stripe', 'See coding agents pile work up at the people who review it.'),
+      ex('gitlab', 'See more engineers stall when only maintainers can merge.'),
+      ex('spotify', 'See finished work from every team wait at one shared release.'),
+      ex('airbnb', 'See too many projects back up the teams everyone depends on.'),
+      ex('amazon', 'See meetings for each layer fill up long before the builders do.'),
+      ex('apple', 'See a few disputes set the pace when only the top can break ties.'),
+    ],
+  },
 ];

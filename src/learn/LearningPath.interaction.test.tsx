@@ -138,7 +138,7 @@ describe('the learning path', () => {
       'Open Founder approves everything',
     );
     expect(d.querySelector('.ex-sub')?.textContent).toBe(
-      'Every example and challenge in an order that builds up, from finding one constraint to keeping work flowing through a whole company. You have done 0 of 36.',
+      'Every example and challenge in an order that builds up, from finding one constraint to keeping work flowing through a whole company. You have done 0 of 47.',
     );
     expect(d.querySelector('.lp-step[data-next] .lp-status')?.textContent).toBe(
       'Up next',

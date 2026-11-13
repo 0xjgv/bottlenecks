@@ -1,5 +1,6 @@
 import type { NodeKind, SimNode, Topology } from './types';
 import { defaultConfig } from './defaults';
+import { COMPANY_PRESETS } from './presets.companies';
 import { STARTUP_PRESETS } from './presets.startups';
 import { COL, LROW, ROW, control, edge, node, note, sectionOver } from './presetKit';
 
@@ -26,6 +27,13 @@ export interface Preset {
   tagline: string;
   description: string;
   topology: Topology;
+  /**
+   * Where a real company's map comes from. Set only on the company examples
+   * (presets.companies.ts). A named company's structure is a claim a reader
+   * must be able to check, so the gallery lists these apart from the
+   * invented examples and links each source.
+   */
+  sources?: readonly { title: string; url: string }[];
 }
 
 /** The name a newly added node gets. Matches KIND_NAME, which sim cannot import. */
@@ -1368,4 +1376,5 @@ export const PRESETS: Preset[] = [
     topology: resilientDelivery,
   },
   ...STARTUP_PRESETS,
+  ...COMPANY_PRESETS,
 ];

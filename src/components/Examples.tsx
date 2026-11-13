@@ -75,13 +75,19 @@ export function Examples({
     };
   }, [open]);
 
-  /* The incidents sit under every example. The header's button takes the
-     reader there, clearing a search that hid them, and focuses the first. */
+  /* The companies and the incidents sit under every example. A header
+     button takes the reader to one, clearing a search that hid it, and
+     focuses its first card. */
+  const companiesRef = useRef<HTMLElement | null>(null);
   const incRef = useRef<HTMLElement | null>(null);
-  const [jump, setJump] = useState(0);
+  const [jump, setJump] = useState<{ to: 'companies' | 'incidents'; n: number }>();
+  const jumpTo = (to: 'companies' | 'incidents') => {
+    setQuery('');
+    setJump((j) => ({ to, n: (j?.n ?? 0) + 1 }));
+  };
   useEffect(() => {
-    if (jump === 0) return;
-    const section = incRef.current;
+    if (!jump) return;
+    const section = (jump.to === 'companies' ? companiesRef : incRef).current;
     if (!section) return;
     section.scrollIntoView({ block: 'start' });
     section
@@ -100,6 +106,10 @@ export function Examples({
           p.description.toLowerCase().includes(q),
       )
     : presets;
+  /* A real company's map is a claim about that company, so those sit in
+     their own section with their sources, apart from the invented ones. */
+  const examples = shown.filter((p) => !p.sources);
+  const companies = shown.filter((p) => p.sources);
   const shownIncidents = onOpenIncident
     ? q
       ? incidents.filter(
@@ -113,6 +123,44 @@ export function Examples({
         )
       : incidents
     : [];
+
+  const card = (preset: Preset) => {
+    const active = preset.id === activePresetId;
+    return (
+      <li key={preset.id} className={preset.sources ? 'ex-sourced' : undefined}>
+        <button
+          type="button"
+          className="ex-item"
+          data-active={active || undefined}
+          aria-current={active ? 'true' : undefined}
+          onClick={() => {
+            onLoad(preset);
+            onClose();
+          }}
+        >
+          <span className="ex-item-name">{preset.name}</span>
+          <span className="ex-item-tagline">{preset.tagline}</span>
+          {/* The full description is what actually helps a student choose,
+              and it is the thing a rail row had no room for. */}
+          <span className="ex-item-desc">{preset.description}</span>
+          {active ? <span className="ex-item-active">Loaded</span> : null}
+        </button>
+        {/* Outside the button: a link inside a button is not reachable. */}
+        {preset.sources ? (
+          <p className="inc-source">
+            {preset.sources.map((src, i) => (
+              <span key={src.url}>
+                {i === 0 ? 'Source: ' : ', '}
+                <a href={src.url} target="_blank" rel="noreferrer">
+                  {src.title}
+                </a>
+              </span>
+            ))}
+          </p>
+        ) : null}
+      </li>
+    );
+  };
 
   return createPortal(
     <div
@@ -147,15 +195,13 @@ export function Examples({
             </p>
           </div>
           <div className="ex-head-actions">
+            {presets.some((p) => p.sources) ? (
+              <button type="button" className="btn" onClick={() => jumpTo('companies')}>
+                Companies
+              </button>
+            ) : null}
             {onOpenIncident && incidents.length > 0 ? (
-              <button
-                type="button"
-                className="btn"
-                onClick={() => {
-                  setQuery('');
-                  setJump((n) => n + 1);
-                }}
-              >
+              <button type="button" className="btn" onClick={() => jumpTo('incidents')}>
                 Incidents
               </button>
             ) : null}
@@ -193,41 +239,35 @@ export function Examples({
           </p>
         ) : (
           <div className="ex-scroll">
-            {shown.length > 0 ? (
-              <ul className="ex-grid">
-                {shown.map((preset) => {
-                  const active = preset.id === activePresetId;
-                  return (
-                    <li key={preset.id}>
-                      <button
-                        type="button"
-                        className="ex-item"
-                        data-active={active || undefined}
-                        aria-current={active ? 'true' : undefined}
-                        onClick={() => {
-                          onLoad(preset);
-                          onClose();
-                        }}
-                      >
-                        <span className="ex-item-name">{preset.name}</span>
-                        <span className="ex-item-tagline">{preset.tagline}</span>
-                        {/* The full description is what actually helps a
-                            student choose, and it is the thing a rail row
-                            had no room for. */}
-                        <span className="ex-item-desc">{preset.description}</span>
-                        {active ? <span className="ex-item-active">Loaded</span> : null}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+            {examples.length > 0 ? (
+              <ul className="ex-grid">{examples.map((p) => card(p))}</ul>
+            ) : null}
+            {companies.length > 0 ? (
+              <section
+                ref={companiesRef}
+                className="ex-section"
+                aria-labelledby="co-title"
+              >
+                <h3 id="co-title" className="ex-section-title">
+                  Real companies
+                </h3>
+                <p className="ex-section-sub">
+                  How well-known companies say they work, drawn from public sources. The
+                  shape is theirs; every number is the model’s, not the company’s.
+                </p>
+                <ul className="ex-grid">{companies.map((p) => card(p))}</ul>
+              </section>
             ) : null}
             {shownIncidents.length > 0 ? (
-              <section ref={incRef} className="inc-section" aria-labelledby="inc-title">
-                <h3 id="inc-title" className="inc-section-title">
+              <section
+                ref={incRef}
+                className="ex-section inc-section"
+                aria-labelledby="inc-title"
+              >
+                <h3 id="inc-title" className="ex-section-title">
                   Real incidents
                 </h3>
-                <p className="inc-section-sub">
+                <p className="ex-section-sub">
                   Real events as simplified models. Watch one happen, then fix it.
                 </p>
                 <ul className="ex-grid">

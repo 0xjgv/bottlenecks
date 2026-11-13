@@ -107,6 +107,11 @@ and no sections. Stacked tiers need `LROW(row, lane)`, because a section's label
 of a 42px row gutter and two padded frames will not both fit. `presets.annotations.test.ts`
 asserts the geometry; run it rather than checking by eye, then load the example and look at it.
 
+A map of a named company (`src/sim/companies`, one file each) also follows the rule at the top of
+`src/sim/presets.companies.ts`: every step and the constraint come from a public source the card
+links, and every number is the model's and says so on the canvas. `presets.companies.test.ts`
+holds each one to it.
+
 ## Copy
 
 The reader is a startup founder, manager or operator who has not read about queueing theory.
