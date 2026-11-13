@@ -5,16 +5,31 @@ import { COL, ROW, edge, node, note, sectionOver } from '../presetKit';
 /* ------------------------------------------------------------------ *
  * Apple: functions meet only at the top, so the top settles the stalemates.
  *
- * Shape, from one source, a 2020 Harvard Business Review article by two of
- * Apple's own educators [HBR]: the company is organised by function (its
- * exhibit lists design, hardware engineering, software and more), a product
- * needs many specialist teams across functions, leaders of the functions
- * debate the cross-function questions, and "when debates reach an impasse",
- * higher managers up to the chief executive weigh in as tiebreakers. Its
- * named limit: "even the executive team can resolve only a limited number
- * of stalemates". Three functions stand for the many. Where each function
- * raises its questions, and what share peers settle, are the model's.
- * The company may have changed since 2020.
+ * Sourced steps, all from one source, a 2020 Harvard Business Review
+ * article by two of Apple's own educators [HBR]. The company may have
+ * changed since 2020.
+ * - Ideas start with an expert inside a function (its worked example is a
+ *   camera feature).
+ * - The company is organised by function. Its exhibit lists design,
+ *   hardware engineering, software, operations, marketing, retail and
+ *   more, and a product needs specialist teams across many of them. Four
+ *   stand for the many here: hardware engineering, software and design,
+ *   and marketing, whose leaders the engineering teams invited to debate
+ *   the feature.
+ * - Function leaders debate the questions between them as peers.
+ * - "When debates reach an impasse", higher managers up to the chief
+ *   executive weigh in as tiebreakers. Its named limit: "even the
+ *   executive team can resolve only a limited number of stalemates".
+ *
+ * Not drawn: the article does not say how a product reaches customers, or
+ * in what order the functions work; it describes functions converging, not
+ * stages. So every function works on every item at once in this model. A
+ * typical step for customers would have to come after every function, but
+ * the engine calls every step a service points at in parallel, so nothing
+ * can be ordered after them; none is added. Where each function raises its
+ * questions, and what share peers settle, are the model's. With every edge
+ * kept to one column, four functions fill the column (the canvas allows
+ * four rows), so the map has 7 nodes, not 9.
  *
  * This is not the founder who approves everything (seed-saas): here only
  * the disputes peers cannot settle go up, a tenth of them, and the top
@@ -27,51 +42,43 @@ import { COL, ROW, edge, node, note, sectionOver } from '../presetKit';
  * decision maker (`db`, all decisions, 24 minutes of lock wait per other
  * stalemate in progress), so stalemates queue behind each other.
  *
- *   product     40/wk, each item needs all three functions
+ *   product     32/wk, each item needs all four functions
  *   hardware,   4 people x 6 at once, 2h each               -> 480/wk own work
  *   software,   (most of those slots are work blocked waiting on a tiebreak
- *   design      when the top is full)
+ *   design,     when the top is full)
+ *   marketing
  *   peers       16 at once, 1h each                         -> 640/wk
- *               load: 3 disputes per item, 120/wk at 1x; settles 90%
- *   executives  2 at once, 2.2h each                        ->  36/wk on paper;
- *               lock wait brings it to 33/wk measured at 3x
- *               load: 12/wk at 1x, 24 at 2x, 36 at 3x       <- constraint
+ *               load: 4 disputes per item, 128/wk at 1x; settles 90%
+ *   executives  2 at once, 2h each                          ->  40/wk on paper;
+ *               lock wait brings it to 34.2/wk measured at 3x
+ *               load: 12.8/wk at 1x, 25.6 at 2x, 38.4 at 3x <- constraint
  *   Measured (seed 1): nothing dropped up to 2x, slowest 1.3d at 1x and
- *   2.1d at 2x. At 3x the executive team is full, 5.6% is dropped, the
- *   slowest take 1.7wk, peers are 67% busy and the functions 23 to 26%.
- *   Doubling every function's people at 3x: 4.1% dropped, slowest 1.5wk
- *   (undisputed work no longer waits behind blocked work, median 1.1d to
- *   4.3h, but disputes still queue at the top). Peers settling 95% instead
- *   of 90% at 3x: nothing dropped, slowest 1.2d.
+ *   2.2d at 2x. At 3x the executive team is full, 3.2% is dropped, the
+ *   slowest take 1.4wk, peers are 58% busy and the functions 19 to 20%.
+ *   Seeds 2 and 3 break at 3x too, at 5.8% and 7.4%. Doubling every
+ *   function's people at 3x: 5.2%, 3.0% and 6.7% dropped on seeds 1 to 3.
+ *   Peers settling 95% instead of 90% at 3x: nothing dropped on seeds 1 to
+ *   3, slowest 1.2d.
  * ------------------------------------------------------------------ */
+
+const fn = {
+  instances: 4,
+  capacity: 6,
+  serviceMs: 50,
+  serviceCv: 0.5,
+  queueLimit: 40,
+};
 
 const topology: Topology = {
   nodes: [
-    node('product', 'client', 'Product work', COL(0), ROW(1), {
-      rps: 40,
+    node('product', 'client', 'Product ideas', COL(0), ROW(1), {
+      rps: 32,
       timeoutMs: 3000,
     }),
-    node('hardware', 'service', 'Hardware', COL(1), ROW(0), {
-      instances: 4,
-      capacity: 6,
-      serviceMs: 50,
-      serviceCv: 0.5,
-      queueLimit: 40,
-    }),
-    node('software', 'service', 'Software', COL(1), ROW(1), {
-      instances: 4,
-      capacity: 6,
-      serviceMs: 50,
-      serviceCv: 0.5,
-      queueLimit: 40,
-    }),
-    node('design', 'service', 'Design', COL(1), ROW(2), {
-      instances: 4,
-      capacity: 6,
-      serviceMs: 50,
-      serviceCv: 0.5,
-      queueLimit: 40,
-    }),
+    node('hardware', 'service', 'Hardware', COL(1), ROW(0), fn),
+    node('software', 'service', 'Software', COL(1), ROW(1), fn),
+    node('design', 'service', 'Design', COL(1), ROW(2), fn),
+    node('marketing', 'service', 'Marketing', COL(1), ROW(3), fn),
     node('peers', 'edgecompute', 'Peer debate', COL(2), ROW(1), {
       capacity: 16,
       serviceMs: 25,
@@ -82,7 +89,7 @@ const topology: Topology = {
     }),
     node('executives', 'db', 'Executive team', COL(3), ROW(1), {
       capacity: 2,
-      serviceMs: 55,
+      serviceMs: 50,
       serviceCv: 0.5,
       queueLimit: 40,
       readFraction: 0,
@@ -93,34 +100,39 @@ const topology: Topology = {
     edge('product', 'hardware'),
     edge('product', 'software'),
     edge('product', 'design'),
+    edge('product', 'marketing'),
     edge('hardware', 'peers'),
     edge('software', 'peers'),
     edge('design', 'peers'),
+    edge('marketing', 'peers'),
     edge('peers', 'executives'),
   ],
+  /* No measures field: product ideas are Apple's only source, so they count
+     as output (or Delivered would read zero), and every step is Apple's own
+     people. */
   annotations: [
-    sectionOver('apl-sec-work', 'Doing the work', 0, 1, 1, 0, 2),
+    sectionOver('apl-sec-work', 'Doing the work, by function', 0, 1, 1, 0, 3),
     sectionOver('apl-sec-settle', 'Settling disputes', 1, 2, 3, 1, 1),
     note(
-      'apl-note-source',
-      1056,
-      16,
-      "A 2020 article by two of its own educators says Apple is organised by function, so the functions meet only at the top, where even the executive team can settle only so many stalemates. The company may have changed since. Every number here is the model's, not Apple's.",
+      'apl-note-lesson',
+      40,
+      576,
+      'Each piece of product work needs hardware engineering, software, design and marketing, and their disputes go to peer debate first. In this model peers settle nine in ten; only the rest go up. Drag incoming work to 3x: the executive team fills, 3 to 7 percent of work is dropped, depending on the run, and the slowest take 1.4 weeks instead of 1.3 days, while the functions are a fifth busy.',
       360,
     ),
     note(
-      'apl-note-lesson',
-      536,
-      336,
-      'Each piece of product work needs hardware engineering, software and design. In this model peers settle nine disputes in ten; only the rest go up. Drag incoming work to 3x: the executive team fills, 6 percent of work is dropped and the slowest take 1.7 weeks instead of 1.3 days, while the functions are a quarter busy, holding work that waits on a tiebreak.',
-      440,
+      'apl-note-fix',
+      432,
+      576,
+      'More people do not fix it: double the people in every function at 3x and 3 to 7 percent is still dropped, the same range as before. Settling more between peers does: select peer debate, raise the share resolved at first contact from 90 to 95 percent, and dropped work at 3x falls to nothing.',
+      320,
     ),
     note(
-      'apl-note-fix',
-      1056,
-      208,
-      'More people do not fix it: double the people in every function at 3x and 4 percent is still dropped. Fewer escalations do: select peer debate, raise the share resolved at first contact from 90 to 95 percent, and dropped work at 3x falls from 6 percent to nothing.',
-      320,
+      'apl-note-source',
+      784,
+      576,
+      "A 2020 article by two of its own educators says Apple is organised by function: function leaders debate as peers, and when they reach an impasse, higher managers break the tie, yet even the executive team can settle only so many stalemates. The company may have changed since. Every number here is the model's, not Apple's.",
+      360,
     ),
   ],
 };
@@ -130,7 +142,7 @@ export const apple: CompanyPreset = {
   name: 'Apple',
   tagline: 'Only disputes go up, yet set the pace',
   description:
-    'A simplified model from public sources: product work needs hardware, software and design, peers settle most disputes between them, and the rest go up to the executive team. Turn up incoming work and watch the executive team fill while the functions still have room.',
+    'A simplified model of how its functions work together, from one public source: product work needs every function, peers settle most disputes between them, and the rest go up to the executive team. Turn up incoming work and watch the executive team fill while the functions still have room.',
   sources: [
     {
       title: 'Harvard Business Review, 2020',
@@ -138,5 +150,6 @@ export const apple: CompanyPreset = {
     },
   ],
   constraint: 'executives',
+  typical: [],
   topology,
 };

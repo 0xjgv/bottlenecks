@@ -108,9 +108,10 @@ of a 42px row gutter and two padded frames will not both fit. `presets.annotatio
 asserts the geometry; run it rather than checking by eye, then load the example and look at it.
 
 A map of a named company (`src/sim/companies`, one file each) also follows the rule at the top of
-`src/sim/presets.companies.ts`: every step and the constraint come from a public source the card
-links, and every number is the model's and says so on the canvas. `presets.companies.test.ts`
-holds each one to it.
+`src/sim/presets.companies.ts`: it runs the whole company, every step and the constraint come from
+a public source the card links, a step no source describes sits in a section labelled "(typical,
+not sourced)", and every number is the model's and says so on the canvas.
+`presets.companies.test.ts` holds each one to it.
 
 ## Copy
 

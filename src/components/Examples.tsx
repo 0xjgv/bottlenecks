@@ -252,8 +252,9 @@ export function Examples({
                   Real companies
                 </h3>
                 <p className="ex-section-sub">
-                  How well-known companies say they work, drawn from public sources. The
-                  shape is theirs; every number is the model’s, not the company’s.
+                  How well-known companies run their work, as far as public sources
+                  describe it. A step in a section marked typical is not from a source,
+                  and every number is the model’s, not the company’s.
                 </p>
                 <ul className="ex-grid">{companies.map((p) => card(p))}</ul>
               </section>

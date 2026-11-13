@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { isNote } from './annotations';
+import { isNote, isSection } from './annotations';
+import { NODE_H, NODE_W } from './presetKit';
 import { COMPANY_PRESETS } from './presets.companies';
 import { PRESETS } from './presets';
+import { PEOPLE_KINDS } from './measures';
 import { constraintOf, forecastGrowth } from '../learn/growth';
 
 /**
@@ -39,6 +41,33 @@ describe.each(COMPANY_PRESETS.map((p) => [p.id, p] as const))(
       expect(said).toHaveLength(1);
     });
 
+    /* A note is often out of view, so an unsourced step has to say so where
+     it is drawn: inside a section labelled as typical. */
+    it('draws every typical step inside a section that says so', () => {
+      const steps = p.topology.nodes.filter((n) => n.kind !== 'client');
+      const sections = (p.topology.annotations ?? []).filter(isSection);
+      const marked = sections.filter((s) => s.label.endsWith('(typical, not sourced)'));
+      const inside = (n: { x: number; y: number }, s: (typeof sections)[number]) =>
+        n.x >= s.x &&
+        n.y >= s.y &&
+        n.x + NODE_W <= s.x + s.width &&
+        n.y + NODE_H <= s.y + s.height;
+      for (const n of steps) {
+        const typical = p.typical.includes(n.id);
+        expect(
+          marked.some((s) => inside(n, s)),
+          `${n.id} is ${typical ? 'typical' : 'sourced'}`,
+        ).toBe(typical);
+      }
+      for (const id of p.typical)
+        expect(
+          steps.some((n) => n.id === id),
+          id,
+        ).toBe(true);
+      expect(p.typical).not.toContain(p.constraint);
+      expect(p.typical.length).toBeLessThanOrEqual(steps.length - p.typical.length);
+    });
+
     /* Roles outlast the people in them. A denylist is a tripwire, not proof:
      it holds the convention for the names most likely to slip in. */
     it('names roles, not people', () => {
@@ -53,6 +82,20 @@ describe.each(COMPANY_PRESETS.map((p) => [p.id, p] as const))(
       expect(copy).not.toMatch(
         /\b(Altman|Brockman|Amodei|Musk|Huang|Jassy|Bezos|Cook|Collison|Ek|Chesky)\b/,
       );
+    });
+
+    it('names only its own sources and people in its measures, and keeps an output', () => {
+      const kinds = new Map(p.topology.nodes.map((n) => [n.id, n.kind]));
+      const m = p.topology.measures;
+      for (const id of m?.notOutput ?? []) expect(kinds.get(id), id).toBe('client');
+      for (const id of m?.notPeople ?? []) {
+        expect(PEOPLE_KINDS.has(kinds.get(id) ?? 'client'), id).toBe(true);
+      }
+      const internal = new Set(m?.notOutput ?? []);
+      const output = p.topology.nodes.filter(
+        (n) => n.kind === 'client' && !internal.has(n.id),
+      );
+      expect(output.length).toBeGreaterThan(0);
     });
 
     it.each(SEEDS)(

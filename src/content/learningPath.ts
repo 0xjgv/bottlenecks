@@ -126,9 +126,12 @@ export const LEARNING_PATH: readonly PathTrack[] = [
   {
     id: 'companies',
     title: 'Real companies',
-    about: 'Where well-known companies say they get stuck, drawn from their own words.',
+    about: 'Where well-known companies say they get stuck, drawn from public sources.',
     steps: [
-      ex('openai', 'See research and product slow together when shared compute fills.'),
+      ex(
+        'openai',
+        'See research, product and customers slow together when compute fills.',
+      ),
       ex('anthropic', 'See a usage limit turn work away until compute is added.'),
       ex('spacex', 'See fast builders wait on a licence no hire can speed up.'),
       ex('nvidia', 'See hiring change nothing when a supplier sets the pace.'),
