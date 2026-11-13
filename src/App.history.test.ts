@@ -66,6 +66,21 @@ describe('SessionHistory', () => {
     expect(back?.challengeId).toBe('hold-the-line');
   });
 
+  it('undoes and redoes a change to what the measures count', () => {
+    // Turning "These are people" off changes nothing the engine sees, so it
+    // must still count as a difference or undo would skip straight past it.
+    const h = new SessionHistory();
+    const t = makeTopology();
+    const svc = t.nodes[1]!.id;
+    const flagged: Topology = { ...t, measures: { notPeople: [svc] } };
+    h.commit('people', snap(t));
+    const entry = h.undo(snap(flagged));
+    expect(entry?.label).toBe('people');
+    expect(entry?.topology.measures).toBeUndefined();
+    const back = h.redo(snap(t));
+    expect(back?.topology.measures).toEqual({ notPeople: [svc] });
+  });
+
   it('keeps a replaced design whose only difference is its faults and seed', () => {
     // Watching a judged run puts the reader's own boxes and configs back
     // with the run's faults and seed. Skipping that entry as a no-op would

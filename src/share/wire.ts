@@ -1,6 +1,7 @@
 import type { Annotation, AnnotationFont, Note, Section } from '../sim/annotations';
 import { ANNOTATION_FONTS, SECTION_TONE_COUNT } from '../sim/annotations';
 import { sanitizeFaults } from '../sim/faults';
+import { type Measures, sanitizeMeasures } from '../sim/measures';
 import { defaultConfig } from '../sim/presets';
 import { MAX_SEED, sanitizeSeed } from '../sim/seed';
 import type {
@@ -50,8 +51,9 @@ import { TRAFFIC_PATTERNS } from '../sim/types';
  *   - Node coordinates are rounded to whole pixels, as generation 2 did;
  *     half a pixel is not visible layout.
  *   - Optional edge fields and note styling are presence bits.
- *   - A run's seed and fault schedule ride in an optional tail after the
- *     annotations. A design without either writes no tail, so its bytes
+ *   - A run's seed and fault schedule, and what the measures count, ride in
+ *     an optional tail after the annotations, the measures as two lists of
+ *     node indices. A design without any of them writes no tail, so its bytes
  *     are exactly what this generation wrote before the tail existed, and
  *     every link built then still decodes the same. A reader from before
  *     the tail rejects trailing bytes, so it reports a link carrying one
@@ -367,7 +369,8 @@ const SECTION_KNOWN = (1 << 6) - 1;
 /** Tail header bits: which of the optional run fields follow, in this order. */
 const TAIL_SEED = 1 << 0;
 const TAIL_FAULTS = 1 << 1;
-const TAIL_KNOWN = TAIL_SEED | TAIL_FAULTS;
+const TAIL_MEASURES = 1 << 2;
+const TAIL_KNOWN = TAIL_SEED | TAIL_FAULTS | TAIL_MEASURES;
 
 /**
  * Fault operations. Index is the wire value. Each injection is its own op,
@@ -620,8 +623,8 @@ export function packTopology(topology: Topology): Uint8Array<ArrayBuffer> {
 }
 
 /**
- * The seed and the fault schedule, or nothing at all when there are
- * neither. Schedule entries keep their list order, which decides the order
+ * The seed, the fault schedule and what the measures count, or nothing at
+ * all when there are none of them. Schedule entries keep their list order, which decides the order
  * of entries sharing a time, and name nodes and edges by index like edges
  * do. An entry naming something the design does not hold is left out: it
  * would do nothing when it came due, and every reader drops it anyway.
@@ -629,20 +632,29 @@ export function packTopology(topology: Topology): Uint8Array<ArrayBuffer> {
 function packTail(w: Writer, topology: Topology, nodeIndex: Map<string, number>): void {
   const seed = sanitizeSeed(topology.seed);
   const faults = sanitizeFaults(topology.faults, topology);
+  const measures = sanitizeMeasures(topology.measures, topology.nodes);
   let h = 0;
   if (seed !== undefined) h |= TAIL_SEED;
   if (faults.length > 0) h |= TAIL_FAULTS;
+  if (measures) h |= TAIL_MEASURES;
   if (h === 0) return;
   w.varint(h);
   if (seed !== undefined) w.varint(seed);
-  if (faults.length === 0) return;
-
-  const edgeIndex = new Map<string, number>();
-  topology.edges.forEach((e, i) => {
-    if (!edgeIndex.has(e.id)) edgeIndex.set(e.id, i);
-  });
-  w.varint(faults.length);
-  for (const f of faults) packFault(w, f, nodeIndex, edgeIndex);
+  if (faults.length > 0) {
+    const edgeIndex = new Map<string, number>();
+    topology.edges.forEach((e, i) => {
+      if (!edgeIndex.has(e.id)) edgeIndex.set(e.id, i);
+    });
+    w.varint(faults.length);
+    for (const f of faults) packFault(w, f, nodeIndex, edgeIndex);
+  }
+  if (measures) {
+    // sanitizeMeasures kept only ids this design holds, so each is indexed.
+    for (const list of [measures.notOutput ?? [], measures.notPeople ?? []]) {
+      w.varint(list.length);
+      for (const id of list) w.varint(nodeIndex.get(id) ?? 0);
+    }
+  }
 }
 
 function packFault(
@@ -891,6 +903,7 @@ export function unpackTopology(bytes: Uint8Array): Topology | null {
       ...(annotations.length > 0 ? { annotations } : {}),
       ...(tail?.faults !== undefined ? { faults: tail.faults } : {}),
       ...(tail?.seed !== undefined ? { seed: tail.seed } : {}),
+      ...(tail?.measures !== undefined ? { measures: tail.measures } : {}),
     };
   } catch (e) {
     if (e instanceof WireError) return null;
@@ -903,11 +916,11 @@ function unpackTail(
   r: Reader,
   nodes: readonly SimNode[],
   edges: readonly SimEdge[],
-): { seed?: number; faults?: FaultEvent[] } {
+): { seed?: number; faults?: FaultEvent[]; measures?: Measures } {
   const h = r.varint();
   // An empty tail is never written, so one here is not a link of ours.
   if (h === 0 || h & ~TAIL_KNOWN) throw new WireError('bad tail header');
-  const out: { seed?: number; faults?: FaultEvent[] } = {};
+  const out: { seed?: number; faults?: FaultEvent[]; measures?: Measures } = {};
   if (h & TAIL_SEED) {
     const seed = r.varint();
     if (seed > MAX_SEED) throw new WireError('seed out of range');
@@ -919,6 +932,23 @@ function unpackTail(
     const faults: FaultEvent[] = [];
     for (let i = 0; i < count; i++) faults.push(unpackFault(r, nodes, edges));
     out.faults = faults;
+  }
+  if (h & TAIL_MEASURES) {
+    // Two lists of node indices. Kinds and repeats are share.ts's to check,
+    // through sanitizeMeasures, like every other path a design arrives by.
+    const lists: string[][] = [];
+    for (let k = 0; k < 2; k++) {
+      const count = r.varint();
+      if (count > nodes.length) throw new WireError('bad measures count');
+      const ids: string[] = [];
+      for (let i = 0; i < count; i++) {
+        const node = nodes[r.varint()];
+        if (!node) throw new WireError('measures names no node');
+        ids.push(node.id);
+      }
+      lists.push(ids);
+    }
+    out.measures = { notOutput: lists[0], notPeople: lists[1] };
   }
   return out;
 }

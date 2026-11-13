@@ -102,6 +102,23 @@ The fault controls and the stress test are the "what could go wrong" tool.
 | cut            | A handoff breaks: messages get lost between two teams       |
 | traffic spike  | A launch, a big customer, a press hit                       |
 
+## The three measures
+
+The top bar shows the three measures _The Goal_ manages a plant by, in startup words. None of them
+changes what the engine does.
+
+| The book          | Top bar         | What it counts                                                               |
+| ----------------- | --------------- | ---------------------------------------------------------------------------- |
+| throughput        | Delivered       | work finished a week, from the sources that count as output                  |
+| inventory         | Unfinished work | tasks waiting or being worked on anywhere in the design                      |
+| operating expense | People          | headcount on the steps that are people; contractors and policies never count |
+
+Unfinished work (`src/learn/unfinished.ts`) counts tasks, not items, and shows nothing where a
+design holds work no snapshot can see, such as items waiting out a retry. A design marks its
+exceptions in `Topology.measures` (`src/sim/measures.ts`): sources that are internal work and so
+not output, and steps that are not people (compute, a supplier, a regulator). The inspector sets
+both, and they travel with share links, files and saved designs.
+
 ## Seeing ahead
 
 "What if we grow?" (`src/learn/growth.ts`) plays the design for 20 weeks at 1x, 1.5x, 2x, 3x and

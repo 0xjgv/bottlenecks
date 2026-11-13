@@ -662,6 +662,14 @@ export interface Topology {
    * every topology did before the field existed.
    */
   seed?: number;
+  /**
+   * What the measures count: which sources of work are not delivered output
+   * and which steps are not people. Documentation for the readouts only: the
+   * engine never reads it. Optional, and absent unless a design marks an
+   * exception, so every topology without one stays exactly as it was. The
+   * shape and its sanitizer live in measures.ts.
+   */
+  measures?: import('./measures').Measures;
 }
 
 /** Rolling stats for one node over the last window. */

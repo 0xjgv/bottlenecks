@@ -298,6 +298,29 @@
   gap: var(--sp-1);
 }
 
+/* A yes or no about what the measures count: the box, then its label. */
+.ins-check {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+}
+
+.ins-check input {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* The whole label is the target, so a finger gets the 44px floor on it. */
+@media (pointer: coarse) {
+  .ins-check {
+    min-height: 44px;
+  }
+}
+
 .ins-hint {
   /* One line of plain English under a knob whose name is ambiguous next to
      its neighbour (instances vs capacity, shardCount vs shardCapacity).
@@ -545,9 +568,16 @@
 
 .traffic {
   display: flex;
+  /* Two lines: the controls and the hero, then the measures beneath them
+     (.traffic-measures). The first line is sized never to wrap above the
+     narrow step at the end of this file; the second takes a whole line. The
+     bar's height is measured (App.tsx, --bar-clear), so everything that
+     clears it moves down with it. */
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--sp-5);
+  gap: var(--sp-1) var(--sp-5);
   min-width: 0;
+  padding-block: var(--sp-1);
   /* No margin of its own: the bar (App.css) owns the gap between the
      wordmark and this control. It previously compensated here for a gap
      token that did not exist; that token is fixed, so the workaround is
@@ -577,7 +607,9 @@
    leave the canvas the height it deserves. */
 .traffic-load {
   display: flex;
-  flex: 1 1 280px;
+  /* A zero basis, so the floor that decides whether the line fits is
+     min-width at every step below, not a basis that outgrows it. */
+  flex: 1 1 0;
   max-width: 420px;
   align-items: center;
   gap: var(--sp-4);
@@ -717,6 +749,15 @@
   min-width: 0;
 }
 
+/* With the sentence in it, the headline takes what the slider leaves and the
+   sentence wraps inside that, rather than holding its full 46ch and pushing
+   the transport off the line. Desktop only: the phone sizes it below. */
+@media (min-width: 721px) {
+  .traffic-headline.is-empty {
+    flex: 1 1 0;
+  }
+}
+
 /* No components on the canvas: one quiet sentence where the numbers go. */
 .traffic-empty {
   margin: 0;
@@ -761,6 +802,67 @@
   display: flex;
   align-items: flex-start;
   gap: var(--sp-5);
+}
+
+/* The measures line: Delivered and Unfinished work, a step below the
+   supporting set in size because they move slowly and are read, not
+   watched. Right-aligned under the hero they are the consequences of, each
+   label beside its figure on one baseline. A whole line of the control to
+   itself, so it never competes with the slider for width. */
+.traffic-measures {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: baseline;
+  gap: 0 var(--sp-5);
+  min-width: 0;
+}
+
+.traffic-measure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  white-space: nowrap;
+}
+
+.traffic-measure .label {
+  color: var(--text-faint);
+}
+
+/* Each figure, and the unit, holds a fixed slot with the digits set right,
+   so a value stepping from 9 to 10 changes no width: on a right-aligned
+   line any change would shove both labels sideways ten times a second.
+   7ch holds every rate formatRate writes ("3.7k/wk"); 5ch holds a count
+   up to 9,999. */
+.traffic-measure-value {
+  font-size: var(--fs-base);
+  font-weight: var(--fw-med);
+  line-height: var(--lh-num);
+  color: var(--text);
+  text-align: right;
+}
+
+.traffic-measure-rate {
+  min-width: 7ch;
+}
+
+.traffic-measure-count {
+  min-width: 5ch;
+}
+
+/* Up to 9,999 people. */
+.traffic-measure-people {
+  min-width: 4ch;
+}
+
+/* The unit rides at the dim step beside its figure, as every unit does.
+   Sized for "tasks", so "task" leaves the line where it was. */
+.traffic-measure-unit {
+  min-width: 2.6em;
+  margin-left: calc(-1 * var(--sp-1));
+  font-size: var(--fs-sm);
+  color: var(--text-dim);
 }
 
 /* The transport, as ONE segmented cluster.
@@ -831,25 +933,29 @@
    the slider BESIDE them, not the window: a wide monitor with every panel
    label showing and a narrow laptop with the bar already stripped hand this
    control very different widths at the same viewport. Nothing here may
-   wrap: the bar grows if it does, and it is meant to stay one line tall.
+   wrap within its first line; the measures have a line of their own, and
+   below 480 the first line breaks on purpose (see that step).
 
-   The thresholds are set by measurement, not taste. The control's pieces
-   at full size: load 420 + spacer 16 + p99 98 + secondary readouts 228 +
-   transport 118 + three 20px gaps, about 940px.
+   The thresholds are set by measurement, not taste. The first line's
+   pieces at full size: load 420 + spacer 16 + p99 98 + the 28px headline
+   gap + Bounced back and Dropped 176 + transport 118 + three 20px gaps,
+   about 916px. Delivered moved to the measures line, which is never hidden.
 
    What gives way, in order:
-     860  the secondary readouts. Between 940 and 860 the slider absorbs
-          the squeeze (420 down to ~340, still generous travel); past that,
-          keeping three more figures would crush the one control the
+     860  Bounced back and Dropped. Between 916 and 860 the slider absorbs
+          the squeeze (420 down to ~364, still generous travel); past that,
+          keeping two more figures would crush the one control the
           student drives, so the figures go and the slider springs back.
-          The charts strip still carries every one of these numbers.
+          The charts strip still carries both numbers.
      620  the slider's floor comes down to 260 and the headline tightens.
-     560  the "requests / sec" unit and the spacer gap go to zero, and the
+     560  the "requests / sec" unit and the spacer (with its gap) go, and the
           slider may reach 220. The slider's aria-valuetext still says the
           unit, and this fires only in sub-900px windows where the p99
           hero, the slider and the transport are worth more than a word.
+     480  the first line breaks into two (see that step).
 
-   Never dropped: the load slider, the p99 hero, the transport.
+   Never dropped: the load slider, the p99 hero, the transport, and the
+   measures line (Delivered, and Unfinished work where it can be read).
    -------------------------------------------------------------------------- */
 
 @container traffic (max-width: 860px) {
@@ -878,7 +984,38 @@
   }
 
   .traffic-spacer {
-    flex-basis: 0;
+    display: none;
+  }
+}
+
+/* Below 480 the first line cannot hold the slider at its floor, the hero
+   and the transport (220 + 98 + 118 + two gaps, 468 to 476). Rather than
+   paint them over whatever sits beside this control, the line breaks: the
+   slider takes a line of its own, the hero and the transport the next, the
+   measures the last. Taller, but nothing is dropped and nothing overlaps.
+   The hero's caption wraps inside its fixed column, and the play button
+   gives up 8px of its width, so the two fit one line down to a 229px
+   control at a 16px gap. Desktop only: the phone has its own lines below. */
+@media (min-width: 721px) {
+  @container traffic (max-width: 480px) {
+    .traffic-load {
+      flex-basis: 100%;
+      max-width: none;
+      min-width: 0;
+    }
+
+    .traffic-headline {
+      margin-left: auto;
+    }
+
+    .traffic-headline > .traffic-metric:first-child .label {
+      white-space: normal;
+      text-align: right;
+    }
+
+    .traffic-actions .transport-toggle {
+      width: 40px;
+    }
   }
 }
 
@@ -902,14 +1039,16 @@
    -------------------------------------------------------------------------- */
 
 @media (max-width: 720px) {
-  /* Two rows, not three.
+  /* Two rows for the controls, and one short line of measures.
 
      The load control is the only thing in the phone header besides the
      wordmark, so its height IS the header's height, and the header is
      height taken from the diagram. Stacked as caption / slider / readouts
      it stood 146px tall; paired down to a value line and a slider line it
      is a little over half that, and nothing has been dropped: the p99 and
-     the transport move onto the value line beside the load.
+     the transport move onto the value line beside the load. The measures
+     (Delivered, Unfinished work) add one line of small type beneath, the
+     only place a phone shows either.
 
      What survives is the reading order that matters. The number you are
      setting and the number it causes sit on the same line, which is the
@@ -1010,11 +1149,17 @@
     border-left-width: var(--bw);
     margin-left: 0;
   }
+
+  /* Last, under the slider line, starting where the slider starts. */
+  .traffic-measures {
+    order: 2;
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 1000px) {
   .traffic {
-    gap: var(--sp-4);
+    column-gap: var(--sp-4);
   }
 }
 

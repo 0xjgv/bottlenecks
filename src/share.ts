@@ -1,6 +1,7 @@
 import { isTopology } from './clipboard';
 import { sanitizeAnnotations } from './sim/annotations';
 import { sanitizeFaults } from './sim/faults';
+import { sanitizeMeasures } from './sim/measures';
 import { sanitizeSeed } from './sim/seed';
 import type { Topology, NodeKind } from './sim/types';
 import { defaultConfig } from './sim/presets';
@@ -465,6 +466,8 @@ function validate(parsed: Parsed | null): ShareResult {
   // graph that just passed, and an entry pointing at nothing is dropped.
   const faults = sanitizeFaults(parsed.faults, candidate);
   const seed = sanitizeSeed(parsed.seed);
+  // What the measures count names nodes too, so it is checked the same way.
+  const measures = sanitizeMeasures(parsed.measures, candidate.nodes);
 
   return {
     status: 'ok',
@@ -474,6 +477,7 @@ function validate(parsed: Parsed | null): ShareResult {
       ...(annotations.length > 0 ? { annotations } : {}),
       ...(faults.length > 0 ? { faults } : {}),
       ...(seed !== undefined ? { seed } : {}),
+      ...(measures ? { measures } : {}),
     },
   };
 }
@@ -485,6 +489,7 @@ interface Parsed {
   annotations?: unknown;
   faults?: unknown;
   seed?: unknown;
+  measures?: unknown;
 }
 
 /**

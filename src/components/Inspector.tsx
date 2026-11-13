@@ -15,6 +15,7 @@ import type {
   SystemStats,
 } from '../sim/types';
 import { canCrashOneInstance } from '../sim/behaviour';
+import { type MeasureList, type Measures, PEOPLE_KINDS } from '../sim/measures';
 import { defaultConfig } from '../sim/presets';
 import { suggestionFor } from '../content/suggestions';
 import { KIND_NAME, KIND_TERM } from './nodeVisuals';
@@ -1472,6 +1473,40 @@ function ChoiceRow({
 }
 
 /**
+ * A yes or no about what the measures count. The hint is always shown: it
+ * says what turning it off is for, which the label alone cannot.
+ */
+function CheckRow({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  const id = useId();
+  return (
+    <div className="ins-field-row">
+      <label className="row-k ins-check">
+        <input
+          type="checkbox"
+          checked={checked}
+          aria-describedby={`${id}-hint`}
+          onChange={(e) => onChange(e.currentTarget.checked)}
+        />
+        {label}
+      </label>
+      <p id={`${id}-hint`} className="ins-hint">
+        {hint}
+      </p>
+    </div>
+  );
+}
+
+/**
  * One live readout. `tone` is a health class or undefined — at 'ok' the value
  * stays neutral, so a healthy panel carries no colour at all and --warn /
  * --danger keep their meaning for when they do appear.
@@ -2341,6 +2376,14 @@ export interface InspectorProps {
    * it, or without `faults`, a connection shows no loss control.
    */
   onEdgeLoss?: (edgeId: string, lossRate: number) => void;
+  /**
+   * What the design's measures count (`topology.measures`), for the two
+   * checkboxes on one selected node: a source counts as delivered work, a
+   * step's headcount counts as people. Optional: without `onMeasure` neither
+   * is shown. A multi-selection does not show them; see MultiInspector.
+   */
+  measures?: Measures;
+  onMeasure?: (id: string, list: MeasureList, counted: boolean) => void;
 }
 
 export type { InspectorFaults };
@@ -2359,6 +2402,8 @@ export function Inspector({
   onDeleteMany,
   faults,
   onEdgeLoss,
+  measures,
+  onMeasure,
 }: InspectorProps) {
   /**
    * The selection this panel is actually describing. `selectedNodes` wins
@@ -2452,6 +2497,8 @@ export function Inspector({
       lockedFields={lockedFields?.(nodes[0]!.kind)}
       suggestions={suggestions}
       faults={faults}
+      measures={measures}
+      onMeasure={onMeasure}
     />
   );
 }
@@ -2825,6 +2872,8 @@ function SingleInspector({
   lockedFields,
   suggestions,
   faults,
+  measures,
+  onMeasure,
 }: {
   node: SimNode;
   stats: NodeStats | null;
@@ -2834,6 +2883,8 @@ function SingleInspector({
   lockedFields?: readonly string[];
   suggestions: boolean;
   faults?: InspectorFaults;
+  measures?: Measures;
+  onMeasure?: (id: string, list: MeasureList, counted: boolean) => void;
 }) {
   const fields = FIELDS_BY_KIND[node.kind];
   const cfg = node.config;
@@ -2895,6 +2946,35 @@ function SingleInspector({
       ? suggestionFor(node.kind)
       : null;
   const lockNote = lockNoteFor(node.kind);
+
+  /* What the measures count, directly under the field it qualifies: the
+     work a source sends, or the headcount a step has. */
+  const measureRowFor = (field: Field): ReactNode => {
+    if (!onMeasure) return null;
+    if (field === 'rps' && node.kind === 'client') {
+      return (
+        <CheckRow
+          key="counts-as-output"
+          label="Counts as delivered work"
+          hint="Turn off for internal work, such as research or a road map, so Delivered shows only what reaches customers."
+          checked={!(measures?.notOutput ?? []).includes(node.id)}
+          onChange={(on) => onMeasure(node.id, 'notOutput', on)}
+        />
+      );
+    }
+    if (field === 'instances' && PEOPLE_KINDS.has(node.kind)) {
+      return (
+        <CheckRow
+          key="counts-as-people"
+          label="These are people"
+          hint="Turn off for compute, a supplier or an outside body, so they are not counted in People."
+          checked={!(measures?.notPeople ?? []).includes(node.id)}
+          onChange={(on) => onMeasure(node.id, 'notPeople', on)}
+        />
+      );
+    }
+    return null;
+  };
 
   /* Group this kind's fields. A group with nothing in it is dropped, so a
      ratelimiter shows one group and a replica shows two — the filtering
@@ -2988,7 +3068,7 @@ function SingleInspector({
         {grouped.map((group) => (
           <Section key={group.title} title={group.title}>
             <div className="ins-fields">
-              {group.fields.map((field) => {
+              {group.fields.flatMap((field) => {
                 const spec = specFor(node.kind, field);
                 const locked = lockedFields?.includes(field) ?? false;
                 // Fields that only some kinds read are optional on NodeConfig,
@@ -2997,31 +3077,34 @@ function SingleInspector({
                 // minimum, which would silently show the student a value that
                 // is not the one the engine is actually running with.
                 const value = readField(node, field);
-                return spec.control === 'slider' ? (
-                  <SliderRow
-                    key={field}
-                    spec={spec}
-                    value={value}
-                    locked={locked ? lockNote : undefined}
-                    onChange={(v) => onChange(node.id, { [field]: v })}
-                  />
-                ) : spec.control === 'choice' ? (
-                  <ChoiceRow
-                    key={field}
-                    spec={spec}
-                    value={node.config.bulkheadMode ?? 'reject'}
-                    locked={locked ? lockNote : undefined}
-                    onChange={(v) => onChange(node.id, { bulkheadMode: v })}
-                  />
-                ) : (
-                  <NumberRow
-                    key={field}
-                    spec={spec}
-                    value={value}
-                    locked={locked ? lockNote : undefined}
-                    onChange={(v) => onChange(node.id, { [field]: v })}
-                  />
-                );
+                const row =
+                  spec.control === 'slider' ? (
+                    <SliderRow
+                      key={field}
+                      spec={spec}
+                      value={value}
+                      locked={locked ? lockNote : undefined}
+                      onChange={(v) => onChange(node.id, { [field]: v })}
+                    />
+                  ) : spec.control === 'choice' ? (
+                    <ChoiceRow
+                      key={field}
+                      spec={spec}
+                      value={node.config.bulkheadMode ?? 'reject'}
+                      locked={locked ? lockNote : undefined}
+                      onChange={(v) => onChange(node.id, { bulkheadMode: v })}
+                    />
+                  ) : (
+                    <NumberRow
+                      key={field}
+                      spec={spec}
+                      value={value}
+                      locked={locked ? lockNote : undefined}
+                      onChange={(v) => onChange(node.id, { [field]: v })}
+                    />
+                  );
+                const measure = measureRowFor(field);
+                return measure ? [row, measure] : [row];
               })}
             </div>
           </Section>
@@ -3471,6 +3554,23 @@ export interface TrafficControlProps {
   /** Requests actually lost per second, from the engine's per-reason counters. */
   lost: number;
   /**
+   * Tasks waiting or being worked on across the design (`unfinishedWork`), or
+   * null when the design holds work no snapshot can see. Null, the default,
+   * shows nothing: no number and no dash in its place.
+   */
+  unfinished?: number | null;
+  /**
+   * Work delivered a week counting only the sources that are output
+   * (`deliveredRps`). Defaults to `system.goodputRps`, which it equals
+   * whenever no source is marked as internal work.
+   */
+  delivered?: number;
+  /**
+   * People the design pays for (`peopleCount`), or null when no step is
+   * people. Null, the default, shows nothing.
+   */
+  people?: number | null;
+  /**
    * True when the canvas has no components at all.
    *
    * The engine is right to report 100% errors here — traffic with nowhere to
@@ -3507,6 +3607,9 @@ export function TrafficControl({
   onReset,
   system,
   lost,
+  unfinished = null,
+  delivered,
+  people = null,
   empty,
   noTrafficSource,
   locked = false,
@@ -3634,10 +3737,11 @@ export function TrafficControl({
 
           Every metric slot is ALWAYS rendered, including "Dropped" at zero.
           It used to mount only once dropped traffic appeared, which meant
-          Goodput and Errors jumped sideways at the exact moment a system
+          the readouts beside it jumped sideways at the exact moment a system
           started failing — motion arriving precisely when the student needs
-          to read the numbers, not watch them move. */}
-      <div className="traffic-headline">
+          to read the numbers, not watch them move. Delivered lives on the
+          measures line below, beside unfinished work. */}
+      <div className={empty ? 'traffic-headline is-empty' : 'traffic-headline'}>
         {empty ? (
           /* No components: nothing to measure. One quiet sentence, in the
              same slot the numbers occupy, rather than a row of red zeroes. */
@@ -3656,12 +3760,6 @@ export function TrafficControl({
             </div>
 
             <div className="traffic-metric-group">
-              <div className="traffic-metric">
-                <span className="label">
-                  <Term id="goodput">Delivered</Term>
-                </span>
-                <span className="num num-md">{formatRate(system.goodputRps)}</span>
-              </div>
               <div className="traffic-metric">
                 <span className="label">
                   <Term id="error-rate">Bounced back</Term>
@@ -3750,6 +3848,51 @@ export function TrafficControl({
           <RotateCcw size={16} aria-hidden="true" />
         </button>
       </div>
+
+      {/* The measures: what the company finishes a week, what it holds
+          unfinished and the people it pays, The Goal's throughput, inventory
+          and operating expense. On a line of their
+          own because the line above has no room left that the slider can
+          spare, and on every screen because they are what the bottleneck
+          costs. Unfinished work is left out, not dashed, where the design
+          keeps work out of sight (see learn/unfinished.ts). */}
+      {empty ? null : (
+        <div className="traffic-measures">
+          <div className="traffic-measure">
+            <span className="label">
+              <Term id="goodput">Delivered</Term>
+            </span>
+            <span className="num traffic-measure-value traffic-measure-rate">
+              {formatRate(delivered ?? system.goodputRps)}
+            </span>
+          </div>
+          {unfinished === null ? null : (
+            <div className="traffic-measure">
+              <span className="label">
+                <Term id="unfinished-work">Unfinished work</Term>
+              </span>
+              <span className="num traffic-measure-value traffic-measure-count">
+                {formatCount(unfinished)}
+              </span>
+              <span className="traffic-measure-unit">
+                {unfinished === 1 ? 'task' : 'tasks'}
+              </span>
+            </div>
+          )}
+          {/* No unit: the label already says what is counted, and the line
+              has to fit beside the other two at 960. */}
+          {people === null ? null : (
+            <div className="traffic-measure">
+              <span className="label">
+                <Term id="people-total">People</Term>
+              </span>
+              <span className="num traffic-measure-value traffic-measure-people">
+                {formatCount(people)}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

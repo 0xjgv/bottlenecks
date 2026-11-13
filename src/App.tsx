@@ -104,6 +104,13 @@ import {
 } from './sim/annotations';
 import type { Annotation, AnnotationFont, Note } from './sim/annotations';
 import { sanitizeFaults } from './sim/faults';
+import {
+  carryMeasures,
+  cleanMeasures,
+  type MeasureList,
+  sanitizeMeasures,
+  setCounted,
+} from './sim/measures';
 import { sanitizeSeed } from './sim/seed';
 import { NEW_NOTE_TEXT } from './components/annotationLayout';
 import type { AnnotationTool } from './components/Palette';
@@ -115,6 +122,8 @@ import { LearningPath } from './learn/LearningPath';
 import { usePathProgress } from './learn/pathProgress';
 import { Tour } from './learn/Tour';
 import { useTour } from './learn/useTour';
+import { unfinishedWork } from './learn/unfinished';
+import { deliveredRps, peopleCount } from './learn/threeMeasures';
 import { togglePreference, usePreference } from './content/preferences';
 import { Settings } from './components/Settings';
 import { MainMenu } from './components/MainMenu';
@@ -588,6 +597,10 @@ function loadSession(): Session {
     // The seed goes with the faults: the same faults on another seed land in
     // a different run from the one that was recorded or shared.
     const seed = sanitizeSeed((s.topology as { seed?: unknown }).seed);
+    const measures = sanitizeMeasures(
+      (s.topology as { measures?: unknown }).measures,
+      s.topology.nodes,
+    );
     return {
       topology: {
         nodes: s.topology.nodes,
@@ -595,6 +608,7 @@ function loadSession(): Session {
         ...(annotations.length > 0 ? { annotations } : {}),
         ...(faults.length > 0 ? { faults } : {}),
         ...(seed !== undefined ? { seed } : {}),
+        ...(measures ? { measures } : {}),
       },
       rps: Math.min(5000, Math.max(0, rps)),
       presetId: typeof s.presetId === 'string' ? s.presetId : null,
@@ -1675,7 +1689,9 @@ export default function App() {
       const brief = challengeLiveRef.current
         ? challengeById(challengeLiveRef.current)
         : undefined;
-      const edit = brief ? conform(brief, raw) : raw;
+      // A deleted node takes its measure flags with it, so a node minted later
+      // with the same id does not inherit them.
+      const edit = cleanMeasures(brief ? conform(brief, raw) : raw);
       engine.setTopology(edit);
       const next = withSchedule(edit, engine.faultSchedule());
       topoLiveRef.current = next;
@@ -1707,6 +1723,24 @@ export default function App() {
       setRoutes(engine.routes());
     },
     [engine, history],
+  );
+
+  /**
+   * Count a source as delivered work, or a step as people, or leave it out.
+   * One undo step each. The engine is not told: it has no field to be told
+   * in, exactly as for annotations, so the run and the example badge go on.
+   */
+  const handleMeasure = useCallback(
+    (id: string, list: MeasureList, counted: boolean) => {
+      const next = setCounted(topoLiveRef.current, list, id, counted);
+      history.commit(
+        list === 'notOutput' ? 'delivered work' : 'people',
+        snapRef.current,
+      );
+      topoLiveRef.current = next;
+      setTopology(next);
+    },
+    [history],
   );
 
   const handleMoveNode = useCallback(
@@ -2219,14 +2253,28 @@ export default function App() {
    * new selection (nodes and internal edges both), which is what lets a
    * repeated Ctrl+D walk copies across the canvas. Shared by Ctrl+D,
    * alt-drag and paste so the three cannot disagree about what a copy is.
+   *
+   * `sources`, in clone order, is given by the two copies made inside this
+   * design: their clones keep the source's measure flags, so a copy of the
+   * shared compute is still not people. A paste is not given it: the
+   * clipboard carries nodes and edges only, so a pasted copy counts by
+   * default, which its inspector shows.
    */
   const appendClones = useCallback(
-    (clones: ClipboardSubgraph) => {
-      applyTopology({
+    (clones: ClipboardSubgraph, sources?: readonly SimNode[]) => {
+      const merged: Topology = {
         ...topology,
         nodes: [...topology.nodes, ...clones.nodes],
         edges: [...topology.edges, ...clones.edges],
-      });
+      };
+      applyTopology(
+        sources
+          ? carryMeasures(
+              merged,
+              clones.nodes.map((c, i) => [sources[i]?.id ?? '', c.id] as const),
+            )
+          : merged,
+      );
       const next = new Set<string>();
       for (const n of clones.nodes) next.add(n.id);
       for (const e of clones.edges) next.add(e.id);
@@ -2245,7 +2293,7 @@ export default function App() {
     if (!sub) return;
     // ONE entry for the whole duplicate, selection included.
     history.commit('duplicate', snapRef.current);
-    appendClones(cloneSubgraph(sub, topology, GRID * 2, GRID * 2));
+    appendClones(cloneSubgraph(sub, topology, GRID * 2, GRID * 2), sub.nodes);
   }, [topology, selectedIds, history, appendClones]);
 
   /**
@@ -2280,7 +2328,7 @@ export default function App() {
       }
       if (!primary) return null;
       history.beginGesture('duplicate', snapRef.current);
-      appendClones(clones);
+      appendClones(clones, sub.nodes);
       return { id: primary, group };
     },
     [topology, selectedIds, history, appendClones],
@@ -3879,6 +3927,9 @@ export default function App() {
             onReset={handleReset}
             system={snapshot?.system ?? EMPTY_SYSTEM}
             lost={lostRps}
+            unfinished={snapshot ? unfinishedWork(topology, snapshot) : null}
+            delivered={snapshot ? deliveredRps(topology, snapshot) : undefined}
+            people={snapshot ? peopleCount(topology, snapshot) : null}
             empty={topology.nodes.length === 0}
             noTrafficSource={offeredRps === 0 && findClients(topology).length === 0}
             locked={challenge !== undefined}
@@ -3901,10 +3952,11 @@ export default function App() {
           {challenge ? null : (
             <button
               type="button"
-              className="btn app-share-btn"
+              className="btn app-share-btn app-grow-btn"
               onClick={handleToggleGrowth}
               disabled={breakBlocked !== null}
               aria-expanded={growthShown}
+              aria-label="What if we grow?"
               title={
                 breakBlocked ??
                 'Play this company at 1x to 4x today\u2019s work and see what breaks first'
@@ -3924,7 +3976,12 @@ export default function App() {
                 <path d="M22 7 13.5 15.5 8.5 10.5 2 17" />
                 <path d="M16 7h6v6" />
               </svg>
-              <span>What if we grow?</span>
+              <span className="app-grow-long" aria-hidden="true">
+                What if we grow?
+              </span>
+              <span className="app-grow-short" aria-hidden="true">
+                Grow
+              </span>
             </button>
           )}
           {/* Hidden inside a brief, which owns its faults and its check. */}
@@ -4327,6 +4384,8 @@ export default function App() {
             suggestions={challenge === undefined}
             faults={inspectorFaults}
             onEdgeLoss={handleEdgeLoss}
+            measures={topology.measures}
+            onMeasure={handleMeasure}
           />
           <PanelResizer
             edge="right"

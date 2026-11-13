@@ -243,3 +243,12 @@ describe('savedAgo', () => {
     expect(savedAgo(now + 60_000, now)).toBe('just now');
   });
 });
+
+describe('what the measures count', () => {
+  it('is saved with the design and comes back on the same nodes', () => {
+    const nvidia = PRESETS.find((p) => p.id === 'nvidia')!.topology;
+    saveDesign('nvidia', nvidia);
+    const back = getDesign(listDesigns()[0]!.id)!.topology;
+    expect(back.measures).toEqual(nvidia.measures);
+  });
+});

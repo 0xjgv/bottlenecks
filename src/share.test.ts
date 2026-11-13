@@ -607,3 +607,39 @@ describe('hostile input', () => {
     expect(out.topology.nodes).toHaveLength(2);
   });
 });
+
+describe('what the measures count', () => {
+  /** The flags as node indices, since a link regenerates node ids. */
+  const flags = (t: Topology) => {
+    const at = new Map(t.nodes.map((n, i) => [n.id, i]));
+    return {
+      notOutput: (t.measures?.notOutput ?? []).map((id) => at.get(id)),
+      notPeople: (t.measures?.notPeople ?? []).map((id) => at.get(id)),
+    };
+  };
+
+  it('carries both lists through a link, on the nodes they named', async () => {
+    for (const id of ['openai', 'nvidia', 'stripe', 'spacex']) {
+      const t = PRESETS.find((p) => p.id === id)!.topology;
+      expect(t.measures, id).toBeDefined();
+      const out = await decodeTopology(await encodeTopology(t));
+      expect(out.status, id).toBe('ok');
+      if (out.status !== 'ok') return;
+      expect(flags(out.topology), id).toEqual(flags(t));
+      expect(essence(out.topology), id).toEqual(essence(t));
+    }
+  });
+
+  it('writes the same bytes as before when a design has no exceptions', async () => {
+    const t = PRESETS.find((p) => p.id === 'openai')!.topology;
+    const { measures: _m, ...without } = t;
+    const plain = await encodeTopology(without);
+    expect(await encodeTopology({ ...without, measures: {} })).toBe(plain);
+    expect(
+      await encodeTopology({ ...without, measures: { notPeople: ['nope'] } }),
+    ).toBe(plain);
+    expect(await encodeTopology(t)).not.toBe(plain);
+    const out = await decodeTopology(plain);
+    expect(out.status === 'ok' && 'measures' in out.topology).toBe(false);
+  });
+});

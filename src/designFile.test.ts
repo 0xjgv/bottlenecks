@@ -337,3 +337,24 @@ describe('hostile and damaged input', () => {
     expect(result.ok).toBe(true);
   });
 });
+
+describe('what the measures count', () => {
+  it('survives the file, with ids the design does not hold dropped', () => {
+    const client = makeNode('client', 0, 0);
+    const team = makeNode('service', 200, 0);
+    const t: Topology = {
+      nodes: [client, team],
+      edges: [],
+      measures: { notOutput: [client.id], notPeople: [team.id, 'gone'] },
+    };
+    const back = parseDesignFile(buildDesignFile(t, null));
+    expect(back.ok && back.topology.measures).toEqual({
+      notOutput: [client.id],
+      notPeople: [team.id],
+    });
+    const plain = parseDesignFile(
+      buildDesignFile({ nodes: [client, team], edges: [] }, null),
+    );
+    expect(plain.ok && 'measures' in plain.topology).toBe(false);
+  });
+});

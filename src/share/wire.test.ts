@@ -559,6 +559,15 @@ describe('determinism', () => {
           from: `renamed-${e.from}`,
           to: `renamed-${e.to}`,
         })),
+        // What the measures count names nodes too, so it is renamed with them.
+        ...(p.topology.measures
+          ? {
+              measures: {
+                notOutput: p.topology.measures.notOutput?.map((id) => `renamed-${id}`),
+                notPeople: p.topology.measures.notPeople?.map((id) => `renamed-${id}`),
+              },
+            }
+          : {}),
       };
       expect(packTopology(shuffled), p.id).toEqual(a);
     }
@@ -645,5 +654,21 @@ describe('hostile bytes', () => {
       1, 0, 0, 0, 0, 0, 0, 2, 7, 0, 0, 0, 0, 0, 0, 0xf8, 0x7f,
     ]);
     expect(unpackTopology(bytes)).toBeNull();
+  });
+});
+
+describe('what the measures count', () => {
+  it('round trips by node, and a list naming no node is not a link', () => {
+    const t = PRESETS.find((x) => x.id === 'nvidia')!.topology;
+    const bytes = packTopology(t);
+    const back = unpackTopology(bytes)!;
+    const name = (u: Topology, id: string) => u.nodes.find((n) => n.id === id)!.label;
+    expect(back.measures?.notPeople?.map((id) => name(back, id))).toEqual(
+      t.measures?.notPeople?.map((id) => name(t, id)),
+    );
+    // The last byte is the last flagged node's index; point it past the end.
+    const bad = new Uint8Array(bytes);
+    bad[bad.length - 1] = 0x7f;
+    expect(unpackTopology(bad)).toBeNull();
   });
 });

@@ -122,10 +122,21 @@ function annotationsEqual(
   return true;
 }
 
+/**
+ * Same exceptions to what the measures count. Absent and empty lists are the
+ * same design, as for annotations.
+ */
+function measuresEqual(a: Topology['measures'], b: Topology['measures']): boolean {
+  const same = (x: readonly string[] = [], y: readonly string[] = []) =>
+    x.length === y.length && x.every((id, i) => id === y[i]);
+  return same(a?.notOutput, b?.notOutput) && same(a?.notPeople, b?.notPeople);
+}
+
 function topologyEqual(a: Topology, b: Topology): boolean {
   if (a.nodes.length !== b.nodes.length) return false;
   if (a.edges.length !== b.edges.length) return false;
   if (!annotationsEqual(a.annotations, b.annotations)) return false;
+  if (!measuresEqual(a.measures, b.measures)) return false;
   for (let i = 0; i < a.nodes.length; i++) {
     const m = a.nodes[i]!;
     const n = b.nodes[i]!;

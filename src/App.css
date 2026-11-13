@@ -219,17 +219,65 @@
    narrow window. Never as its icon alone: a phone has no hover to show the
    title, and a bare bolt says nothing to someone who has not used it. Its
    aria-label says it in full at every width. */
-.app-break-short {
+.app-break-short,
+.app-grow-short {
   display: none;
 }
 
-@media (max-width: 899px) {
-  .app-break-long {
+/* --------------------------------------------------------------------------
+   The right-hand island on a laptop.
+
+   At full length these four buttons are 487px, and below 1300 that is the
+   width the load control needs to keep the slider, the cycle time and the
+   transport on one row. So they give it up in two steps, the way the phone
+   already does: the words shorten and the glyphs beside them go, then below
+   1100 each is its glyph alone. Every button keeps its aria-label and its
+   title, so a pointer that hovers still reads the full name, and a coarse
+   pointer still gets the 44px floor from index.css.
+
+   Measured (bar 187 + 487 at full size): at 1280 the load control gets
+   about 730px, at 1024 about 530, at 960 about 490, each enough for one row
+   (476px at its floor; Inspector.css). Narrower than ~940 the control
+   breaks onto two rows rather than overlap anything.
+   -------------------------------------------------------------------------- */
+
+@media (min-width: 721px) and (max-width: 1299px) {
+  .app-share-label,
+  .app-break-long,
+  .app-grow-long,
+  .app-break-btn svg,
+  .app-grow-btn svg {
     display: none;
   }
 
-  .app-break-short {
+  .app-break-short,
+  .app-grow-short {
     display: inline;
+  }
+
+  /* Share is its glyph alone from here, as on the phone. */
+  .app-share-btn:not(.app-break-btn, .app-grow-btn) {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1100px) {
+  .app-break-short,
+  .app-grow-short {
+    display: none;
+  }
+
+  .app-break-btn svg,
+  .app-grow-btn svg {
+    display: inline;
+  }
+
+  .app-share-btn {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
   }
 }
 
@@ -1097,14 +1145,14 @@
     flex: 1 1 auto;
   }
 
-  /* One identity row: wordmark, undo, redo, Share and the menu. It was two
-     rows with a labelled Share wrapping under the wordmark, flush to the
-     screen edge, which put the header at 282px of an 800px screen. Share
+  /* The identity row: wordmark, undo, redo, then the four buttons. Since
+     Grow joined them the buttons need about 414px beside the wordmark, so
+     below about 430 they wrap onto a row of their own, and there they keep
+     the island's inset rather than sit flush on the screen edge. Share
      keeps its glyph. */
   .app-island-menu {
     order: 2;
     margin-left: 0;
-    padding-left: 0;
     gap: var(--sp-2);
   }
 
@@ -1118,15 +1166,29 @@
     justify-content: center;
   }
 
-  /* "Can you break it?" keeps a word here (see .app-break-short), since a
-     bare bolt says nothing to someone who has not used it. The glyph gives
-     up its room instead, which is what lets the word fit the one row. */
-  .app-break-btn {
+  /* "Can you break it?" and "What if we grow?" keep a word here ("Break
+     it", "Grow"), since a bare glyph says nothing to someone who has not
+     used it and a phone has no hover to show the title. The glyph gives up
+     its room instead, which is what lets the words fit the one row. Grow
+     used to sit in Share's 36px box with its full label clipped. */
+  .app-break-long,
+  .app-grow-long {
+    display: none;
+  }
+
+  .app-break-short,
+  .app-grow-short {
+    display: inline;
+  }
+
+  .app-break-btn,
+  .app-grow-btn {
     width: auto;
     padding: 0 var(--sp-2);
   }
 
-  .app-break-btn svg {
+  .app-break-btn svg,
+  .app-grow-btn svg {
     display: none;
   }
 
@@ -1261,9 +1323,8 @@
   }
 }
 
-/* The narrowest common phones (360px) need about 30px more for that word
-   than the row has. The islands' spacing gives it up, so the row stays one
-   row rather than wrapping the menu island under the wordmark. */
+/* The narrowest common phones (360px): the islands' spacing tightens so
+   the buttons' row keeps every word. */
 @media (max-width: 379px) {
   .app-island {
     gap: var(--sp-1);
@@ -1275,20 +1336,9 @@
     gap: var(--sp-1);
   }
 
-  .app-island-menu {
-    padding-left: 0;
-  }
-
-  .app-break-btn {
+  .app-break-btn,
+  .app-grow-btn {
     padding: 0 var(--sp-1);
-  }
-}
-
-/* Narrower still, the menu island wraps under the wordmark, and there it
-   starts at the screen edge unless it keeps its own inset. */
-@media (max-width: 339px) {
-  .app-island-menu {
-    padding-left: var(--sp-2);
   }
 }
 

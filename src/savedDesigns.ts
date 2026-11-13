@@ -1,6 +1,7 @@
 import { isTopology } from './clipboard';
 import { sanitizeAnnotations } from './sim/annotations';
 import { sanitizeFaults } from './sim/faults';
+import { sanitizeMeasures } from './sim/measures';
 import { sanitizeSeed } from './sim/seed';
 import type { Topology } from './sim/types';
 
@@ -86,6 +87,10 @@ function parseEntry(raw: unknown): SavedDesign | null {
     e.topology,
   );
   const seed = sanitizeSeed((e.topology as { seed?: unknown }).seed);
+  const measures = sanitizeMeasures(
+    (e.topology as { measures?: unknown }).measures,
+    e.topology.nodes,
+  );
   return {
     id: e.id,
     name:
@@ -102,6 +107,7 @@ function parseEntry(raw: unknown): SavedDesign | null {
       ...(annotations.length > 0 ? { annotations } : {}),
       ...(faults.length > 0 ? { faults } : {}),
       ...(seed !== undefined ? { seed } : {}),
+      ...(measures ? { measures } : {}),
     },
   };
 }

@@ -2,6 +2,7 @@ import type { Challenge } from './sim/challenge';
 import { judgedTopology, startDesign } from './sim/judge';
 import { isNote, sanitizeAnnotations } from './sim/annotations';
 import { sanitizeFaults } from './sim/faults';
+import { sanitizeMeasures } from './sim/measures';
 import { sanitizeSeed } from './sim/seed';
 import type { Topology } from './sim/types';
 import { isTopology } from './clipboard';
@@ -87,6 +88,7 @@ export function freshStart(challenge: Challenge): Topology {
     edges: start.edges,
     ...(annotations.length > 0 ? { annotations } : {}),
     ...(faults.length > 0 ? { faults } : {}),
+    ...(start.measures ? { measures: start.measures } : {}),
   });
 }
 
@@ -103,12 +105,17 @@ function cleanTopology(raw: unknown): Topology | null {
   );
   const faults = sanitizeFaults((raw as { faults?: unknown }).faults, raw);
   const seed = sanitizeSeed((raw as { seed?: unknown }).seed);
+  const measures = sanitizeMeasures(
+    (raw as { measures?: unknown }).measures,
+    raw.nodes,
+  );
   return {
     nodes: raw.nodes,
     edges: raw.edges,
     ...(annotations.length > 0 ? { annotations } : {}),
     ...(faults.length > 0 ? { faults } : {}),
     ...(seed !== undefined ? { seed } : {}),
+    ...(measures ? { measures } : {}),
   };
 }
 
