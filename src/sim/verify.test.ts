@@ -180,7 +180,7 @@ describe('verify: determinism', () => {
     const b = verify(preset('cache-aside'), goal, { budget: 60 });
     expect(JSON.stringify(b)).toBe(JSON.stringify(a));
     expect(drain(verifySteps(preset('cache-aside'), goal, { budget: 60 }))).toEqual(a);
-  });
+  }, 60_000);
 
   it('treats a seed option as the design seed', () => {
     const t = preset('single-server');

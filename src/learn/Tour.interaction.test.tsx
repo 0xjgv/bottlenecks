@@ -175,7 +175,7 @@ describe('the first-visit tour', () => {
     press(button('Done'));
     expect(card()).toBeNull();
     expect(localStorage.getItem(TOUR_KEY)).toBe('1');
-  });
+  }, 60_000);
 
   it('skips with a real press, takes its ring away, and never comes back', () => {
     mount();

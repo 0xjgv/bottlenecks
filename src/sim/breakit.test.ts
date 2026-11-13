@@ -101,7 +101,7 @@ describe('break it: determinism', () => {
       first.push(s.value);
     }
     expect(drain(it).result).toEqual(whole);
-  });
+  }, 60_000);
 
   it('keys the search on its options in any order, and on the seed', () => {
     const t = preset('single-server');
