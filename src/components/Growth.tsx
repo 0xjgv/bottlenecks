@@ -2,20 +2,26 @@ import { useEffect, useId, useState } from 'react';
 import { DEFAULT_SEED } from '../sim/seed';
 import type { Topology } from '../sim/types';
 import {
+  DEFAULT_WEEKLY_GROWTH,
   GROWTH_MULTIPLES,
+  WEEKLY_GROWTH_RATES,
   constraintOf,
   playGrowth,
   type GrowthForecast,
   type GrowthStep,
 } from '../learn/growth';
 import { formatMs, formatPct, formatRate, toneClass } from './format';
+import { headline, weeksAway } from './growthCopy';
+import { Term } from './Tooltip';
 import './Growth.css';
 
 /**
  * "What if we grow?" The growth forecast as a panel: today's org played at
  * several multiples of today's incoming work, one row per multiple, with the
  * step that limits output at each. Every figure is measured by
- * `src/learn/growth.ts`.
+ * `src/learn/growth.ts`. The weekly growth rate dates each row: it says how
+ * many weeks of compounding away that size is, so a breaking point reads as
+ * time left to fix the constraint.
  */
 
 type View =
@@ -55,25 +61,6 @@ function useForecast(topology: Topology): View {
   return view;
 }
 
-function headline(f: GrowthForecast, nameOf: (id: string) => string): string {
-  const broke = f.steps.find((s) => s.broken);
-  const last = f.steps[f.steps.length - 1];
-  if (!broke) {
-    const next = last ? constraintOf(last) : null;
-    const tail = next ? ` ${nameOf(next.nodeId)} is the likely next constraint.` : '';
-    return `Holds at ${last?.multiple ?? 1}x today's work.${tail}`;
-  }
-  const at =
-    broke.multiple === 1
-      ? 'Already over capacity at today\u2019s work.'
-      : `Breaks at ${broke.multiple}x today's work.`;
-  const c = constraintOf(broke);
-  if (!c) return at;
-  if (c.how === 'refusing')
-    return `${at} ${nameOf(c.nodeId)} turns work away by design.`;
-  return `${at} ${nameOf(c.nodeId)} is the constraint.`;
-}
-
 /** What a constraint cell says under the step's name. */
 function how(
   step: GrowthStep,
@@ -88,6 +75,7 @@ function how(
 
 export function GrowthPanel({ topology, nameOf, onClose, onPlay }: Props) {
   const view = useForecast(topology);
+  const [rate, setRate] = useState(DEFAULT_WEEKLY_GROWTH);
   const headingId = useId();
 
   return (
@@ -102,7 +90,7 @@ export function GrowthPanel({ topology, nameOf, onClose, onPlay }: Props) {
           <p className="label chal-kicker">What if we grow?</p>
           <h2 id={headingId} className="chal-name">
             {view.status === 'done'
-              ? headline(view.forecast, nameOf)
+              ? headline(view.forecast, nameOf, rate)
               : 'Playing 20 weeks at each size…'}
           </h2>
         </div>
@@ -141,6 +129,21 @@ export function GrowthPanel({ topology, nameOf, onClose, onPlay }: Props) {
           </div>
         ) : (
           <>
+            <div className="grw-rate" role="group" aria-label="Weekly growth">
+              <Term id="growth-rate">Customers grow</Term>
+              {WEEKLY_GROWTH_RATES.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  className="btn btn-sm"
+                  aria-pressed={r === rate}
+                  onClick={() => setRate(r)}
+                >
+                  {formatPct(r)}
+                </button>
+              ))}
+              a week
+            </div>
             <table className="grw-table">
               <thead>
                 <tr>
@@ -166,6 +169,11 @@ export function GrowthPanel({ topology, nameOf, onClose, onPlay }: Props) {
                         {s.multiple}x
                       </button>
                       <span className="grw-sub">{formatRate(s.offeredPerWeek)}</span>
+                      <span className="grw-sub">
+                        {s.multiple === 1
+                          ? 'today'
+                          : `in ${weeksAway(s.multiple, rate)} wk`}
+                      </span>
                     </th>
                     <td>{formatRate(s.deliveredPerWeek)}</td>
                     <td
@@ -194,12 +202,14 @@ export function GrowthPanel({ topology, nameOf, onClose, onPlay }: Props) {
               </tbody>
             </table>
             <p className="chal-note">
-              Each row plays your company for 20 weeks with incoming work at that
-              multiple of today. Press a multiple to play it on the canvas. A row turns
-              red when more than 2 in 100 items are dropped, or the slowest items take
-              more than twice as long as today. The constraint sets the pace for
-              everyone: an hour saved there is an hour for the whole company; an hour
-              saved anywhere else changes nothing.
+              Each row plays your company for 20 weeks with incoming work held at that
+              multiple of today. The weeks say when you get there if customers, and all
+              the work they bring, grow at the rate above: 5 to 7% a week is good for a
+              young startup, 10% is exceptional. Press a multiple to play it on the
+              canvas. A row turns red when more than 2 in 100 items are dropped, or the
+              slowest items take more than twice as long as today. The constraint sets
+              the pace for everyone: an hour saved there is an hour for the whole
+              company; an hour saved anywhere else changes nothing.
             </p>
           </>
         )}

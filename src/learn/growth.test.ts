@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PRESETS } from '../sim/presets';
 import type { Topology } from '../sim/types';
-import { constraintOf, forecastGrowth, scaled } from './growth';
+import { constraintOf, forecastGrowth, scaled, weeksToReach } from './growth';
 
 function preset(id: string): Topology {
   const found = PRESETS.find((p) => p.id === id);
@@ -63,5 +63,27 @@ describe('the forecast names the step whose extra hour becomes output', () => {
     if (!step) throw new Error('no step');
     expect(step.droppedShare).toBeGreaterThan(0.2);
     expect(step.broken).toBe(true);
+  });
+});
+
+describe('weeks until a size, at a weekly growth rate', () => {
+  it('is zero for today', () => {
+    expect(weeksToReach(1, 0.07)).toBe(0);
+  });
+
+  it('compounds: 7% a week doubles in about 10 weeks, 10% in about 7', () => {
+    expect(weeksToReach(2, 0.07)).toBeCloseTo(10.24, 2);
+    expect(weeksToReach(2, 0.1)).toBeCloseTo(7.27, 2);
+    expect(weeksToReach(4, 0.07)).toBeCloseTo(20.49, 2);
+  });
+
+  // The yearly multiples in "Startup = Growth": 5% a week is 12.6x a year,
+  // 7% is 33.7x, 10% is 142x.
+  it.each([
+    [0.05, 12.6],
+    [0.07, 33.7],
+    [0.1, 142],
+  ])('%s a week reaches %sx in a year', (rate, yearly) => {
+    expect(weeksToReach(yearly, rate)).toBeCloseTo(52, 0);
   });
 });

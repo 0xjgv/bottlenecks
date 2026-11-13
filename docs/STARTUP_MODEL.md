@@ -110,3 +110,12 @@ given up on, or promised and then lost), the slowest 1 in 100 cycle time, and th
 constraint is the step "Find the problem" names, so the two never disagree; when nothing is piling
 up, the busiest step stands in as the likely next constraint. A multiple counts as broken when more
 than 2 in 100 items are lost or the slowest cycle time more than doubles.
+
+The driver is growth in customers, the number a young startup is judged on. The panel takes a
+weekly growth rate (5, 7 or 10 percent; Paul Graham's "Startup = Growth" calls 5 to 7 percent a
+week good during Y Combinator and 10 percent exceptional) and dates each multiple with
+`weeksToReach`: at 7 percent a week, 2x is about 10 weeks away and 4x about 20. So a breaking
+point reads as time left to fix the constraint. Two assumptions, both stated in the panel: all
+incoming work grows in step with customers (`scaled` multiplies every source), and each row holds
+work steady at its size, so the rate dates a row and changes nothing the run measures. Revenue and
+customer counts are not modelled.

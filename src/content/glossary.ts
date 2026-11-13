@@ -156,6 +156,15 @@ export const GLOSSARY: GlossaryEntry[] = [
     see: ['rps', 'goodput', 'offered', 'constraint'],
   },
   {
+    id: 'growth-rate',
+    term: 'Weekly growth',
+    short: 'How fast customers, and the work they bring, grow each week',
+    why: 'Growth compounds: at 7% a week work doubles in about 10 weeks, and at 10% in about 7. For a young startup 5 to 7% a week is good and 10% is exceptional. The forecast uses your rate to say how many weeks away each size is, which is how long you have to fix the constraint before it breaks.',
+    category: 'throughput',
+    aliases: ['growth rate', 'week over week', 'compounding', 'new customers', 'yc'],
+    see: ['rps', 'constraint'],
+  },
+  {
     id: 'offered',
     term: 'Arriving',
     short: 'Work coming in, whether or not it gets done',

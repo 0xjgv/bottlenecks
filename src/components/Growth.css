@@ -5,6 +5,15 @@
    canvas. Only the table is its own.
    ========================================================================== */
 
+.grw-rate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-dim);
+  font-size: var(--fs-sm);
+}
+
 .grw-table {
   width: 100%;
   border-collapse: collapse;
@@ -65,7 +74,8 @@
   hyphens: auto;
 }
 
-.grw-play {
+.grw-play,
+.grw-rate .btn {
   min-width: 44px;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;

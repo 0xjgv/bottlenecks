@@ -29,6 +29,22 @@ export const BROKEN_DROP_SHARE = 0.02;
 /** Growth in the slowest cycle time, against today, that counts as broken. */
 export const BROKEN_P99_FACTOR = 2;
 
+/**
+ * Weekly growth rates the forecast can date its rows by, as fractions. The
+ * yardstick is Paul Graham's "Startup = Growth" (2012): 5 to 7 percent a week
+ * is good during Y Combinator and 10 percent is exceptional.
+ */
+export const WEEKLY_GROWTH_RATES: readonly number[] = [0.05, 0.07, 0.1];
+export const DEFAULT_WEEKLY_GROWTH = 0.07;
+
+/**
+ * Weeks of compounding at `rate` a week until work is `multiple` times
+ * today's. The rate only dates a multiple; it changes nothing a run measures.
+ */
+export function weeksToReach(multiple: number, rate: number): number {
+  return Math.log(multiple) / Math.log(1 + rate);
+}
+
 export interface GrowthStep {
   multiple: number;
   /** Work arriving, items per week. */
