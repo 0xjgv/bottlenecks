@@ -19,6 +19,7 @@ export interface PinnedRun {
   rps: number;
   /** The bar's p99, or null where it showed none (nothing completing). */
   p99: number | null;
+  /** Delivered after startup exclusions, or all finished work without measures. */
   goodput: number;
   unfinished?: number | null;
   people?: number | null;

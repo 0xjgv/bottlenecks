@@ -5,6 +5,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { Metrics } from './Metrics';
 import { Engine } from '../sim/engine';
 import { PRESETS } from '../sim/presets';
+const FIRST = PRESETS.find((p) => p.id === 'single-server');
+if (!FIRST) throw new Error('Missing founder example');
+const FIRST_TOPOLOGY = FIRST.topology;
 import { formatCompact, formatMs, formatPct } from './format';
 import type { HistoryPoint, SimSnapshot } from '../sim/types';
 
@@ -56,7 +59,7 @@ afterEach(() => {
 
 /** A run with something to read: a single server pushed past its ceiling. */
 function overloaded(steps = 200): SimSnapshot {
-  const topo = structuredClone(PRESETS.find((p) => p.id === 'single-server')!.topology);
+  const topo = structuredClone(FIRST_TOPOLOGY);
   for (const n of topo.nodes)
     if (n.kind === 'client') n.config = { ...n.config, rps: 400 };
   const engine = new Engine(topo);
@@ -64,9 +67,16 @@ function overloaded(steps = 200): SimSnapshot {
   return engine.snapshot();
 }
 
-const chart = (label: string) =>
-  container.querySelector<HTMLElement>(`section[aria-label^="${label}"]`)!;
-const plot = (label: string) => chart(label).querySelector<HTMLElement>('.mx-plot')!;
+const chart = (label: string) => {
+  const el = container.querySelector<HTMLElement>(`section[aria-label^="${label}"]`);
+  if (!el) throw new Error(`Missing chart ${label}`);
+  return el;
+};
+const plot = (label: string) => {
+  const el = chart(label).querySelector<HTMLElement>('.mx-plot');
+  if (!el) throw new Error(`Missing plot ${label}`);
+  return el;
+};
 const legend = (label: string) =>
   [...chart(label).querySelectorAll('.mx-key-value')].map((v) => v.textContent);
 const stamp = (label: string) =>
@@ -185,10 +195,12 @@ describe('reading a chart', () => {
     const el = plot('Cycle time');
     act(() => el.focus());
     key(el, 'ArrowLeft');
-    const last = history[history.length - 1]!;
+    const last = history[history.length - 1];
+    if (!last) throw new Error('Missing last sample');
     expect(sampleNamed(history, 'Cycle time')).toBe(last);
     key(el, 'ArrowLeft');
-    const prev = history[history.length - 2]!;
+    const prev = history[history.length - 2];
+    if (!prev) throw new Error('Missing preceding sample');
     expect(sampleNamed(history, 'Cycle time')).toBe(prev);
     const said = chart('Cycle time').querySelector('[aria-live]')?.textContent;
     expect(said).toBe(
@@ -200,9 +212,7 @@ describe('reading a chart', () => {
   });
 
   it('a failure second with nothing failing says so', () => {
-    const topo = structuredClone(
-      PRESETS.find((p) => p.id === 'single-server')!.topology,
-    );
+    const topo = structuredClone(FIRST_TOPOLOGY);
     const engine = new Engine(topo);
     // Healthy at its default load: every sampled second is clean.
     for (let i = 0; i < 100; i++) {

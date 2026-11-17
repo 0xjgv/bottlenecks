@@ -219,6 +219,7 @@ function useXScale(history: HistoryPoint[]) {
   return useMemo(() => {
     const n = history.length;
     if (n === 0) return { at: () => 0 };
+    // The nonempty-history guard above guarantees the last sample.
     const tEnd = history[n - 1]!.t;
     const tStart = tEnd - WINDOW_MS;
     const at = (t: number) => {
@@ -266,6 +267,7 @@ function useGhost(
   return useMemo(() => {
     const n = history.length;
     if (!pin || n === 0) return [];
+    // The nonempty-history guard above guarantees the last sample.
     const tEnd = history[n - 1]!.t;
     return pinInWindow(pin, tEnd - WINDOW_MS, tEnd);
   }, [pin, history]);
@@ -740,6 +742,7 @@ const LatencyChart = memo(function LatencyChart({
         />
         <PinKey on={paths.pin !== ''} />
       </ul>
+      {/* series and windowed retain the same route order and length. */}
       <Announce
         on={hover.keyed}
         text={
@@ -977,6 +980,7 @@ const ThroughputChart = memo(function ThroughputChart({
         />
         <PinKey on={pinPts !== ''} />
       </ul>
+      {/* series and windowed retain the same route order and length. */}
       <Announce
         on={hover.keyed}
         text={
@@ -1331,6 +1335,7 @@ const FailureChart = memo(function FailureChart({
           })}
         </ul>
       )}
+      {/* series and windowed retain the same route order and length. */}
       <Announce
         on={hover.keyed}
         text={
@@ -1462,7 +1467,8 @@ const RouteChart = memo(function RouteChart({
   const pointAt = (points: readonly RoutePoint[]): RoutePoint | null => {
     if (!hs) return null;
     const i = nearestBy(points, (p) => p.t, hs.t);
-    return i >= 0 && points[i]!.t === hs.t ? points[i]! : null;
+    const point = points[i];
+    return point?.t === hs.t ? point : null;
   };
   const sampled = (points: readonly RoutePoint[]): string => {
     const p = pointAt(points);
@@ -1489,6 +1495,7 @@ const RouteChart = memo(function RouteChart({
     let worst = -1;
     let worstV = Number.NEGATIVE_INFINITY;
     for (let i = 0; i < windowed.length; i++) {
+      // This loop keeps i inside windowed.
       const p = pointAt(windowed[i]!.points);
       const v = p ? value(p) : Number.NaN;
       if (Number.isFinite(v) && v > worstV) {
@@ -1497,6 +1504,7 @@ const RouteChart = memo(function RouteChart({
       }
     }
     if (worst < 0) return undefined;
+    // series and windowed map the same routes in order; worst is a valid index.
     const name = nameOf(series[worst]!.route.clientId);
     const short = name.length > 14 ? `${name.slice(0, 13)}…` : name;
     return `${short} ${sampled(windowed[worst]!.points)}`;
@@ -1582,11 +1590,13 @@ const RouteChart = memo(function RouteChart({
             <span
               className={`num num-sm mx-key-value${sr.hurting ? ' is-danger' : ''}`}
             >
+              {/* series maps windowed without filtering, so their indices match. */}
               {hs ? sampled(windowed[i]!.points) : reading(sr.route)}
             </span>
           </li>
         ))}
       </ul>
+      {/* series and windowed retain the same route order and length. */}
       <Announce
         on={hover.keyed}
         text={

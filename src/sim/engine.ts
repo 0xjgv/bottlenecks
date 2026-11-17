@@ -1,3 +1,12 @@
+import { effectiveKeySkew, KEYSPACE, keyForDraw } from './keys';
+import {
+  burstBatch,
+  effectiveBurstSize,
+  effectiveHerdSize,
+  effectiveHerdSpreadMs,
+  nextHerdMs,
+  trafficPeriodMs,
+} from './workload';
 import {
   behaviourFor,
   canCrashOneInstance,
@@ -9,6 +18,16 @@ import { cos, exp, pow } from './fdlibm';
 import { sanitizeFaults } from './faults';
 import { Rng } from './random';
 import { DEFAULT_SEED, sanitizeSeed } from './seed';
+import {
+  EDGE_OUTCOME_SLOTS,
+  EO_CUT,
+  EO_FAILED,
+  EO_FIRST,
+  EO_LOST,
+  EO_OK,
+  EO_REFUSED,
+  EO_RETRY,
+} from './edgeOutcomes';
 import { DEFAULT_TRAFFIC_PERIOD_S } from './types';
 import type {
   ActiveFailure,
@@ -64,10 +83,9 @@ const TALLY_INITIAL = 4096;
 /** Starting length of each client's own tally buffer; it doubles as needed. */
 const TALLY_ROUTE_INITIAL = 1024;
 /** Trailing window for rate (per-second) measurements. */
-/* Traffic pattern shape. Chosen so a spike's MEAN over one cycle stays near
-   the baseline: the reader compares the same work arriving unevenly, not more
-   of it. 0.9 quiet at 0.1x plus 0.1 loud at 4x averages 0.49x, near enough
-   that the comparison is about burstiness rather than volume. */
+/* Traffic pattern shape. A spike is quiet at a tenth of the baseline for 90%
+   of the cycle and 4x for the rest, which averages 0.49x: about HALF the
+   baseline, so any copy describing it must not call it the same volume. */
 const SPIKE_QUIET_FRACTION = 0.9;
 const SPIKE_PEAK = 4;
 const SPIKE_TROUGH = 0.1;
@@ -88,17 +106,6 @@ const RETRY_BASE_BACKOFF_MS = 25;
 /** Guard so a runaway topology cannot allocate unbounded requests. */
 const MAX_LIVE_REQUESTS = 200000;
 /**
- * Size of the keyspace every client draws request keys from.
- *
- * Deliberately small. The point of a key is that collisions happen often
- * enough to be observable in a 30-second run: a read must frequently land on
- * a key that was just written (so replication lag produces visible stale
- * reads), and shard occupancy must be a meaningful distribution rather than
- * every request landing on its own partition. Drawn from the seeded RNG, so
- * the key stream is part of the deterministic replay.
- */
-const KEYSPACE = 64;
-/**
  * Shared empty vector for every kind that is not partitioned. snapshot() runs
  * at 10Hz over every node; handing them all one frozen array avoids an
  * allocation per node per frame for a field only shard nodes ever fill.
@@ -118,6 +125,10 @@ const EV_RETRY = 4;
 const EV_LINK_ARRIVE = 5;
 /** A timer owned by a behaviour for a request it held at admission. */
 const EV_BEHAVIOUR_WAKE = 6;
+/** A herd client's cycle boundary: every caller in the herd fires now. */
+const EV_HERD = 7;
+/** One caller of a herd spread over a window, firing at its own moment. */
+const EV_HERD_CALLER = 8;
 
 interface Ev extends Timed {
   time: number;
@@ -263,6 +274,32 @@ interface Req {
    * behaviour can release its own slot. Null for the ordinary path.
    */
   onDrained: ((ctx: BehaviourCtx, state: NodeStateLike, req: ReqLike) => void) | null;
+}
+
+/**
+ * Which outcome slot a resolved call books into. Refused means the target
+ * turned the call away at the door without working on it: a full line or
+ * pool, a limiter, an open breaker, a failed login. Every other failure,
+ * timeouts included, is a failure.
+ */
+function outcomeSlot(ok: boolean, reason: FailureReason): number {
+  if (ok) return EO_OK;
+  switch (reason) {
+    case 'packet-loss':
+      return EO_LOST;
+    case 'partitioned':
+      return EO_CUT;
+    case 'shed':
+    case 'conn-refused':
+    case 'bulkhead-full':
+    case 'throttled':
+    case 'deprioritized':
+    case 'rejected':
+    case 'unauthorized':
+      return EO_REFUSED;
+    default:
+      return EO_FAILED;
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -644,6 +681,17 @@ interface NodeState {
 
   /** Identifies the arrival stream for this incarnation of a load generator. */
   arrivalGeneration: number;
+  /**
+   * When this client's next herd is due, in sim ms, or -1 with none
+   * scheduled. Only a client on `herd` traffic ever sets it.
+   */
+  herdAt: number;
+  /**
+   * Sim ms a ramp counts its climb from. 0 for a client that starts the run
+   * on ramp, so those climb exactly as they always did; a client switched to
+   * ramp later climbs from the moment it was switched.
+   */
+  rampFromMs: number;
   /** True once a worker poll event is scheduled, so we do not stack pollers. */
   pollScheduled: boolean;
   /**
@@ -752,6 +800,12 @@ export class Engine implements BehaviourCtx {
    */
   private tickNodes: NodeState[] = [];
   private edgeFlow = new Map<string, RateCounter>();
+  /**
+   * Per-edge attempt and outcome counters, indexed by the EO_* slots. Null
+   * while nobody asked for them, which keeps the send and resolve paths to a
+   * single null check. Never read by snapshot(), so its bytes cannot move.
+   */
+  private edgeOutcomes: Map<string, RateCounter[]> | null = null;
 
   private freeReq: Req | null = null;
   private freeEv: Ev[] = [];
@@ -1032,8 +1086,29 @@ export class Engine implements BehaviourCtx {
     if (!state) return;
     const fault = this.faults.get(id);
     const wasDown = fault !== undefined && this.downBy(fault, state);
+    const wasRamp = state.config.traffic === 'ramp';
     Object.assign(state.config, patch);
+    if (!wasRamp && state.config.traffic === 'ramp') {
+      state.rampFromMs = this.now;
+      if (state.behaviour.generatesLoad) {
+        // The previous shape may have scheduled its next intake after the
+        // entire climb. Replace that future intake, not any work in flight.
+        state.arrivalGeneration = this.nextArrivalGeneration++;
+        state.herdAt = -1;
+        this.scheduleArrival(state.id);
+      }
+    }
     this.refitInstanceCrash(state, wasDown);
+    // A herd switched on, or its cycle moved, keeps its own clock from now
+    // rather than waiting for the next arrival, which at a low rate can be
+    // seconds away.
+    if (
+      state.behaviour.generatesLoad &&
+      state.config.traffic === 'herd' &&
+      !this.herdOnCycle(state)
+    ) {
+      this.scheduleHerd(state);
+    }
     // A capacity increase may free up slots for waiting work immediately.
     this.pumpQueue(state);
   }
@@ -1484,6 +1559,72 @@ export class Engine implements BehaviourCtx {
     }
   }
 
+  /**
+   * Count what happens on every edge, for the canvas's traffic dots.
+   *
+   * Off by default. Turning it on adds no random draw and changes no event,
+   * so a run with it on snapshots byte for byte as one with it off. Counters
+   * start empty, so rates read low for the first second after turning it on.
+   */
+  setEdgeOutcomes(on: boolean): void {
+    if (on === (this.edgeOutcomes !== null)) return;
+    if (!on) {
+      this.edgeOutcomes = null;
+      return;
+    }
+    this.edgeOutcomes = new Map();
+    this.rebuildEdgeOutcomes();
+  }
+
+  /**
+   * Copy one edge's rates into `out`, indexed by the EO_* slots, per second.
+   * False, with `out` untouched, while counting is off or the edge is unknown.
+   */
+  readEdgeOutcomes(edgeId: string, out: Float64Array): boolean {
+    const slots = this.edgeOutcomes?.get(edgeId);
+    if (!slots) return false;
+    for (let i = 0; i < EDGE_OUTCOME_SLOTS; i++) out[i] = slots[i].rate(this.now);
+    return true;
+  }
+
+  /**
+   * Book how one crossing ended against the edge it crossed.
+   *
+   * `viaEdge`, not `retryTarget`: a node that retries its own downstream
+   * rewrites its request's retryTarget to that downstream edge, so by the
+   * time its answer travels back the field names the wrong wire. Only the
+   * stubs for a cut or lossy link leave viaEdge empty, and theirs is the one
+   * case where the cut or the loss happened on this edge. A cut or a loss
+   * reported up from further down is, on this edge, a failure. So is a
+   * refusal from further down: a child whose own call failed was let in by
+   * this edge's target, which turns calls away only before calling onward.
+   */
+  private countOutcome(child: Req, ok: boolean, reason: FailureReason): void {
+    const stub = child.viaEdge === '';
+    const slots = this.edgeOutcomes?.get(stub ? child.retryTarget : child.viaEdge);
+    if (!slots) return;
+    let slot = outcomeSlot(ok, reason);
+    if (!stub && (slot === EO_LOST || slot === EO_CUT)) slot = EO_FAILED;
+    if (slot === EO_REFUSED && child.childFailed) slot = EO_FAILED;
+    slots[slot].add(this.now, 1);
+  }
+
+  /** Keep one set of counters per current edge, carrying existing ones over. */
+  private rebuildEdgeOutcomes(): void {
+    const prev = this.edgeOutcomes;
+    if (prev === null) return;
+    const next = new Map<string, RateCounter[]>();
+    for (const edge of this.topology.edges) {
+      let slots = prev.get(edge.id);
+      if (!slots) {
+        slots = [];
+        for (let i = 0; i < EDGE_OUTCOME_SLOTS; i++) slots.push(new RateCounter());
+      }
+      next.set(edge.id, slots);
+    }
+    this.edgeOutcomes = next;
+  }
+
   advance(deltaMs: number): void {
     if (!(deltaMs > 0)) return;
     const dt = Math.min(deltaMs, MAX_DELTA_MS);
@@ -1837,6 +1978,11 @@ export class Engine implements BehaviourCtx {
     // replay would double-count that edge. Sparse edges (a 2 rps batch
     // client) are exactly the ones that keep such buckets alive.
     for (const counter of this.edgeFlow.values()) counter.reset();
+    if (this.edgeOutcomes !== null) {
+      for (const slots of this.edgeOutcomes.values()) {
+        for (const counter of slots) counter.reset();
+      }
+    }
     // Chaos is part of the run, not of the topology: reset() must reproduce
     // the original trajectory from t=0, which it cannot do while a fault
     // injected mid-run is still in force. What WAS scheduled, or recorded,
@@ -1873,7 +2019,7 @@ export class Engine implements BehaviourCtx {
 
   private buildNodes(previous: Map<string, NodeState> | null): void {
     const next = new Map<string, NodeState>();
-    const newClientIds: string[] = [];
+    const arrivalsToStart: string[] = [];
     this.clientIds = [];
 
     for (const node of this.topology.nodes) {
@@ -1897,7 +2043,16 @@ export class Engine implements BehaviourCtx {
           state.config[field] !== this.authoredScale(node.id, field)
             ? state.config[field]
             : undefined;
+        const wasRamp = state.config.traffic === 'ramp';
         state.config = { ...node.config };
+        if (!wasRamp && state.config.traffic === 'ramp') {
+          state.rampFromMs = this.now;
+          if (state.behaviour.generatesLoad) {
+            state.arrivalGeneration = this.nextArrivalGeneration++;
+            state.herdAt = -1;
+            arrivalsToStart.push(node.id);
+          }
+        }
         if (field !== undefined && liveScale !== undefined) {
           state.config[field] = liveScale;
         }
@@ -1907,7 +2062,9 @@ export class Engine implements BehaviourCtx {
       } else {
         state = createNodeState(node);
         state.arrivalGeneration = this.nextArrivalGeneration++;
-        if (state.behaviour.generatesLoad) newClientIds.push(node.id);
+        // A client added mid-run on ramp climbs from when it appeared.
+        state.rampFromMs = this.now;
+        if (state.behaviour.generatesLoad) arrivalsToStart.push(node.id);
       }
       state.lastIntegrateMs = this.now;
       next.set(node.id, state);
@@ -1979,10 +2136,11 @@ export class Engine implements BehaviourCtx {
       flow.set(edge.id, this.edgeFlow.get(edge.id) ?? new RateCounter());
     }
     this.edgeFlow = flow;
+    if (this.edgeOutcomes !== null) this.rebuildEdgeOutcomes();
 
-    // Retained clients keep their already scheduled arrival. Only a new or
-    // retyped client needs an initial event to start its generator.
-    for (const id of newClientIds) {
+    // Start new/retyped clients and retained clients newly switched to ramp.
+    // Every other retained client keeps its existing arrival stream.
+    for (const id of arrivalsToStart) {
       this.scheduleArrival(id);
     }
     this.tickNodes = [];
@@ -2030,6 +2188,20 @@ export class Engine implements BehaviourCtx {
       case EV_ARRIVAL:
         if (state.behaviour.generatesLoad && state.arrivalGeneration === ev.token) {
           this.onClientArrival(state);
+        }
+        break;
+      case EV_HERD:
+        if (
+          state.behaviour.generatesLoad &&
+          state.arrivalGeneration === ev.token &&
+          state.herdAt === ev.time
+        ) {
+          this.onHerd(state);
+        }
+        break;
+      case EV_HERD_CALLER:
+        if (state.behaviour.generatesLoad && state.arrivalGeneration === ev.token) {
+          this.offerRequest(state);
         }
         break;
       case EV_SERVICE_DONE:
@@ -2102,6 +2274,12 @@ export class Engine implements BehaviourCtx {
   private scheduleArrival(nodeId: string): void {
     const state = this.nodes.get(nodeId);
     if (!state || !state.behaviour.generatesLoad) return;
+    const pattern = state.config.traffic;
+    // A herd rides on its own clock. Checked here because every arrival and
+    // every idle poll passes through, so switching a running client to herd,
+    // or changing its cycle, takes effect within one gap. No draw, so the
+    // stream is untouched.
+    if (pattern === 'herd' && !this.herdOnCycle(state)) this.scheduleHerd(state);
     // The pattern's rate, not the baseline: a spike's quiet phase must
     // actually schedule arrivals further apart.
     const rps = this.effectiveRps(state);
@@ -2111,14 +2289,110 @@ export class Engine implements BehaviourCtx {
       this.push(this.now + 50, EV_ARRIVAL, nodeId, null, state.arrivalGeneration);
       return;
     }
-    const gap = this.rng.exponential(1000 / rps);
+    // Bursty clumps arrive `burstSize` times further apart, and each carries
+    // that many on average, so the mean rate is still `rps`.
+    const mean =
+      pattern === 'bursty'
+        ? (1000 * effectiveBurstSize(state.config)) / rps
+        : 1000 / rps;
+    const gap =
+      pattern === 'ramp' && state.rampFromMs > 0
+        ? this.rampGapMs(state, this.rng.exponential(1))
+        : this.rng.exponential(mean);
     this.push(this.now + gap, EV_ARRIVAL, nodeId, null, state.arrivalGeneration);
+  }
+
+  /**
+   * The gap to a ramp's next arrival, for a ramp picked mid-run. A gap drawn
+   * at the rate of this instant is wrong at the bottom of a climb: a tenth of
+   * a second in, the rate is so low that the draw lands half a minute out,
+   * and the client sits silent through the climb it was meant to show. This
+   * instead finds when the rising rate has added up to `work` requests, from
+   * the same one draw, so the arrivals follow the climb.
+   *
+   * Ramps that start the run keep the plain draw. Their links replay the
+   * same arrivals they always did; a mid-run pick is never in a link, since
+   * a replay starts every knob from t=0.
+   */
+  private rampGapMs(state: NodeState, work: number): number {
+    const base = state.config.rps;
+    const periodS = state.config.trafficPeriodS ?? DEFAULT_TRAFFIC_PERIOD_S;
+    const s0 = (this.now - state.rampFromMs) / 1000;
+    if (s0 >= periodS) return (work / base) * 1000;
+    // The rate is base * s / periodS, so the requests sent between s0 and s1
+    // are base * (s1^2 - s0^2) / (2 * periodS).
+    const toTop = (base * (periodS * periodS - s0 * s0)) / (2 * periodS);
+    if (work <= toTop) {
+      return (Math.sqrt(s0 * s0 + (2 * periodS * work) / base) - s0) * 1000;
+    }
+    return (periodS - s0 + (work - toTop) / base) * 1000;
+  }
+
+  /**
+   * True when the herd already scheduled is the next one on the current
+   * cycle. A cycle edited since leaves it off the grid, and it is replaced;
+   * the old event is then ignored, because dispatch matches it on `herdAt`.
+   */
+  private herdOnCycle(state: NodeState): boolean {
+    const at = state.herdAt;
+    if (at < this.now) return false;
+    const periodMs = trafficPeriodMs(state.config);
+    if (periodMs <= 0) return true;
+    if (at - this.now > periodMs) return false;
+    const k = at / periodMs;
+    return Math.abs(k - Math.round(k)) < 1e-9;
+  }
+
+  private scheduleHerd(state: NodeState): void {
+    const periodMs = trafficPeriodMs(state.config);
+    if (periodMs <= 0) return;
+    const at = nextHerdMs(this.now, periodMs);
+    state.herdAt = at;
+    this.push(at, EV_HERD, state.id, null, state.arrivalGeneration);
+  }
+
+  /**
+   * A herd's moment. Every caller is a real request, timed, retried and
+   * counted like any other arrival, which is what separates this from a cron
+   * job's detached messages: the people in a herd are waiting for an answer.
+   */
+  private onHerd(state: NodeState): void {
+    state.herdAt = -1;
+    // Switched off since this was scheduled: the moment passes quietly.
+    if (state.config.traffic !== 'herd') return;
+    this.scheduleHerd(state);
+    const size = effectiveHerdSize(state.config);
+    const spreadMs = effectiveHerdSpreadMs(state.config);
+    if (spreadMs <= 0) {
+      for (let i = 0; i < size; i++) this.offerRequest(state);
+      return;
+    }
+    // Jitter: each caller waits its own random slice of the window first.
+    // Draws only when a spread is set, so a herd at 0 takes none.
+    for (let i = 0; i < size; i++) {
+      this.push(
+        this.now + this.rng.next() * spreadMs,
+        EV_HERD_CALLER,
+        state.id,
+        null,
+        state.arrivalGeneration,
+      );
+    }
   }
 
   private onClientArrival(state: NodeState): void {
     this.scheduleArrival(state.id);
     if (this.effectiveRps(state) <= 0) return;
+    if (state.config.traffic === 'bursty') {
+      const n = burstBatch(this.rng.next(), effectiveBurstSize(state.config));
+      for (let i = 0; i < n; i++) this.offerRequest(state);
+      return;
+    }
+    this.offerRequest(state);
+  }
 
+  /** One request from this client, counted as offered and sent on its way. */
+  private offerRequest(state: NodeState): void {
     /*
      * Past the live-request ceiling the request is still OFFERED, and
      * saying so is the whole point. Returning silently here left every
@@ -2168,8 +2442,9 @@ export class Engine implements BehaviourCtx {
     root.maxChildMs = 0;
     root.ownMs = 0;
     // Draw this request's key. Every downstream call inherits it, so the
-    // whole chain agrees on which partition/record is being touched.
-    root.key = Math.floor(this.rng.next() * KEYSPACE);
+    // whole chain agrees on which partition/record is being touched. One
+    // draw whatever the skew, so the draws after it never move.
+    root.key = keyForDraw(this.rng.next(), effectiveKeySkew(state.config.keySkew));
 
     // Trace one request at a time, and only once the previous one has been
     // published. Sampling instead of tracing everything keeps the allocation
@@ -2335,6 +2610,11 @@ export class Engine implements BehaviourCtx {
     if (!target) {
       this.childResolved(parent, false, 'no-route', 0);
       return;
+    }
+
+    const outcomes = this.edgeOutcomes;
+    if (outcomes !== null) {
+      outcomes.get(edge.id)?.[attempt > 0 ? EO_RETRY : EO_FIRST].add(this.now, 1);
     }
 
     // A partitioned link fails at the CALLER: the packet never arrives, so the
@@ -3230,6 +3510,8 @@ export class Engine implements BehaviourCtx {
   ): void {
     if (parent.resolved) return; // Parent already gave up: discard the result.
 
+    if (this.edgeOutcomes !== null) this.countOutcome(child, ok, reason);
+
     // Report the outcome to the caller's behaviour, for kinds that watch their
     // dependency's health. Deliberately BEFORE the retry decision, so a
     // breaker sees every individual attempt rather than only the last one --
@@ -3341,6 +3623,20 @@ export class Engine implements BehaviourCtx {
     return this.rng.next();
   }
 
+  /**
+   * Read by a shard at 10Hz to decide whether its hottest-key reading is
+   * published. A scan rather than a cached flag, because a client's config
+   * is written in place by updateNodeConfig and setTopology alike.
+   */
+  keysSkewed(): boolean {
+    for (const state of this.nodes.values()) {
+      if (state.kind === 'client' && effectiveKeySkew(state.config.keySkew) > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Queued (not yet in service) request count. */
   queueDepth(state: NodeStateLike): number {
     const s = state as NodeState;
@@ -3385,16 +3681,18 @@ export class Engine implements BehaviourCtx {
     const phase = t / periodS;
 
     switch (pattern) {
-      case 'ramp':
-        // Climbs over the first cycle and holds. Past one period the reader
-        // is watching a system at full load, which is the point of a ramp:
-        // it is how you got there that differs, not where you end up.
-        return this.now / 1000 >= periodS ? base : base * phase;
+      case 'ramp': {
+        // Climbs over one cycle from when the ramp began, then holds. Past
+        // that the reader is watching a system at full load, which is the
+        // point of a ramp: it is how you got there that differs, not where
+        // you end up. From 0 this is the same arithmetic as t / periodS.
+        const s = (this.now - (state as NodeState).rampFromMs) / 1000;
+        return s >= periodS ? base : base * (s / periodS);
+      }
       case 'spike':
         // Quiet, then a burst in the last tenth of the cycle. The burst is
-        // 4x the baseline and the quiet is a tenth of it, so the MEAN over a
-        // cycle stays near the baseline: the reader is comparing the same
-        // amount of work arriving unevenly, not simply more work.
+        // 4x the baseline and the quiet is a tenth of it, so the mean over a
+        // cycle is about half the baseline.
         return phase >= SPIKE_QUIET_FRACTION ? base * SPIKE_PEAK : base * SPIKE_TROUGH;
       case 'diurnal': {
         // A day as a cosine between a quarter of the baseline and twice it.
@@ -4181,6 +4479,8 @@ function createNodeState(node: SimNode): NodeState {
     totalCompleted: 0,
     totalFailed: 0,
     arrivalGeneration: 0,
+    herdAt: -1,
+    rampFromMs: 0,
     pollScheduled: false,
     shardUtil: [],
     instanceUnits: [],

@@ -75,6 +75,11 @@ function toggles(coarse: boolean): ToggleRow[] {
       label: 'Minimap',
       hint: 'A small map of the whole diagram, for finding your way around a big one.',
     },
+    {
+      key: 'trafficDots',
+      label: 'Show work moving along connections',
+      hint: 'Busier connections carry more dots. The colours show whether work got through, failed, was lost or was turned away. A ring marks a retry. Dots represent measured shares, not individual tasks or cycle time.',
+    },
   ];
 }
 

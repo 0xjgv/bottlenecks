@@ -5,6 +5,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { Metrics } from './Metrics';
 import { Engine } from '../sim/engine';
 import { PRESETS } from '../sim/presets';
+const FIRST = PRESETS.find((p) => p.id === 'single-server');
+if (!FIRST) throw new Error('Missing founder example');
+const FIRST_TOPOLOGY = FIRST.topology;
 import { deliveredRps, peopleCount } from '../learn/threeMeasures';
 import { unfinishedWork } from '../learn/unfinished';
 import { formatMs, formatPct, formatRate } from './format';
@@ -84,7 +87,7 @@ afterEach(() => {
 });
 
 function runAt(rps: number, ms: number): SimSnapshot {
-  const topo = structuredClone(PRESETS.find((p) => p.id === 'single-server')!.topology);
+  const topo = structuredClone(FIRST_TOPOLOGY);
   for (const n of topo.nodes) if (n.kind === 'client') n.config = { ...n.config, rps };
   const engine = new Engine(topo, 7);
   for (let t = 0; t < ms; t += 50) engine.advance(50);
@@ -281,7 +284,8 @@ describe('the pin row in the strip', () => {
     act(() =>
       root.render(<Metrics snapshot={after} rps={400} onPin={() => {}} pin={held} />),
     );
-    const row = container.querySelector('.mx-pin')!;
+    const row = container.querySelector('.mx-pin');
+    if (!row) throw new Error('Missing comparison');
     expect(row.querySelector('.mx-pin-label')?.textContent).toBe(
       'Kept at week 20, 400/wk',
     );
@@ -294,7 +298,8 @@ describe('the pin row in the strip', () => {
       [formatPct(before.system.errorRate), formatPct(after.system.errorRate)],
     ]);
     for (const name of ['Cycle time', 'Work finished']) {
-      const chart = container.querySelector(`section[aria-label^="${name}"]`)!;
+      const chart = container.querySelector(`section[aria-label^="${name}"]`);
+      if (!chart) throw new Error(`Missing chart ${name}`);
       const line = chart.querySelector('.mx-line-pin');
       expect(line?.getAttribute('points')?.split(' ').length, name).toBeGreaterThan(10);
       expect(chart.querySelector('.mx-key-pin'), name).not.toBeNull();

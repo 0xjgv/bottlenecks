@@ -48,7 +48,8 @@ function mount(): void {
 }
 
 /** A press the way a finger or a mouse makes one, ending in the click. */
-function press(el: Element): void {
+function press(el: Element | null): void {
+  if (!el) throw new Error('Missing button');
   const at = { bubbles: true, cancelable: true, button: 0, clientX: 5, clientY: 5 };
   act(() => {
     el.dispatchEvent(new FakePointerEvent('pointerdown', { ...at, buttons: 1 }));
@@ -89,7 +90,11 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const speedBtn = () => document.querySelector<HTMLButtonElement>('.transport-speed')!;
+const speedBtn = () => {
+  const el = document.querySelector<HTMLButtonElement>('.transport-speed');
+  if (!el) throw new Error('Missing playback speed');
+  return el;
+};
 
 function keyDown(key: string, init: KeyboardEventInit = {}): void {
   act(() => {
@@ -99,7 +104,7 @@ function keyDown(key: string, init: KeyboardEventInit = {}): void {
 
 /** Sim seconds on the ledger after `ms` of frames from a zeroed clock. */
 function simAfter(ms: number): number {
-  press(document.querySelector('[aria-label="Reset simulation"]')!);
+  press(document.querySelector('[aria-label="Reset simulation"]'));
   act(() => {
     vi.advanceTimersByTime(ms);
   });

@@ -30,9 +30,8 @@ export function nearestBy<T>(
 }
 
 /**
- * A sample's run time, as the readout heads it: "at 12.25s". Samples land
- * every 250ms, so two decimals say exactly which one it is, and trailing
- * zeros are dropped so a whole second reads "at 13s".
+ * A sample's run time in working weeks. Samples land every quarter week;
+ * trailing zeros are dropped so a whole week reads "at week 13".
  */
 export function formatAt(tMs: number): string {
   if (!Number.isFinite(tMs)) return '';

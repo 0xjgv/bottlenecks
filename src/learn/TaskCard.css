@@ -298,3 +298,12 @@
     transition: none;
   }
 }
+
+/* The task and its folded chip own the phone's bottom-right corner. */
+@media (max-width: 720px), (pointer: coarse) and (max-height: 500px) {
+  .app-body:has(.task) .cv-key {
+    top: calc(var(--bar-clear) + var(--sp-3));
+    bottom: auto;
+    flex-direction: column;
+  }
+}

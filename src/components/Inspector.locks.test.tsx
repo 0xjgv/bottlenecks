@@ -111,7 +111,10 @@ describe('during a challenge', () => {
     const rows = [...container.querySelectorAll('.is-locked')];
     expect(rows.length).toBeGreaterThanOrEqual(3);
     for (const row of rows) {
-      expect(row.querySelector('input')?.disabled).toBe(true);
+      expect(
+        row.querySelector<HTMLInputElement | HTMLSelectElement>('input, select')
+          ?.disabled,
+      ).toBe(true);
       expect(row.textContent).toContain('how the people sending the work behave');
     }
   });
@@ -167,7 +170,10 @@ describe('during a challenge', () => {
     expect(single.length).toBeGreaterThan(0);
     expect(lockedLabels()).toEqual(single);
     for (const row of container.querySelectorAll('.is-locked')) {
-      expect(row.querySelector('input')?.disabled).toBe(true);
+      expect(
+        row.querySelector<HTMLInputElement | HTMLSelectElement>('input, select')
+          ?.disabled,
+      ).toBe(true);
     }
     expect(control('Tasks each person juggles at once')?.disabled).toBe(false);
   });

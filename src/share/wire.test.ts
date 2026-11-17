@@ -152,6 +152,10 @@ describe('protocol tables', () => {
       prefixRps: true,
       renditions: true,
       cpuMsCap: true,
+      keySkew: true,
+      burstSize: true,
+      herdSize: true,
+      herdSpreadMs: true,
     };
     for (const field of Object.keys(every)) expect(WIRE_FIELDS).toContain(field);
   });
@@ -671,4 +675,36 @@ describe('what the measures count', () => {
     bad[bad.length - 1] = 0x7f;
     expect(unpackTopology(bad)).toBeNull();
   });
+});
+
+it('keeps startup measure exclusions alongside every new intake setting', () => {
+  const t: Topology = {
+    nodes: [
+      node(
+        'c',
+        'client',
+        0,
+        0,
+        {
+          traffic: 'herd',
+          trafficPeriodS: 5,
+          herdSize: 200,
+          herdSpreadMs: 1000,
+          burstSize: 12,
+          keySkew: 1.2,
+        },
+        'Intake',
+      ),
+      node('team', 'service', 240, 0, {}, 'Team'),
+    ],
+    edges: [edge('c', 'team')],
+    measures: { notPeople: ['team'], notOutput: ['c'] },
+  };
+  const back = roundTrip(t);
+  expect(back.nodes[0]?.config).toEqual(t.nodes[0]?.config);
+  const team = back.nodes.find((n) => n.label === 'Team');
+  if (!team) throw new Error('Missing team after decoding');
+  const intake = back.nodes.find((n) => n.kind === 'client');
+  if (!intake) throw new Error('Missing intake after decoding');
+  expect(back.measures).toEqual({ notPeople: [team.id], notOutput: [intake.id] });
 });

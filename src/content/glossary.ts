@@ -39,6 +39,52 @@ export interface GlossaryEntry {
 }
 
 export const GLOSSARY: GlossaryEntry[] = [
+  {
+    id: 'traffic-shape',
+    term: 'Intake pattern',
+    short: 'How incoming work is spread over time',
+    why: 'Two teams can receive the same work each week and fare differently because one gets it evenly and the other in a rush. Choose a pattern that matches how work reaches your team, then watch the backlog and cycle time.',
+    category: 'throughput',
+    aliases: ['traffic pattern', 'load pattern', 'ramp', 'spike', 'diurnal'],
+    see: ['bursty-traffic', 'thundering-herd', 'offered'],
+  },
+  {
+    id: 'bursty-traffic',
+    term: 'Clustered arrivals',
+    short: 'Tasks arriving in groups instead of one at a time',
+    why: 'The average stays the same, but each group lands on the backlog together. Compare cycle time with steady arrivals to see how much spare capacity your team needs to handle those groups.',
+    category: 'throughput',
+    aliases: ['bursty', 'burstiness', 'clumps', 'batched arrivals'],
+    see: ['traffic-shape', 'queue-time', 'p99'],
+  },
+  {
+    id: 'thundering-herd',
+    term: 'Synchronized intake',
+    short: 'A batch of tasks arriving at the same instant',
+    why: 'Think of a deadline when many customers submit work together. These batches add to the normal weekly workload, so both the peak and the total grow. Spread submissions over a longer window and watch whether fewer tasks are turned away.',
+    category: 'failure',
+    aliases: ['herd', 'thundering herd', 'synchronized batch'],
+    see: ['jitter', 'queue-limit', 'retry'],
+  },
+  {
+    id: 'jitter',
+    term: 'Staggered arrivals',
+    short: 'Spreading a batch over a window of working time',
+    why: 'Give each task a different arrival time within the window. The same batch is easier to absorb when the team can finish some tasks before the rest arrive.',
+    category: 'failure',
+    aliases: ['random delay', 'spread', 'jitter'],
+    see: ['thundering-herd', 'queue-time'],
+  },
+  {
+    id: 'zipf',
+    term: 'Account concentration',
+    short: 'A few accounts create most of the work',
+    why: 'A large customer can fill its owner’s backlog while other owners have time to spare. This model spreads work over 64 accounts; increasing concentration puts more onto the busiest account. Adding owners does not divide that account’s work.',
+    category: 'component',
+    aliases: ['zipf', 'skew', 'key skew', 'key spread', 'power law'],
+    see: ['hot-key', 'shard'],
+  },
+
   /* ---- units ---------------------------------------------------------- */
   {
     id: 'rps',

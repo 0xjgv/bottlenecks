@@ -616,7 +616,8 @@ function loadSession(): Session {
         ...(seed !== undefined ? { seed } : {}),
         ...(measures ? { measures } : {}),
       },
-      rps: Math.min(5000, Math.max(0, rps)),
+      // A baseline is the sum of all sources, which may exceed the slider.
+      rps: Math.max(0, rps),
       presetId: typeof s.presetId === 'string' ? s.presetId : null,
     };
   } catch {
@@ -704,6 +705,23 @@ function clientRps(t: Topology): number {
   let sum = 0;
   for (const c of findClients(t)) sum += c.config.rps;
   return sum;
+}
+
+/**
+ * What the clients actually sent over the last second, but only while one of
+ * them runs a traffic shape. Then the slider's figure is a base the shape
+ * moves around, and this is the number that is really arriving. Null on
+ * steady traffic, where the two are the same and a second figure is noise.
+ */
+function shapedLiveRps(t: Topology, snapshot: SimSnapshot | null): number | null {
+  if (snapshot === null) return null;
+  let shaped = false;
+  let sum = 0;
+  for (const c of findClients(t)) {
+    if ((c.config.traffic ?? 'steady') !== 'steady') shaped = true;
+    sum += snapshot.nodes[c.id]?.arrivalRate ?? 0;
+  }
+  return shaped ? sum : null;
 }
 
 /**
@@ -850,6 +868,7 @@ export default function App() {
   const [shareRun, setShareRun] = useState<Topology | null>(null);
 
   const [topology, setTopology] = useState<Topology>(initial.topology);
+  // The opened design's baseline (1x), persisted with the session.
   const [rps, setRps] = useState<number>(initial.rps);
   const [exampleRun, setExampleRun] = useState(0);
   const [taskFocus, setTaskFocus] = useState(false);
@@ -1245,6 +1264,18 @@ export default function App() {
    * every place that publishes a snapshot publishes these with it.
    */
   const [routes, setRoutes] = useState<RouteStats[]>(() => engine.routes());
+
+  /* The per-wire outcome counts behind the traffic dots and the canvas's
+     retry and loss marks, which stay on with the dots turned off. The engine
+     keeps them outside the snapshot, so they never change what a replay or
+     a share link reproduces. */
+  useEffect(() => {
+    engine.setEdgeOutcomes(true);
+  }, [engine]);
+  const readOutcomes = useCallback(
+    (edgeId: string, out: Float64Array) => engine.readEdgeOutcomes(edgeId, out),
+    [engine],
+  );
 
   // "Find the problem": the last answer, shown while it still applies.
   const [finding, setFinding] = useState<Finding | null>(null);
@@ -2523,7 +2554,6 @@ export default function App() {
       // A brief states its load and is judged at it. The slider is held
       // still while one is open; this is the same rule where it lands.
       if (challengeLiveRef.current !== null) return;
-      setRps(next);
       const clients = findClients(topology);
       if (clients.length === 0) return;
       if (clients.length === 1) {
@@ -2958,7 +2988,7 @@ export default function App() {
   // the first example, so it counts too.
   const explored = usePathProgress(
     tour.open && tour.stage.kind === 'fixed'
-      ? PRESETS[0]!.id
+      ? (PRESETS[0]?.id ?? null)
       : taskView.kind === 'live' && taskView.done
         ? taskView.task.presetId
         : null,
@@ -3923,10 +3953,25 @@ export default function App() {
   /**
    * The header's offered load, derived from the topology's client nodes (the
    * sum, so multi-client presets add up) rather than mirrored in a separate
-   * state cell that add/delete paths forgot to reconcile. `rps` state remains
-   * only as the persisted slider value for session restore.
+   * state cell that add/delete paths forgot to reconcile. `rps` state is the
+   * design's 1x, which this is measured against.
    */
   const offeredRps = useMemo(() => clientRps(topology), [topology]);
+
+  // The 1x follows the clients. With none left there is nothing to measure
+  // against, and the first client to appear sets it, so a design built on an
+  // empty canvas gets a multiple and one rebuilt after a clear is not
+  // measured against the design that was there before. Adjusted during
+  // render, as React suggests for state that tracks other state.
+  const hasClients = topology.nodes.some((n) => n.kind === 'client');
+  // A session saved with a 1x but no clients counts as having had them, so
+  // the first render clears that stale 1x.
+  const [hadClients, setHadClients] = useState(() => hasClients || rps > 0);
+  if (hasClients !== hadClients) {
+    setHadClients(hasClients);
+    // A 1x set in the same update (undo, a design opened) is kept.
+    setRps(hasClients ? (rps > 0 ? rps : offeredRps) : 0);
+  }
 
   /**
    * Requests actually lost PER SECOND, derived from the engine's per-reason
@@ -4102,6 +4147,9 @@ export default function App() {
             onReset={handleReset}
             system={snapshot?.system ?? EMPTY_SYSTEM}
             lost={lostRps}
+            baselineRps={rps}
+            onMakeBaseline={() => setRps(offeredRps)}
+            liveRps={shapedLiveRps(topology, snapshot)}
             unfinished={snapshot ? unfinishedWork(topology, snapshot) : null}
             delivered={snapshot ? deliveredRps(topology, snapshot) : undefined}
             people={snapshot ? peopleCount(topology, snapshot) : null}
@@ -4345,6 +4393,7 @@ export default function App() {
               topology={topology}
               snapshot={snapshot}
               routes={routes}
+              readOutcomes={readOutcomes}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
               onReselect={() => setInspectorHidden(false)}
@@ -4409,7 +4458,7 @@ export default function App() {
                 topology={topology}
                 snapshot={snapshot}
                 selectedId={tourSubject}
-                rps={rps}
+                rps={offeredRps}
                 onSetLoad={handleRpsChange}
                 onSelect={(id) => setSelectedIds(new Set([id]))}
                 onOpenPath={() => setPathOpen(true)}

@@ -1,10 +1,9 @@
 # The startup model
 
 Bottlenecks maps the flow of work through a startup the way Breakscale mapped requests through a
-system. The engine is unchanged: it is a queueing network, which is exactly what _The Goal_
-describes. Work items arrive, wait in line, get worked on by people with limited hands, wait on
-other people, get reworked, and sometimes get dropped. Everything in this document is
-presentation: names, units and copy. Engine identifiers (`NodeKind` literals, `NodeConfig`
+system. The engine remains a pure queueing network, which is what _The Goal_ describes. Work items arrive, wait in line, get worked on by people with limited hands, wait on
+other people, get reworked, and sometimes get dropped. The startup framing changes names, units and copy. The optional intake controls below extend
+workloads while preserving existing default runs. Engine identifiers (`NodeKind` literals, `NodeConfig`
 fields) stay as they are, because saved designs, the share format and pinned tests depend on them.
 
 ## Time scale
@@ -136,3 +135,17 @@ point reads as time left to fix the constraint. Two assumptions, both stated in 
 incoming work grows in step with customers (`scaled` multiplies every source), and each row holds
 work steady at its size, so the rate dates a row and changes nothing the run measures. Revenue and
 customer counts are not modelled.
+
+## Intake patterns and concentration
+
+The original patterns and saved designs keep their engine identifiers. New optional controls add:
+
+- **Clustered arrivals** (`bursty`): random groups at the same expected weekly volume as steady intake. Group size changes how uneven the arrivals are.
+- **Synchronized intake** (`herd`): a fixed batch at each cycle boundary, in addition to normal weekly intake. Spreading a batch staggers its tasks over working time; it does not reduce its size.
+- **Account concentration** (`keySkew`): work is distributed across 64 model accounts. A positive setting concentrates work on popular accounts. The inspector distinguishes the configured distribution from the measured share arriving at a team with account owners.
+
+`trafficPeriodS` reads as working weeks. `herdSpreadMs` uses the same working-time conversion as all other durations. A ramp selected during a run starts climbing at that selection; ramps saved at the beginning retain their original replay behavior.
+
+The load multiple compares current configured intake with the design's baseline. A separate “now” reading reports actual arrivals when an intake pattern is active. Playback speed changes how quickly working weeks pass, not the offered workload.
+
+Connection colours come from measured outcomes. Moving dots represent their shares and relative volume; neither the dot count nor its travel speed measures individual tasks or cycle time. Reduced motion shows the same shares as static bars.
