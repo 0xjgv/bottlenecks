@@ -45,6 +45,7 @@ const GROUPS: Group[] = [
       { keys: ['Space'], does: 'Play or pause' },
       { keys: ['S'], does: 'Step half a working day (pauses first)' },
       { keys: ['F'], does: 'Can you break it?' },
+      { keys: ['[', ']'], does: 'Play slower or faster' },
     ],
   },
   {

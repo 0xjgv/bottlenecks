@@ -1,3 +1,5 @@
+import { SpeedMeter, advanceAtSpeed, shortfall, stepSpeed, type Speed } from './speed';
+import type { PinnedRun } from './components/pinnedRun';
 import { revealTarget } from './revealTarget';
 import {
   useCallback,
@@ -1252,6 +1254,24 @@ export default function App() {
     runningRef.current = running;
   }, [running]);
 
+  /* Play speed (speed.ts). A preference of this tab, not of the design: it
+     is in no link and no saved file, and each browser visit starts at 1x. The loop
+     reads the ref; `slowAt` is the speed this machine really manages, shown
+     only when it falls clearly short of the one asked for. */
+  const [speed, setSpeedState] = useState<Speed>(1);
+  const [slowAt, setSlowAt] = useState<number | null>(null);
+  const speedRef = useRef<Speed>(1);
+  const speedMeterRef = useRef(new SpeedMeter());
+  const setSpeed = useCallback((next: Speed) => {
+    speedRef.current = next;
+    speedMeterRef.current.clear();
+    setSpeedState(next);
+    setSlowAt(null);
+  }, []);
+
+  /* A run held still to compare against (PinBar). Session only. */
+  const [pinned, setPinned] = useState<PinnedRun | null>(null);
+
   /* ---------------- per-node sparkline history ----------------
    *
    * `SimSnapshot.history` is system-wide — `HistoryPoint` carries no node id —
@@ -1322,7 +1342,29 @@ export default function App() {
       if (!runningRef.current) return;
 
       // Clamp so a long tab-away does not replay minutes of simulated time.
-      engine.advance(Math.min(dt, MAX_FRAME_MS));
+      const frameMs = Math.min(dt, MAX_FRAME_MS);
+      const s = speedRef.current;
+      if (s === 1) {
+        engine.advance(frameMs);
+      } else {
+        const done = advanceAtSpeed(
+          (d) => engine.advance(d),
+          frameMs,
+          s,
+          () => performance.now(),
+        );
+        // At most once a second, and only when what is shown would change.
+        const measured = speedMeterRef.current.add(done, frameMs);
+        if (measured !== null) {
+          const short = shortfall(s, measured);
+          setSlowAt((prev) =>
+            prev === short ||
+            (prev !== null && short !== null && Math.abs(prev - short) < 0.05)
+              ? prev
+              : short,
+          );
+        }
+      }
 
       // React re-renders at ~10Hz, not once per frame. The engine keeps
       // full temporal resolution regardless.
@@ -1589,6 +1631,7 @@ export default function App() {
       setRoutes(engine.routes());
       // An answer read from the run that just ended would carry its numbers.
       setFinding(null);
+      setPinned(null);
       if (fit) {
         setRailMadeRoom(false);
         setFitNonce((n) => n + 1);
@@ -3711,6 +3754,11 @@ export default function App() {
          * alone. The two do not fight: this is the standing setting, that
          * is the momentary override.
          */
+        if (e.key === '[' || e.key === ']') {
+          e.preventDefault();
+          setSpeed(stepSpeed(speedRef.current, e.key === ']' ? 1 : -1));
+          return;
+        }
         /* F for "Can you break it?". B was taken by the section tool. */
         if ((e.key === 'f' || e.key === 'F') && !challengeLiveRef.current) {
           if (breakBlockedRef.current === null) {
@@ -3745,6 +3793,7 @@ export default function App() {
     toggleMetrics,
     toggleInspector,
     hasSelection,
+    setSpeed,
   ]);
 
   /* ---------------- derived ---------------- */
@@ -3985,6 +4034,9 @@ export default function App() {
           <TrafficControl
             rps={offeredRps}
             onRpsChange={handleRpsChange}
+            speed={speed}
+            slowAt={slowAt}
+            onSpeedChange={setSpeed}
             running={running}
             onToggleRun={handleToggleRun}
             onStep={handleStep}
@@ -4405,6 +4457,14 @@ export default function App() {
           >
             {snapshot ? (
               <Metrics
+                pin={pinned}
+                onPin={setPinned}
+                rps={offeredRps}
+                measures={{
+                  delivered: deliveredRps(topology, snapshot),
+                  unfinished: unfinishedWork(topology, snapshot),
+                  people: peopleCount(topology, snapshot),
+                }}
                 snapshot={snapshot}
                 nodeNames={nodeNames}
                 nodes={topology.nodes}

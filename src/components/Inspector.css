@@ -1274,3 +1274,14 @@
   cursor: not-allowed;
   transform: none;
 }
+
+.transport-speed {
+  width: 36px;
+  padding: 0;
+  font-size: var(--fs-sm);
+  letter-spacing: -0.02em;
+}
+
+.transport-speed.is-short {
+  color: var(--warn);
+}

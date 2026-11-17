@@ -1,3 +1,5 @@
+import { useCoarsePointer } from '../useCoarsePointer';
+import { cycleSpeed, formatSpeed, type Speed } from '../speed';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 /*
@@ -3544,6 +3546,9 @@ const ARROW_DIR: Readonly<Record<string, 1 | -1>> = {
 const SCALE_MARKS = [1, 10, 100, 1000, 5000];
 
 export interface TrafficControlProps {
+  speed?: Speed;
+  slowAt?: number | null;
+  onSpeedChange?: (speed: Speed) => void;
   rps: number;
   onRpsChange: (rps: number) => void;
   running: boolean;
@@ -3598,7 +3603,50 @@ export interface TrafficControlProps {
   locked?: boolean;
 }
 
+/** "2 times", for a screen reader that would read "×" as a letter. */
+const spokenSpeed = (x: number) => `${formatSpeed(x).replace('×', '')} times`;
+
+/**
+ * Play speed, as one button that steps round 0.5x, 1x, 2x and 4x. One button
+ * rather than four: the bar is the scarcest width in the app, and [ and ]
+ * step either way from the keyboard. When this machine cannot keep up, the
+ * button shows the speed it really runs at rather than the one asked for.
+ */
+function SpeedButton({
+  speed,
+  slowAt,
+  coarse,
+  onChange,
+}: {
+  speed: Speed;
+  slowAt: number | null;
+  coarse: boolean;
+  onChange: (speed: Speed) => void;
+}) {
+  const next = cycleSpeed(speed);
+  const shown = slowAt ?? speed;
+  const keys = coarse ? '' : ' ([ slower, ] faster)';
+  return (
+    <button
+      type="button"
+      className={`btn num transport-speed${slowAt === null ? '' : ' is-short'}`}
+      onClick={() => onChange(next)}
+      aria-label={`Speed ${spokenSpeed(speed)}. Press for ${spokenSpeed(next)}`}
+      title={
+        slowAt === null
+          ? `Speed ${formatSpeed(speed)}${keys}`
+          : `Set to ${formatSpeed(speed)}. This design runs at ${formatSpeed(slowAt)} on this machine.`
+      }
+    >
+      {formatSpeed(shown)}
+    </button>
+  );
+}
+
 export function TrafficControl({
+  speed = 1,
+  slowAt = null,
+  onSpeedChange,
   rps,
   onRpsChange,
   running,
@@ -3614,6 +3662,7 @@ export function TrafficControl({
   noTrafficSource,
   locked = false,
 }: TrafficControlProps) {
+  const coarse = useCoarsePointer();
   const sliderId = useId();
 
   const errTone = toneClass(healthOfErr(system.errorRate));
@@ -3847,6 +3896,14 @@ export function TrafficControl({
         >
           <RotateCcw size={16} aria-hidden="true" />
         </button>
+        {onSpeedChange ? (
+          <SpeedButton
+            speed={speed}
+            slowAt={slowAt}
+            coarse={coarse}
+            onChange={onSpeedChange}
+          />
+        ) : null}
       </div>
 
       {/* The measures: what the company finishes a week, what it holds
@@ -3893,6 +3950,12 @@ export function TrafficControl({
           )}
         </div>
       )}
+      {onSpeedChange ? (
+        <span
+          className="sr-only"
+          aria-live="polite"
+        >{`Speed ${spokenSpeed(speed)}`}</span>
+      ) : null}
     </div>
   );
 }

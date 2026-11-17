@@ -21,6 +21,11 @@ import { routeCondition } from './routeHealth';
 import { useSettledHealth } from './settledHealth';
 import { Term } from './Tooltip';
 import { Trace } from './Trace';
+import { HoverMarks } from './ChartHover';
+import { useChartHover } from './useChartHover';
+import { formatAt, nearestBy } from './chartReadout';
+import { PinBar } from './PinBar';
+import { pinInWindow, pinRun, type PinnedRun, type RunMeasures } from './pinnedRun';
 import './Metrics.css';
 
 /* ------------------------------------------------------------------ *
@@ -237,7 +242,7 @@ function yOf(v: number, top: number): number {
  * polyline still renders a visible mark rather than nothing at all.
  */
 function polyline(
-  history: HistoryPoint[],
+  history: readonly HistoryPoint[],
   xAt: (t: number) => number,
   value: (p: HistoryPoint) => number,
   top: number,
@@ -248,6 +253,72 @@ function polyline(
   );
   if (pts.length === 1) return `${pts[0]} ${pts[0]}`;
   return pts.join(' ');
+}
+
+/**
+ * The pinned run's samples inside the window `history` is drawn over, so the
+ * pin lines up with the live trace by run time.
+ */
+function useGhost(
+  pin: PinnedRun | null | undefined,
+  history: HistoryPoint[],
+): readonly HistoryPoint[] {
+  return useMemo(() => {
+    const n = history.length;
+    if (!pin || n === 0) return [];
+    const tEnd = history[n - 1]!.t;
+    return pinInWindow(pin, tEnd - WINDOW_MS, tEnd);
+  }, [pin, history]);
+}
+
+/** The pin's own legend key: a dotted rule and when it was taken. */
+function PinKey({ on }: { on: boolean }) {
+  if (!on) return null;
+  return (
+    <li className="mx-key">
+      <span className="mx-key-line mx-key-pin" aria-hidden="true" />
+      <span className="mx-key-name">earlier run</span>
+    </li>
+  );
+}
+
+/** A sample's x in px across a plot box `w` wide, from the window's `at`. */
+function pxAcross(at: (t: number) => number, w: number): (t: number) => number {
+  const plotW = Math.max(1, w - PAD_L - PAD_R);
+  return (t) => PAD_L + (at(t) / PLOT_W) * plotW;
+}
+
+/** A value's y in px down the plot box, on the same scale as the trace. */
+function pyOf(v: number, top: number): number {
+  return PAD_T + (yOf(v, top) / PLOT_H) * (CHART_H - PAD_T - PAD_B);
+}
+
+/** The readout's marks for one sample, or nothing while none is read. */
+function Marks({
+  t,
+  x,
+  w,
+  dots,
+  value,
+}: {
+  t: number | null;
+  x: (t: number) => number;
+  w: number;
+  dots: readonly { y: number; className: string }[];
+  value?: string;
+}) {
+  if (t === null) return null;
+  return (
+    <HoverMarks
+      x={x(t)}
+      t={t}
+      top={PAD_T}
+      bottom={CHART_H - PAD_B}
+      w={w}
+      dots={dots}
+      value={value}
+    />
+  );
 }
 
 /** Measure a node's content-box width in real pixels. */
@@ -359,6 +430,10 @@ interface FrameProps {
   empty: boolean;
   /** Overrides the default "AWAITING TRAFFIC" placeholder. */
   emptyLabel?: string;
+  /** Run time of the newest sample in ms, or null before the first. The
+   *  axis is labelled in run time, the clock the readout, the pin and the
+   *  timeline all use. */
+  tEnd?: number | null;
 }
 
 /**
@@ -373,6 +448,7 @@ const Frame = memo(function Frame({
   w,
   empty,
   emptyLabel = 'Waiting for work',
+  tEnd = null,
 }: FrameProps) {
   const plotH = CHART_H - PAD_T - PAD_B;
   const right = Math.max(PAD_L + 1, w - PAD_R);
@@ -433,9 +509,7 @@ const Frame = memo(function Frame({
         y2={baseY}
       />
 
-      <text className="mx-xlabel" x={PAD_L} y={CHART_H - 8}>
-        {WINDOW_MS / MS_PER_WEEK}wk ago
-      </text>
+      <StartLabel tEnd={tEnd} left={PAD_L} right={right} />
       <text className="mx-xlabel" x={right} y={CHART_H - 8} textAnchor="end">
         now
       </text>
@@ -454,6 +528,33 @@ const Frame = memo(function Frame({
     </>
   );
 });
+
+/** Room the left run-time label leaves for "now" at the right, in px. */
+const NOW_ROOM = 56;
+
+/**
+ * The run time at the left of the window. Before a minute has run, the
+ * window starts before the run did, so "0s" is written where the run began.
+ */
+function StartLabel({
+  tEnd,
+  left,
+  right,
+}: {
+  tEnd: number | null;
+  left: number;
+  right: number;
+}) {
+  if (tEnd === null || !Number.isFinite(tEnd)) return null;
+  const start = tEnd - WINDOW_MS;
+  const x = start >= 0 ? left : left + (-start / WINDOW_MS) * (right - left);
+  if (x > right - NOW_ROOM) return null;
+  return (
+    <text className="mx-xlabel num" x={x} y={CHART_H - 8}>
+      {`${Math.round(Math.max(0, start) / MS_PER_WEEK)}wk`}
+    </text>
+  );
+}
 
 /** The stretched geometry layer, inset to the plot area. */
 function PlotLayer({ w, children }: { w: number; children: React.ReactNode }) {
@@ -490,6 +591,8 @@ interface LatencyChartProps {
   emptyLabel: string;
   /** Sim time of the snapshot, which steps the settled tone. */
   timeMs: number;
+  /** A pinned run, drawn as a dotted p99 on the same axes. */
+  pin?: PinnedRun | null;
 }
 
 const LatencyChart = memo(function LatencyChart({
@@ -500,15 +603,19 @@ const LatencyChart = memo(function LatencyChart({
   measured,
   emptyLabel,
   timeMs,
+  pin,
 }: LatencyChartProps) {
   const { ref, w } = useMeasuredWidth<HTMLDivElement>();
   const { at } = useXScale(history);
+  const ghost = useGhost(pin, history);
 
   const max = useMemo(() => {
     let m = 0;
     for (const p of history) if (Number.isFinite(p.p99) && p.p99 > m) m = p.p99;
+    // The axis holds the pin too, or a slower pinned run would be cut off.
+    for (const p of ghost) if (Number.isFinite(p.p99) && p.p99 > m) m = p.p99;
     return m;
-  }, [history]);
+  }, [history, ghost]);
 
   const { top, ticks } = useStickyAxis(max, 100);
 
@@ -517,8 +624,16 @@ const LatencyChart = memo(function LatencyChart({
       p50: polyline(history, at, (p) => p.p50, top),
       p95: polyline(history, at, (p) => p.p95, top),
       p99: polyline(history, at, (p) => p.p99, top),
+      // A pinned second with nothing completing has no p99 to draw, the
+      // same rule as the live trace's readout.
+      pin: polyline(
+        ghost.filter((p) => !(p.p99 === 0 && p.goodput === 0)),
+        at,
+        (p) => p.p99,
+        top,
+      ),
     }),
-    [history, at, top],
+    [history, at, top, ghost],
   );
 
   // The chart line and the headline number are toned by the same
@@ -529,6 +644,15 @@ const LatencyChart = memo(function LatencyChart({
   // The frame always renders; the message only claims "no data" when
   // there genuinely is none. A single sample draws its own mark.
   const empty = history.length === 0;
+
+  const xPx = useMemo(() => pxAcross(at, w), [at, w]);
+  const hover = useChartHover(history, xPx, ref);
+  const hs = hover.index >= 0 ? history[hover.index]! : null;
+  // A sample with nothing succeeding has no latency, the same rule as live.
+  const hsMeasured = hs !== null && !(hs.p99 === 0 && hs.goodput === 0);
+  const read = (live: number, pick: (p: HistoryPoint) => number) =>
+    hs ? (hsMeasured ? formatMs(pick(hs)) : NA) : ms(live);
+  const dim = hs ? !hsMeasured : !measured;
 
   return (
     <section
@@ -545,8 +669,17 @@ const LatencyChart = memo(function LatencyChart({
         unmeasured={!measured}
       />
 
-      <div className="mx-plot" ref={ref} style={{ height: CHART_H }}>
+      <div
+        className="mx-plot"
+        ref={ref}
+        style={{ height: CHART_H }}
+        aria-label="Cycle time chart. Arrow keys read each sample."
+        {...hover.plotProps}
+      >
         <PlotLayer w={w}>
+          {paths.pin ? (
+            <polyline className="mx-line mx-line-pin" points={paths.pin} />
+          ) : null}
           <polyline className="mx-line mx-line-p50" points={paths.p50} />
           <polyline className="mx-line mx-line-p95" points={paths.p95} />
           <polyline
@@ -562,9 +695,25 @@ const LatencyChart = memo(function LatencyChart({
             format={formatMs}
             w={w}
             empty={empty}
+            tEnd={history[history.length - 1]?.t ?? null}
             emptyLabel={emptyLabel}
           />
         </svg>
+        <Marks
+          t={hs?.t ?? null}
+          x={xPx}
+          w={w}
+          dots={
+            hs && hsMeasured
+              ? [
+                  { y: pyOf(hs.p50, top), className: 'mx-line-p50' },
+                  { y: pyOf(hs.p95, top), className: 'mx-line-p95' },
+                  { y: pyOf(hs.p99, top), className: 'mx-line-p99' },
+                ]
+              : []
+          }
+          value={hs ? `p99 ${read(p99, (p) => p.p99)}` : undefined}
+        />
       </div>
 
       <ul className="mx-legend">
@@ -572,27 +721,48 @@ const LatencyChart = memo(function LatencyChart({
           className="mx-key-p50"
           name="p50"
           term="p50"
-          value={ms(p50)}
-          dim={!measured}
+          value={read(p50, (p) => p.p50)}
+          dim={dim}
         />
         <LegendKey
           className="mx-key-p95"
           name="p95"
           term="p95"
-          value={ms(p95)}
-          dim={!measured}
+          value={read(p95, (p) => p.p95)}
+          dim={dim}
         />
         <LegendKey
-          className="mx-key-p99"
+          className={`mx-key-p99 ${toneClass(tone)}`}
           name="p99"
           term="p99"
-          value={ms(p99)}
-          dim={!measured}
+          value={read(p99, (p) => p.p99)}
+          dim={dim}
         />
+        <PinKey on={paths.pin !== ''} />
       </ul>
+      <Announce
+        on={hover.keyed}
+        text={
+          hs
+            ? `${formatAt(hs.t)}: p50 ${read(p50, (p) => p.p50)}, p95 ${read(p95, (p) => p.p95)}, p99 ${read(p99, (p) => p.p99)}`
+            : ''
+        }
+      />
     </section>
   );
 });
+
+/**
+ * What the keys are reading, said aloud. Pointer reading is not announced:
+ * it moves with the mouse and would talk over everything.
+ */
+function Announce({ on, text }: { on: boolean; text: string }) {
+  return (
+    <p className="sr-only" aria-live="polite">
+      {on ? text : ''}
+    </p>
+  );
+}
 
 function LegendKey({
   className,
@@ -641,6 +811,8 @@ interface ThroughputChartProps {
    */
   lost: number;
   emptyLabel: string;
+  /** A pinned run, drawn as a dotted goodput on the same axes. */
+  pin?: PinnedRun | null;
 }
 
 const ThroughputChart = memo(function ThroughputChart({
@@ -649,9 +821,11 @@ const ThroughputChart = memo(function ThroughputChart({
   goodput,
   lost,
   emptyLabel,
+  pin,
 }: ThroughputChartProps) {
   const { ref, w } = useMeasuredWidth<HTMLDivElement>();
   const { at } = useXScale(history);
+  const ghost = useGhost(pin, history);
 
   const max = useMemo(() => {
     let m = 0;
@@ -659,10 +833,17 @@ const ThroughputChart = memo(function ThroughputChart({
       if (Number.isFinite(p.offered) && p.offered > m) m = p.offered;
       if (Number.isFinite(p.goodput) && p.goodput > m) m = p.goodput;
     }
+    for (const p of ghost)
+      if (Number.isFinite(p.goodput) && p.goodput > m) m = p.goodput;
     return m;
-  }, [history]);
+  }, [history, ghost]);
 
   const { top, ticks } = useStickyAxis(max, 10);
+
+  const pinPts = useMemo(
+    () => polyline(ghost, at, (p) => p.goodput, top),
+    [ghost, at, top],
+  );
 
   const { offeredPts, goodputPts, gapPts } = useMemo(() => {
     const o = polyline(history, at, (p) => p.offered, top);
@@ -698,6 +879,15 @@ const ThroughputChart = memo(function ThroughputChart({
   // read as "measured, and nothing got through".
   const rate = (v: number) => (empty ? NA : formatCompact(v));
 
+  const xPx = useMemo(() => pxAcross(at, w), [at, w]);
+  const hover = useChartHover(history, xPx, ref);
+  const hs = hover.index >= 0 ? history[hover.index]! : null;
+  /* A sample keeps the share of settled requests that failed, not a lost
+     rate, so that is what its "lost" reads. With nothing settled in it
+     there is no share at all. */
+  const hsSettled = hs !== null && (hs.goodput > 0 || hs.errorRate > 0);
+  const lostValue = hs ? (hsSettled ? formatPct(hs.errorRate) : NA) : rate(dropped);
+
   return (
     <section
       className="mx-chart"
@@ -722,9 +912,16 @@ const ThroughputChart = memo(function ThroughputChart({
         }
       />
 
-      <div className="mx-plot" ref={ref} style={{ height: CHART_H }}>
+      <div
+        className="mx-plot"
+        ref={ref}
+        style={{ height: CHART_H }}
+        aria-label="Work finished chart. Arrow keys read each sample."
+        {...hover.plotProps}
+      >
         <PlotLayer w={w}>
           {gapPts && <polygon className="mx-gap" points={gapPts} />}
+          {pinPts ? <polyline className="mx-line mx-line-pin" points={pinPts} /> : null}
           <polyline className="mx-line mx-line-offered" points={offeredPts} />
           <polyline className="mx-line mx-line-goodput" points={goodputPts} />
         </PlotLayer>
@@ -736,9 +933,24 @@ const ThroughputChart = memo(function ThroughputChart({
             format={formatCompact}
             w={w}
             empty={empty}
+            tEnd={history[history.length - 1]?.t ?? null}
             emptyLabel={emptyLabel}
           />
         </svg>
+        <Marks
+          t={hs?.t ?? null}
+          x={xPx}
+          w={w}
+          dots={
+            hs
+              ? [
+                  { y: pyOf(hs.offered, top), className: 'mx-line-offered' },
+                  { y: pyOf(hs.goodput, top), className: 'mx-line-goodput' },
+                ]
+              : []
+          }
+          value={hs ? `${formatCompact(hs.goodput)}/wk finished` : undefined}
+        />
       </div>
 
       <ul className="mx-legend">
@@ -746,24 +958,33 @@ const ThroughputChart = memo(function ThroughputChart({
           className="mx-key-offered"
           name="arriving"
           term="offered"
-          value={rate(safeOffered)}
-          dim={empty}
+          value={hs ? formatCompact(hs.offered) : rate(safeOffered)}
+          dim={!hs && empty}
         />
         <LegendKey
           className="mx-key-goodput"
           name="done"
           term="goodput"
-          value={rate(safeGoodput)}
-          dim={empty}
+          value={hs ? formatCompact(hs.goodput) : rate(safeGoodput)}
+          dim={!hs && empty}
         />
         <LegendKey
           className="mx-key-gap"
           name="lost"
           term="dropped"
-          value={rate(dropped)}
-          dim={!live}
+          value={lostValue}
+          dim={hs ? !(hs.errorRate > 0) : !live}
         />
+        <PinKey on={pinPts !== ''} />
       </ul>
+      <Announce
+        on={hover.keyed}
+        text={
+          hs
+            ? `${formatAt(hs.t)}: arriving ${formatCompact(hs.offered)} a week, finished ${formatCompact(hs.goodput)} a week, lost ${lostValue}`
+            : ''
+        }
+      />
     </section>
   );
 });
@@ -853,6 +1074,16 @@ interface FailSample {
   by: Record<FailureReason, number>;
 }
 
+/** The reasons carrying traffic in a mix, the largest first. */
+function failingRows(by: Record<FailureReason, number>) {
+  const rows = REASON_ORDER.map((reason) => {
+    const raw = by[reason];
+    return { reason, rate: Number.isFinite(raw) && raw > 0 ? raw : 0 };
+  }).filter((r) => r.rate > 0);
+  rows.sort((a, b) => b.rate - a.rate);
+  return rows;
+}
+
 interface FailureChartProps {
   samples: FailSample[];
   failures: Record<FailureReason, number>;
@@ -887,14 +1118,7 @@ const FailureChart = memo(function FailureChart({
 
      Sorting by rate is what makes a failing system legible at a glance:
      the first row is the answer to "what is going wrong". */
-  const active = useMemo(() => {
-    const rows = REASON_ORDER.map((reason) => {
-      const raw = failures[reason];
-      return { reason, rate: Number.isFinite(raw) && raw > 0 ? raw : 0 };
-    }).filter((r) => r.rate > 0);
-    rows.sort((a, b) => b.rate - a.rate);
-    return rows;
-  }, [failures]);
+  const active = useMemo(() => failingRows(failures), [failures]);
 
   const total = useMemo(() => active.reduce((s, r) => s + r.rate, 0), [active]);
 
@@ -918,16 +1142,15 @@ const FailureChart = memo(function FailureChart({
 
   const { top, ticks } = useStickyAxis(max, 1);
 
-  const xAt = useMemo(() => {
-    const n = samples.length;
-    if (n === 0) return () => 0;
-    const tEnd = samples[n - 1]!.t;
-    const tStart = tEnd - WINDOW_MS;
-    return (t: number) => {
-      const f = (t - tStart) / WINDOW_MS;
+  const failureEnd = samples.at(-1)?.t;
+  const xAt = useCallback(
+    (t: number) => {
+      if (failureEnd === undefined) return 0;
+      const f = (t - (failureEnd - WINDOW_MS)) / WINDOW_MS;
       return Number.isFinite(f) ? Math.max(0, Math.min(1, f)) * PLOT_W : 0;
-    };
-  }, [samples]);
+    },
+    [failureEnd],
+  );
 
   /**
    * Stacked bands, bottom to top. Each band is a closed polygon: its own
@@ -987,7 +1210,15 @@ const FailureChart = memo(function FailureChart({
   const windowHadFailures = useMemo(() => bands.length > 0, [bands]);
 
   const empty = samples.length === 0 || noTraffic;
+
+  const xPx = useMemo(() => pxAcross(xAt, w), [xAt, w]);
+  const hover = useChartHover(samples, xPx, ref);
+  const hs = !empty && hover.index >= 0 ? samples[hover.index]! : null;
+  // Read out, the legend lists the sample's own mix rather than the live one.
+  const rows = useMemo(() => (hs ? failingRows(hs.by) : active), [hs, active]);
+  const rowsTotal = useMemo(() => rows.reduce((s, r) => s + r.rate, 0), [rows]);
   const healthy = total <= 0;
+  const quiet = hs ? rowsTotal <= 0 : healthy;
 
   return (
     <section
@@ -1004,7 +1235,13 @@ const FailureChart = memo(function FailureChart({
         unmeasured={healthy && empty}
       />
 
-      <div className="mx-plot" ref={ref} style={{ height: CHART_H }}>
+      <div
+        className="mx-plot"
+        ref={ref}
+        style={{ height: CHART_H }}
+        aria-label="Failed work chart. Arrow keys read each week."
+        {...hover.plotProps}
+      >
         <PlotLayer w={w}>
           {bands.map((b) => (
             <polygon
@@ -1022,9 +1259,23 @@ const FailureChart = memo(function FailureChart({
             format={formatCompact}
             w={w}
             empty={empty}
+            tEnd={samples[samples.length - 1]?.t ?? null}
             emptyLabel={emptyLabel}
           />
         </svg>
+        <Marks
+          t={hs?.t ?? null}
+          x={xPx}
+          w={w}
+          dots={hs ? [{ y: pyOf(rowsTotal, top), className: 'mx-line-p99' }] : []}
+          value={
+            hs
+              ? rowsTotal > 0
+                ? `${formatRate(rowsTotal)} failing`
+                : 'none failing'
+              : undefined
+          }
+        />
       </div>
 
       {/* THE HEALTHY CASE IS ONE LINE, NOT FIVE ZEROS.
@@ -1034,21 +1285,23 @@ const FailureChart = memo(function FailureChart({
           block of dead space in the app, and it also trained the eye to
           skip the panel — so when a row finally went non-zero, nobody was
           looking at it any more. */}
-      {healthy ? (
+      {quiet ? (
         <p className="mx-clean">
-          {empty
-            ? idleText
-            : windowHadFailures
-              ? 'Recovered. Nothing is failing now.'
-              : `Nothing has failed in the last ${WINDOW_TEXT}.`}
+          {hs
+            ? `Nothing was failing ${formatAt(hs.t)}.`
+            : empty
+              ? idleText
+              : windowHadFailures
+                ? 'Recovered. Nothing is failing now.'
+                : `Nothing has failed in the last ${WINDOW_TEXT}.`}
         </p>
       ) : (
         <ul className="mx-legend mx-legend-stack">
-          {active.map((r) => {
-            /* Share of the current failure mix. `total` is > 0 here by the
-               `healthy` guard above, but the division is still written
+          {rows.map((r) => {
+            /* Share of the failure mix being read. `rowsTotal` is > 0 here
+               by the `quiet` guard above, but the division is still written
                defensively because this is a rendered number. */
-            const share = total > 0 ? r.rate / total : 0;
+            const share = rowsTotal > 0 ? r.rate / rowsTotal : 0;
             return (
               <li key={r.reason} className="mx-key mx-key-fail">
                 <span
@@ -1078,6 +1331,16 @@ const FailureChart = memo(function FailureChart({
           })}
         </ul>
       )}
+      <Announce
+        on={hover.keyed}
+        text={
+          hs
+            ? rows.length === 0
+              ? `Nothing was failing ${formatAt(hs.t)}`
+              : `${formatAt(hs.t)}: ${rows.map((r) => `${REASON_LABEL[r.reason]} ${formatRate(r.rate)}`).join(', ')}`
+            : ''
+        }
+      />
     </section>
   );
 });
@@ -1190,6 +1453,55 @@ const RouteChart = memo(function RouteChart({
 
   const empty = windowed.every(({ points }) => points.length === 0);
 
+  const xPx = useMemo(() => pxAcross(at, w), [at, w]);
+  const hover = useChartHover(history, xPx, ref);
+  const hs = !empty && hover.index >= 0 ? history[hover.index]! : null;
+  /* Each route records a point at the same moment as the system sample, so
+     the one read is the one with that exact time. A route added later has
+     none, and says so rather than borrowing a neighbour's. */
+  const pointAt = (points: readonly RoutePoint[]): RoutePoint | null => {
+    if (!hs) return null;
+    const i = nearestBy(points, (p) => p.t, hs.t);
+    return i >= 0 && points[i]!.t === hs.t ? points[i]! : null;
+  };
+  const sampled = (points: readonly RoutePoint[]): string => {
+    const p = pointAt(points);
+    if (!p) return NA;
+    const v = value(p);
+    if (!Number.isFinite(v)) return mode === 'failing' ? 'idle' : 'none';
+    return mode === 'failing' ? formatPct(p.errorRate) : formatMs(p.p99);
+  };
+  const dots = hs
+    ? windowed.flatMap(({ points }, i) => {
+        const p = pointAt(points);
+        const v = p ? value(p) : Number.NaN;
+        return Number.isFinite(v)
+          ? [{ y: pyOf(v, top), className: `mx-line mx-route-${i % ROUTE_STYLES}` }]
+          : [];
+      })
+    : [];
+
+  /* Beside the rule, the source doing worst at that sample: the legend is
+     below the strip's fold on desktop, and naming every source would not
+     fit on the plot. */
+  const worstAt = (): string | undefined => {
+    if (!hs) return undefined;
+    let worst = -1;
+    let worstV = Number.NEGATIVE_INFINITY;
+    for (let i = 0; i < windowed.length; i++) {
+      const p = pointAt(windowed[i]!.points);
+      const v = p ? value(p) : Number.NaN;
+      if (Number.isFinite(v) && v > worstV) {
+        worst = i;
+        worstV = v;
+      }
+    }
+    if (worst < 0) return undefined;
+    const name = nameOf(series[worst]!.route.clientId);
+    const short = name.length > 14 ? `${name.slice(0, 13)}…` : name;
+    return `${short} ${sampled(windowed[worst]!.points)}`;
+  };
+
   /* The legend reads the live figure, not the last chart sample, so it
      agrees with the client card on the canvas. A route with nothing settled
      has no share failing, and one with nothing succeeding has no p99. */
@@ -1229,7 +1541,13 @@ const RouteChart = memo(function RouteChart({
         </span>
       </header>
 
-      <div className="mx-plot" ref={ref} style={{ height: CHART_H }}>
+      <div
+        className="mx-plot"
+        ref={ref}
+        style={{ height: CHART_H }}
+        aria-label="Work source chart. Arrow keys read each sample."
+        {...hover.plotProps}
+      >
         <PlotLayer w={w}>
           {series.map((sr) => (
             <path
@@ -1247,12 +1565,14 @@ const RouteChart = memo(function RouteChart({
             format={mode === 'failing' ? formatPctTick : formatCompact}
             w={w}
             empty={empty}
+            tEnd={history[history.length - 1]?.t ?? null}
           />
         </svg>
+        <Marks t={hs?.t ?? null} x={xPx} w={w} dots={dots} value={worstAt()} />
       </div>
 
       <ul className="mx-legend mx-legend-routes">
-        {series.map((sr) => (
+        {series.map((sr, i) => (
           <li key={sr.route.clientId} className="mx-key mx-key-route">
             <span
               className={`mx-key-line mx-key-route-${sr.style}${sr.hurting ? ' is-danger' : ''}`}
@@ -1262,11 +1582,19 @@ const RouteChart = memo(function RouteChart({
             <span
               className={`num num-sm mx-key-value${sr.hurting ? ' is-danger' : ''}`}
             >
-              {reading(sr.route)}
+              {hs ? sampled(windowed[i]!.points) : reading(sr.route)}
             </span>
           </li>
         ))}
       </ul>
+      <Announce
+        on={hover.keyed}
+        text={
+          hs
+            ? `${formatAt(hs.t)}: ${series.map((sr, i) => `${nameOf(sr.route.clientId)} ${sampled(windowed[i]!.points)}`).join(', ')}`
+            : ''
+        }
+      />
     </section>
   );
 });
@@ -1288,6 +1616,17 @@ export interface MetricsProps {
   routes?: readonly RouteStats[];
   /** Why nothing has been measured yet, when the shell knows. */
   idle?: ChartsIdle;
+  /**
+   * The pinned run and where to keep it. The shell holds it, so it outlives
+   * the strip closing and the phone's tabs; without `onPin` there is no pin
+   * row at all.
+   */
+  pin?: PinnedRun | null;
+  /** The slider's load, for the pin's label and its goodput verdict. */
+  rps?: number;
+  onPin?: (run: PinnedRun | null) => void;
+  /** The same measured startup figures shown in the top bar. */
+  measures?: RunMeasures;
 }
 
 /**
@@ -1311,7 +1650,16 @@ const EMPTY_BY: Record<FailureReason, number> = Object.fromEntries(
   REASON_ORDER.map((r) => [r, 0]),
 ) as Record<FailureReason, number>;
 
-export function Metrics({ snapshot, nodeNames, routes, idle }: MetricsProps) {
+export function Metrics({
+  snapshot,
+  nodeNames,
+  routes,
+  idle,
+  pin = null,
+  rps = 0,
+  onPin,
+  measures,
+}: MetricsProps) {
   const { system, history, failuresByReason } = snapshot;
 
   /* The trace names nodes by id; the reader knows them by the label on the
@@ -1467,6 +1815,17 @@ export function Metrics({ snapshot, nodeNames, routes, idle }: MetricsProps) {
 
   return (
     <div className="mx">
+      {onPin ? (
+        <PinBar
+          pin={pin}
+          system={system}
+          rps={rps}
+          measures={measures}
+          canPin={!noTraffic}
+          onPin={() => onPin(pinRun(system, windowed, rps, measures))}
+          onClear={() => onPin(null)}
+        />
+      ) : null}
       <LatencyChart
         history={plotted}
         p50={system.p50}
@@ -1475,6 +1834,7 @@ export function Metrics({ snapshot, nodeNames, routes, idle }: MetricsProps) {
         measured={!noTraffic && !(system.p99 === 0 && system.goodputRps === 0)}
         emptyLabel={emptyLabel}
         timeMs={system.timeMs}
+        pin={pin}
       />
       <ThroughputChart
         history={plotted}
@@ -1482,6 +1842,7 @@ export function Metrics({ snapshot, nodeNames, routes, idle }: MetricsProps) {
         goodput={system.goodputRps}
         lost={lostRate}
         emptyLabel={emptyLabel}
+        pin={pin}
       />
       <FailureChart
         samples={failSamples}
