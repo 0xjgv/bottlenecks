@@ -113,6 +113,15 @@ afterEach(() => {
 });
 
 describe('a fault control', () => {
+  it('reopens a dismissed inspector when its selected step is tapped again', () => {
+    mount();
+    selectService();
+    press(must('Hide inspector'));
+    expect(must('Show inspector').getAttribute('aria-expanded')).toBe('false');
+    selectService();
+    expect(must('Hide inspector').getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('is undone by the Undo button and redone by Redo', () => {
     mount();
     selectService();

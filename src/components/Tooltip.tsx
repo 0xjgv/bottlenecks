@@ -274,6 +274,9 @@ function onTriggerFocus(e: React.FocusEvent<HTMLElement>): void {
   const el = e.currentTarget;
   const entry = entryOf(el);
   if (!entry) return;
+  const fromPress = pressFocus === el;
+  pressFocus = null;
+  if (fromPress) return;
   // Keyboard focus is deliberate, so it opens immediately. Tabbing to a term
   // and then waiting almost half a second reads as the app being broken.
   commitOpen({ entry, trigger: el, source: 'focus' });
@@ -281,6 +284,7 @@ function onTriggerFocus(e: React.FocusEvent<HTMLElement>): void {
 
 function onTriggerBlur(e: React.FocusEvent<HTMLElement>): void {
   cancelPendingOpen();
+  pressFocus = null;
   // Focus moving INTO the panel (to reach a "see also" link) must not close
   // the thing being reached.
   const next = e.relatedTarget as Node | null;
@@ -299,9 +303,12 @@ function onTriggerBlur(e: React.FocusEvent<HTMLElement>): void {
  */
 let pressTrigger: HTMLElement | null = null;
 let pressFoundOpen = false;
+/** A pointer press opens on click, after the focus it causes. */
+let pressFocus: HTMLElement | null = null;
 
 function onTriggerPointerDown(e: React.PointerEvent<HTMLElement>): void {
   pressTrigger = e.currentTarget;
+  pressFocus = e.currentTarget;
   // A hover-opened tooltip does not count. The pointer opened it on the way
   // to the click, inside the grace window with no delay at all, so a click
   // that closed it would read as the click doing nothing. Clicking pins it.
@@ -318,6 +325,8 @@ function onTriggerClick(e: React.MouseEvent<HTMLElement>): void {
   const el = e.currentTarget;
   const entry = entryOf(el);
   if (!entry) return;
+  // A definition tap inside a label must not raise the input's keyboard.
+  if (el.closest('label')) e.preventDefault();
   // A click with no press behind it (assistive tech, a synthesised click)
   // falls back to asking what is open now. `detail === 0` is such a click
   // even when a press on this term was dragged off earlier and never clicked,

@@ -1,3 +1,4 @@
+import { trapTab } from '../components/trapTab';
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Check } from 'lucide-react';
@@ -129,7 +130,9 @@ export function LearningPath({
             e.preventDefault();
             e.stopPropagation();
             onClose();
+            return;
           }
+          trapTab(e, cardRef.current);
         }}
         onAnimationEnd={(e) => {
           if (closing && e.target === e.currentTarget) unmount();

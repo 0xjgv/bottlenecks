@@ -1,3 +1,4 @@
+import { trapTab } from './trapTab';
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { Challenge } from '../sim/challenge';
@@ -83,7 +84,9 @@ export function Challenges({
             e.preventDefault();
             e.stopPropagation();
             onClose();
+            return;
           }
+          trapTab(e, cardRef.current);
         }}
         onAnimationEnd={(e) => {
           if (closing && e.target === e.currentTarget) unmount();

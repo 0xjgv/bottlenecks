@@ -96,7 +96,17 @@ import {
 import type { Annotation, AnnotationFont, Note, Section } from '../sim/annotations';
 import { usePreference } from '../content/preferences';
 import { Minimap } from './Minimap';
-import { DETAIL_ZOOM, MINIMAL_ZOOM, fitViewport } from './fit';
+import {
+  DETAIL_ZOOM,
+  MINIMAL_ZOOM,
+  fitViewport,
+  clearOfChrome,
+  detailBand,
+  fitClips,
+  type FitRect,
+} from './fit';
+import { revealPan, REVEAL_PAD, type RevealBox, type RevealPan } from './reveal';
+import type { Reveal } from '../revealTarget';
 import { TITLE_GAP, keepsInView, titleClearPan } from './titleClear';
 import type { Box } from './titleClear';
 import { EmptyCanvas } from './EmptyCanvas';
@@ -377,6 +387,8 @@ export interface CanvasProps {
    * finished set over, so the shell never has to reimplement selection logic.
    */
   onSelectionChange: (ids: ReadonlySet<string>) => void;
+  /** A tap on the selected step reopens its dismissed inspector. */
+  onReselect?: () => void;
   onMoveNode: (id: string, x: number, y: number) => void;
   /**
    * Explicit gesture boundaries around a node drag, for the shell's undo
@@ -537,11 +549,14 @@ export interface CanvasProps {
   breakMarks?: ReadonlyMap<string, number>;
   /** The starting points an empty canvas offers. Omitted, it offers none. */
   emptyActions?: EmptyCanvasProps['actions'];
-  /**
-   * A brief is on screen. A fit may then zoom out past the usual floor
-   * rather than leave a box under the brief's panel; see FIT_MIN_TIGHT.
-   */
-  fitTight?: boolean;
+  /** Use phone fitting limits, including when held sideways. */
+  narrowFit?: boolean;
+  /** Automatic fitting still clips content at the readable zoom floor. */
+  onFitClipped?: () => void;
+  /** Refit untouched framing when the top bar changes height. */
+  frameKey?: number | null;
+  /** The parts a newly opened panel needs to keep visible. */
+  reveal?: Reveal | null;
   /**
    * A node to point at: a ring and a "Here" tag around it, drawn above the
    * nodes and never hit-tested. Set by the shell's "Find the problem", and
@@ -3560,12 +3575,111 @@ interface LinkState {
  * Canvas
  * ------------------------------------------------------------------ */
 
+const REVEAL_DELAY_MS = 220;
+const FIT_CLEAR = '.stage-toggle, .cv-hint-idle, .cv-ledger, .cv-zoom, .fp > button';
+
+/**
+ * The pan that keeps the whole diagram, notes included, inside `room` when
+ * the charts strip rises over the canvas. Null when nothing needs to move.
+ * Too big for the room with its notes, the nodes alone are kept in; too big
+ * even then, the view is left as the reader had it.
+ */
+function contentPan(
+  nodes: readonly SimNode[],
+  annotations: readonly Annotation[],
+  v: { x: number; y: number; k: number },
+  surface: { left: number; top: number },
+  room: RevealBox,
+): RevealPan | null {
+  if (nodes.length === 0) return null;
+  const toBox = (x0: number, y0: number, x1: number, y1: number): RevealBox => ({
+    left: surface.left + x0 * v.k + v.x,
+    top: surface.top + y0 * v.k + v.y,
+    right: surface.left + x1 * v.k + v.x,
+    bottom: surface.top + y1 * v.k + v.y,
+  });
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const n of nodes) {
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + NODE_W);
+    maxY = Math.max(maxY, n.y + NODE_H);
+  }
+  const nodeBox = toBox(minX, minY, maxX, maxY);
+  for (const a of annotations) {
+    if (!isNote(a)) continue;
+    const l = layoutNoteOf(a, a.text);
+    minX = Math.min(minX, a.x);
+    minY = Math.min(minY, a.y);
+    maxX = Math.max(maxX, a.x + l.width);
+    maxY = Math.max(maxY, a.y + l.height);
+  }
+  const allBox = toBox(minX, minY, maxX, maxY);
+  const fits = (b: RevealBox) =>
+    b.right - b.left <= room.right - room.left - REVEAL_PAD * 2 &&
+    b.bottom - b.top <= room.bottom - room.top - REVEAL_PAD * 2;
+  const target = fits(allBox) ? allBox : fits(nodeBox) ? nodeBox : null;
+  if (!target) return null;
+  const pan = revealPan(target, room);
+  return pan.dx === 0 && pan.dy === 0 ? null : pan;
+}
+
+/** The nodes' bounds in world px. */
+function nodeBounds(nodes: readonly SimNode[]) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const n of nodes) {
+    minX = Math.min(minX, n.x);
+    minY = Math.min(minY, n.y);
+    maxX = Math.max(maxX, n.x + NODE_W);
+    maxY = Math.max(maxY, n.y + NODE_H);
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+/**
+ * Whether a panel opening over a diagram that was all on screen should keep
+ * it all on screen: 'pan' when it fits beside the panel at this zoom, 'fit'
+ * when it would need a smaller one, null when it was not all on screen to
+ * begin with. "Before" is the room with its right edge at the surface's,
+ * which is where the inspector opens.
+ */
+function keepWhole(
+  nodes: readonly SimNode[],
+  annotations: readonly Annotation[],
+  v: { x: number; y: number; k: number },
+  surface: { left: number; top: number; right: number },
+  room: RevealBox & { width: number; height: number },
+): 'pan' | 'fit' | null {
+  if (nodes.length === 0) return null;
+  const b = nodeBounds(nodes);
+  const left = surface.left + b.minX * v.k + v.x;
+  const right = surface.left + b.maxX * v.k + v.x;
+  const top = surface.top + b.minY * v.k + v.y;
+  const bottom = surface.top + b.maxY * v.k + v.y;
+  const slack = 0.5;
+  const wasWhole =
+    left >= room.left - slack &&
+    right <= surface.right + slack &&
+    top >= room.top - slack &&
+    bottom <= room.bottom + slack;
+  if (!wasWhole) return null;
+  if (right <= room.right - REVEAL_PAD) return null;
+  return contentPan(nodes, annotations, v, surface, room) ? 'pan' : 'fit';
+}
+
 export default function Canvas({
   topology,
   snapshot,
   routes,
   selectedIds,
   onSelectionChange,
+  onReselect,
   onMoveNode,
   onMoveStart,
   onMoveEnd,
@@ -3595,7 +3709,10 @@ export default function Canvas({
   visibleRef,
   breakMarks,
   emptyActions,
-  fitTight = false,
+  narrowFit,
+  onFitClipped,
+  frameKey = null,
+  reveal,
   spotlightId = null,
   spotlightKey = null,
 }: CanvasProps) {
@@ -3990,6 +4107,8 @@ export default function Canvas({
   const selectOne = useCallback(
     (id: string, additive: boolean) => {
       if (!additive) {
+        const cur = selRef.current;
+        if (cur.size === 1 && cur.has(id)) onReselect?.();
         setSelection(new Set([id]));
         return;
       }
@@ -3998,7 +4117,7 @@ export default function Canvas({
       else next.add(id);
       setSelection(next);
     },
-    [setSelection],
+    [setSelection, onReselect],
   );
 
   const clearSelection = useCallback(() => {
@@ -5603,10 +5722,16 @@ export default function Canvas({
    */
   /** The surface size the last fit framed for. See the resize observer. */
   const fittedSizeRef = useRef<{ w: number; h: number } | null>(null);
+  /** The view the last fit set, and how it was asked for. See frameKey. */
+  const lastFitRef = useRef<{
+    view: Viewport;
+    explicit: boolean;
+    whole: boolean;
+  } | null>(null);
   const fitTo = useCallback(
-    (nodes: readonly SimNode[]) => {
+    (nodes: readonly SimNode[], explicit = false): boolean => {
       const rects = visibleRect();
-      if (!rects || nodes.length === 0) return;
+      if (!rects || nodes.length === 0) return false;
       // Scale and centring both use the VISIBLE rect (see fitViewport), so a
       // fit with panels open, or the challenge sheet up on a phone, frames
       // the diagram in the uncovered area and never under an opaque panel.
@@ -5620,19 +5745,72 @@ export default function Canvas({
         if (n.x + NODE_W > maxX) maxX = n.x + NODE_W;
         if (n.y + NODE_H > maxY) maxY = n.y + NODE_H;
       }
-      const next = fitViewport(
-        { minX, minY, maxX, maxY },
-        rects.surface,
-        rects.view,
-        fitTight,
-      );
-      if (!next) return;
+      /* The whole diagram takes its sections, label tab included, and its
+         notes. A section's tab sits above its frame, and left out it opened
+         under the controls at the canvas's top. A note is read too, but it
+         is only added while it costs the cards none of their numbers: one
+         that would drop them a detail band (detailBand) is left to a pan. */
+      const whole = nodes.length === topoRef.current.nodes.length;
+      const anns = whole ? (topoRef.current.annotations ?? []) : [];
+      for (const a of anns) {
+        if (!isSection(a)) continue;
+        minX = Math.min(minX, a.x);
+        minY = Math.min(minY, a.y - SEC_LABEL_H - 4);
+        maxX = Math.max(maxX, a.x + a.width);
+        maxY = Math.max(maxY, a.y + a.height);
+      }
+      const bounds = { minX, minY, maxX, maxY };
+      const all = { ...bounds };
+      for (const a of anns) {
+        if (!isNote(a)) continue;
+        const l = layoutNoteOf(a, a.text);
+        all.minX = Math.min(all.minX, a.x);
+        all.minY = Math.min(all.minY, a.y);
+        all.maxX = Math.max(all.maxX, a.x + l.width);
+        all.maxY = Math.max(all.maxY, a.y + l.height);
+      }
+      // A phone's controls sit outside the canvas or along its edges, and
+      // its fit is tuned in fit.ts; only a wider screen clears them here.
+      let room: FitRect = rects.view;
+      if (!narrowFit) {
+        const chrome = [...document.querySelectorAll(FIT_CLEAR)].map((el) =>
+          el.getBoundingClientRect(),
+        );
+        room = clearOfChrome(rects.view, chrome, {
+          w: all.maxX - all.minX,
+          h: all.maxY - all.minY,
+        });
+      }
+      const how = { explicit, narrow: narrowFit };
+      let next = fitViewport(bounds, rects.surface, room, how);
+      if (!next) return false;
+      // Clearing the controls must not push cards off the screen: a card
+      // under the ledger can still be seen, one past the edge cannot.
+      if (room !== rects.view && fitClips(bounds, room, next.k)) {
+        const plain = fitViewport(bounds, rects.surface, rects.view, how);
+        if (plain && !fitClips(bounds, rects.view, plain.k)) {
+          room = rects.view;
+          next = plain;
+        }
+      }
+      if (
+        all.minX !== bounds.minX ||
+        all.minY !== bounds.minY ||
+        all.maxX !== bounds.maxX ||
+        all.maxY !== bounds.maxY
+      ) {
+        const withNotes = fitViewport(all, rects.surface, room, how);
+        if (withNotes && detailBand(withNotes.k) === detailBand(next.k))
+          next = withNotes;
+      }
       // The surface size this fit was framed for, so the resize observer can
       // tell a real resize from the size it was already fitted to.
       fittedSizeRef.current = { w: rects.surface.width, h: rects.surface.height };
+      lastFitRef.current = { view: next, explicit, whole };
       setView(next);
+      return fitClips(bounds, room, next.k);
     },
-    [visibleRect, fitTight],
+    [visibleRect, narrowFit],
   );
 
   /**
@@ -5679,10 +5857,19 @@ export default function Canvas({
   const coarsePointerRef = useRef(coarsePointer);
   coarsePointerRef.current = coarsePointer;
 
+  const narrowFitRef = useRef(narrowFit);
+  narrowFitRef.current = narrowFit;
+  const onFitClippedRef = useRef(onFitClipped);
+  onFitClippedRef.current = onFitClipped;
+
   const fitToContent = useCallback(
     () => fitTo(topology.nodes),
     [fitTo, topology.nodes],
   );
+
+  const fitAll = useCallback(() => {
+    fitTo(topology.nodes, true);
+  }, [fitTo, topology.nodes]);
 
   /**
    * Re-fit ONLY when the diagram is replaced wholesale: first content on a
@@ -5733,11 +5920,27 @@ export default function Canvas({
     // argument applies: there is nothing to reveal, and re-aiming here slides
     // the canvas out from under the drop.
     if (dropped) return;
-    fitToContent();
+    if (fitToContent()) onFitClippedRef.current?.();
     // fitToContent is intentionally omitted: it changes identity on every node
     // move, and re-fitting mid-drag is exactly what this guard prevents.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topoKey, fitSignal]);
+
+  /* The bar changed height (see frameKey). Only a whole-diagram fit the
+     reader has not since moved away from is redone. */
+  const frameKeyRef = useRef(frameKey);
+  useLayoutEffect(() => {
+    if (frameKeyRef.current === frameKey) return;
+    frameKeyRef.current = frameKey;
+    const last = lastFitRef.current;
+    if (!last || !last.whole || pendingRef.current) return;
+    if (viewRef.current !== last.view) return;
+    if (fitTo(topoRef.current.nodes, last.explicit) && !last.explicit) {
+      onFitClippedRef.current?.();
+    }
+    // Follows the bar only; fitTo is read as it stands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameKey]);
 
   /** Latest fitToContent, so the resize observer below subscribes once. */
   const fitToContentRef = useRef(fitToContent);
@@ -5830,14 +6033,14 @@ export default function Canvas({
       // only on some layouts.
       if (e.shiftKey && !e.altKey && e.code === 'Digit1') {
         e.preventDefault();
-        fitTo(topology.nodes);
+        fitTo(topology.nodes, true);
         return;
       }
       if (e.shiftKey && !e.altKey && e.code === 'Digit2') {
         const sel = topology.nodes.filter((n) => selectedIds.has(n.id));
         if (sel.length === 0) return;
         e.preventDefault();
-        fitTo(sel);
+        fitTo(sel, true);
         return;
       }
 
@@ -6024,16 +6227,139 @@ export default function Canvas({
             width: view.width,
             height: view.bottom - below,
           },
-          fitTight,
+          { narrow: narrowFit },
         );
         if (fit && keepsInView(ringOf(fit), view, card)) next = fit;
       }
     }
 
     if (next !== v) setView(next);
-    // fitTight is read when the answer arrives, not followed.
+    // narrowFit is read when the answer arrives, not followed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [spotlightId, spotlightKey, visibleRect]);
+
+  /* Keep the part being worked on in view (see reveal.ts). Waits out the
+     panel's slide, so the room is measured where the panel lands, and pans
+     once per key: a pan the reader makes afterwards is theirs to keep. An
+     edge id stands for the two boxes it joins. */
+  const revealKey = reveal?.key ?? null;
+  const revealRef = useRef(reveal);
+  const revealToolsRef = useRef({ visibleRect, fitTo });
+  useLayoutEffect(() => {
+    revealRef.current = reveal;
+    revealToolsRef.current = { visibleRect, fitTo };
+  });
+  useEffect(() => {
+    if (revealKey === null) return;
+    const timer = window.setTimeout(() => {
+      if (pendingRef.current) return;
+      const { visibleRect, fitTo } = revealToolsRef.current;
+      const rects = visibleRect();
+      if (!rects) return;
+      const { surface, view: room } = rects;
+      const { nodes, edges } = topoRef.current;
+      const want = new Set<string>();
+      for (const id of revealRef.current?.ids ?? []) {
+        const e = edges.find((x) => x.id === id);
+        if (e) {
+          want.add(e.from);
+          want.add(e.to);
+        } else want.add(id);
+      }
+      const v = viewRef.current;
+      if (revealRef.current?.content) {
+        // The ledger and zoom row sit inside the room, along its foot.
+        let bottom = room.bottom;
+        for (const el of document.querySelectorAll('.cv-ledger, .cv-zoom')) {
+          const r = el.getBoundingClientRect();
+          if (r.height > 0 && r.top > room.top) bottom = Math.min(bottom, r.top);
+        }
+        const pan = contentPan(nodes, topoRef.current.annotations ?? [], v, surface, {
+          left: room.left,
+          top: room.top,
+          right: room.right,
+          bottom,
+        });
+        if (pan) setView((cur) => ({ ...cur, x: cur.x + pan.dx, y: cur.y + pan.dy }));
+        return;
+      }
+      /* A diagram that was all on screen before the panel came in stays all
+         on screen beside it when it can: panned at this zoom, or fitted at
+         one that still shows every number. Otherwise only the parts named
+         are moved clear, below. */
+      if (!revealRef.current?.fit && want.size > 0) {
+        const keep = keepWhole(
+          nodes,
+          topoRef.current.annotations ?? [],
+          v,
+          surface,
+          room,
+        );
+        if (keep === 'pan') {
+          const pan = contentPan(
+            nodes,
+            topoRef.current.annotations ?? [],
+            v,
+            surface,
+            room,
+          );
+          if (pan) setView((cur) => ({ ...cur, x: cur.x + pan.dx, y: cur.y + pan.dy }));
+          return;
+        }
+        if (keep === 'fit') {
+          const bounds = nodeBounds(nodes);
+          const f = fitViewport(bounds, surface, room, {
+            narrow: narrowFitRef.current,
+          });
+          const floor = revealRef.current?.whole ? MINIMAL_ZOOM : DETAIL_ZOOM;
+          if (f && f.k >= floor && f.k <= v.k && !fitClips(bounds, room, f.k)) {
+            setView(f);
+            return;
+          }
+        }
+      }
+      const boxes: RevealBox[] = [];
+      for (const n of nodes) {
+        if (!want.has(n.id)) continue;
+        boxes.push({
+          left: surface.left + n.x * v.k + v.x,
+          top: surface.top + n.y * v.k + v.y,
+          right: surface.left + (n.x + NODE_W) * v.k + v.x,
+          bottom: surface.top + (n.y + NODE_H) * v.k + v.y,
+        });
+      }
+      if (boxes.length === 0) return;
+      let target: RevealBox = {
+        left: Math.min(...boxes.map((b) => b.left)),
+        top: Math.min(...boxes.map((b) => b.top)),
+        right: Math.max(...boxes.map((b) => b.right)),
+        bottom: Math.max(...boxes.map((b) => b.bottom)),
+      };
+      // Several parts too far apart to show at once: fitted when the panel
+      // is about all of them, else the first one named.
+      if (
+        target.right - target.left > room.width ||
+        target.bottom - target.top > room.height
+      ) {
+        if (revealRef.current?.fit) {
+          if (fitTo(nodes.filter((n) => want.has(n.id)))) onFitClippedRef.current?.();
+          return;
+        }
+        const first = boxes[0];
+        if (!first) return;
+        target = first;
+      }
+      const avoid: RevealBox[] = [];
+      for (const el of document.querySelectorAll('[data-spot-avoid]')) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) avoid.push(r);
+      }
+      const { dx, dy } = revealPan(target, room, avoid);
+      if (dx !== 0 || dy !== 0)
+        setView((cur) => ({ ...cur, x: cur.x + dx, y: cur.y + dy }));
+    }, REVEAL_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [revealKey]);
 
   const detail: 0 | 1 | 2 = view.k >= DETAIL_ZOOM ? 2 : view.k >= MINIMAL_ZOOM ? 1 : 0;
   const glance = glanceScale(view.k, coarsePointer);
@@ -6839,7 +7165,7 @@ export default function Canvas({
         nodeW={NODE_W}
         nodeH={NODE_H}
         setView={setView}
-        onFit={fitToContent}
+        onFit={fitAll}
       />
 
       <div className="cv-zoom" data-chrome="zoom">
@@ -6855,7 +7181,7 @@ export default function Canvas({
         <button
           type="button"
           className="btn btn-ghost cv-zoom-level"
-          onClick={fitToContent}
+          onClick={fitAll}
           // Still fits, because someone who learned to click the number
           // should keep being right. The icon beside it is what makes the
           // action findable in the first place.
@@ -6886,7 +7212,7 @@ export default function Canvas({
         <button
           type="button"
           className="btn btn-ghost"
-          onClick={fitToContent}
+          onClick={fitAll}
           aria-label="Fit the diagram on screen"
           title="Fit the diagram on screen (Shift+1)"
         >

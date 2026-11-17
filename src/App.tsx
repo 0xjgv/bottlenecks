@@ -1,3 +1,4 @@
+import { revealTarget } from './revealTarget';
 import {
   useCallback,
   useEffect,
@@ -1036,14 +1037,17 @@ export default function App() {
      and the reader loses the thing they changed it to see. The inspector is
      part of this too, and was not before, which is how three could stack.
      On a desktop they are rails on three different edges and coexist. */
+  const [railMadeRoom, setRailMadeRoom] = useState(false);
+  const libraryOpen = layout.library && !railMadeRoom;
   const toggleLibrary = useCallback(() => {
+    setRailMadeRoom(false);
     setLayout((l) => ({
       ...l,
-      library: !l.library,
+      library: railMadeRoom || !l.library,
       metrics: !l.library && phone ? false : l.metrics,
     }));
     if (phone) setInspectorHidden(true);
-  }, [phone]);
+  }, [phone, railMadeRoom]);
 
   const toggleMetrics = useCallback(() => {
     setLayout((l) => ({
@@ -1585,7 +1589,10 @@ export default function App() {
       setRoutes(engine.routes());
       // An answer read from the run that just ended would carry its numbers.
       setFinding(null);
-      if (fit) setFitNonce((n) => n + 1);
+      if (fit) {
+        setRailMadeRoom(false);
+        setFitNonce((n) => n + 1);
+      }
     },
     [engine, resetLostRate],
   );
@@ -2689,6 +2696,20 @@ export default function App() {
     toastSeq.current += 1;
     setToast({ text, id: toastSeq.current });
   }, []);
+  /* A design opened too wide for the canvas beside the components rail,
+     even at the lowest zoom a card still says what it is at. The rail folds
+     for this design and the fit runs again; the reader is told, once, how
+     to get it back. A phone's rail is a sheet that starts closed. */
+  const handleFitClipped = useCallback(() => {
+    if (phone || !libraryOpen) return;
+    setRailMadeRoom(true);
+    setFitNonce((n) => n + 1);
+    say(
+      coarse
+        ? 'Hid components to fit the diagram. The button at the top left shows them.'
+        : 'Hid components to fit the diagram. Press C to show them.',
+    );
+  }, [phone, libraryOpen, coarse, say]);
   // Once, for what boot did before there was a toast to say it with.
   const bootNotice = boot.notice;
   useEffect(() => {
@@ -3475,6 +3496,49 @@ export default function App() {
     [incident, incidentScene, topology],
   );
   const incidentSec = incidentPlaying && snapshot ? Math.floor(engine.now / 1000) : -1;
+  /* What the canvas keeps in view as panels open: see revealTarget.ts. */
+  const chartsUp = layout.metrics && snapshot !== null;
+  const brokeTargets = useMemo(
+    () =>
+      breakShown && breakView.status === 'done' && breakView.result.status === 'broke'
+        ? breakView.result.attacks.map((a) => a.target)
+        : null,
+    [breakShown, breakView],
+  );
+  const breaking = useMemo(
+    () => (breakShown && !brokeTargets ? topology.nodes.map((n) => n.id) : null),
+    [breakShown, brokeTargets, topology.nodes],
+  );
+  const inspecting = useMemo(
+    () => (inspectorVisible ? selectedNodes.map((n) => n.id) : null),
+    [inspectorVisible, selectedNodes],
+  );
+  const reveal = useMemo(
+    () =>
+      revealTarget({
+        inspecting,
+        broke: brokeTargets,
+        breaking,
+        verdict:
+          challenge && check?.view.status === 'verdict' ? check.view.verdict : null,
+        incident:
+          incident && incidentPlaying
+            ? { id: incident.id, faults: incident.scene.faults ?? [] }
+            : null,
+        charts: chartsUp,
+        guided: false,
+      }),
+    [
+      inspecting,
+      brokeTargets,
+      breaking,
+      challenge,
+      check,
+      incident,
+      incidentPlaying,
+      chartsUp,
+    ],
+  );
   const incidentCaption = useMemo(() => {
     if (!incident || incidentSec < 0) return null;
     const c = captionAt(incident, incidentSec * 1000);
@@ -4086,7 +4150,7 @@ export default function App() {
       <div
         className={
           'app-body' +
-          (layout.library ? ' has-library' : '') +
+          (libraryOpen ? ' has-library' : '') +
           (inspectorVisible ? ' has-inspector' : '') +
           (metricsVisible ? ' has-metrics' : '') +
           (challenge || breakShown || incident ? ' has-challenge' : '')
@@ -4109,7 +4173,7 @@ export default function App() {
         }
       >
         <PanelSlot
-          open={layout.library}
+          open={libraryOpen}
           edge="left"
           onDismiss={phone ? toggleLibrary : undefined}
         >
@@ -4171,6 +4235,7 @@ export default function App() {
               routes={routes}
               selectedIds={selectedIds}
               onSelectionChange={setSelectedIds}
+              onReselect={() => setInspectorHidden(false)}
               onMoveNode={handleMoveNode}
               onMoveStart={handleMoveStart}
               onMoveEnd={handleMoveEnd}
@@ -4200,7 +4265,10 @@ export default function App() {
               visibleRef={stageSafeRef}
               breakMarks={breakMarks}
               emptyActions={emptyActions}
-              fitTight={challenge !== undefined}
+              narrowFit={phone}
+              frameKey={barBottom}
+              reveal={reveal}
+              onFitClipped={handleFitClipped}
               spotlightId={
                 (tourShown ? tour.spotlight : null) ?? spotlightOf(shownFinding)
               }
@@ -4291,9 +4359,9 @@ export default function App() {
               type="button"
               className="btn btn-sm btn-icon stage-toggle stage-toggle-library"
               data-chrome="layout"
-              aria-expanded={layout.library}
-              aria-label={layout.library ? 'Hide components' : 'Show components'}
-              title={layout.library ? 'Hide components (C)' : 'Show components (C)'}
+              aria-expanded={libraryOpen}
+              aria-label={libraryOpen ? 'Hide components' : 'Show components'}
+              title={libraryOpen ? 'Hide components (C)' : 'Show components (C)'}
               onClick={toggleLibrary}
             >
               <PanelGlyph edge="left" />
@@ -4418,7 +4486,7 @@ export default function App() {
         <button
           type="button"
           className="app-tab"
-          aria-expanded={layout.library}
+          aria-expanded={libraryOpen}
           onClick={toggleLibrary}
         >
           <PanelGlyph edge="left" />

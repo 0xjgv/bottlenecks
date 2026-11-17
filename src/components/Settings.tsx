@@ -1,3 +1,4 @@
+import { trapTab } from './trapTab';
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { usePresence } from './presence';
@@ -181,7 +182,9 @@ export function Settings({
             e.preventDefault();
             e.stopPropagation();
             onClose();
+            return;
           }
+          trapTab(e, cardRef.current);
         }}
         onAnimationEnd={(e) => {
           if (closing && e.target === e.currentTarget) unmount();

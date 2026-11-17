@@ -3,6 +3,7 @@ import { Check } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { usePresence } from './presence';
 import { hasStore } from '../share/store';
+import { trapTab } from './trapTab';
 import './Share.css';
 
 /* ==========================================================================
@@ -162,6 +163,21 @@ export function Share({ open, onClose, onBuild, replayable = false, onExport }: 
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const opener =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const card = cardRef.current;
+    (card?.querySelector<HTMLElement>('.sh-copy') ?? card)?.focus();
+    return () => {
+      const active = document.activeElement;
+      if (active === document.body || active === null || card?.contains(active)) {
+        opener?.focus();
+      }
+    };
+  }, [open]);
+
   if (!presence.mounted) return null;
 
   const setLink = (kind: ShareKind, next: LinkState) =>
@@ -209,10 +225,13 @@ export function Share({ open, onClose, onBuild, replayable = false, onExport }: 
     <div className={'sh-root' + (presence.closing ? ' is-closing' : '')}>
       <div className="sh-scrim" onPointerDown={onClose} />
       <div
+        ref={cardRef}
         className={'sh-card' + (options.length > 1 ? ' is-wide' : '')}
         role="dialog"
         aria-modal="true"
         aria-labelledby="sh-title"
+        tabIndex={-1}
+        onKeyDown={(e) => trapTab(e, cardRef.current)}
       >
         <div className="sh-head">
           <h2 id="sh-title" className="sh-title">
