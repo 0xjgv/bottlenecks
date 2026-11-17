@@ -1,3 +1,6 @@
+import { useExampleTask } from './learn/useExampleTask';
+import { TaskCard } from './learn/TaskCard';
+import { LEARNING_PATH } from './content/learningPath';
 import { SpeedMeter, advanceAtSpeed, shortfall, stepSpeed, type Speed } from './speed';
 import type { PinnedRun } from './components/pinnedRun';
 import { revealTarget } from './revealTarget';
@@ -848,6 +851,9 @@ export default function App() {
 
   const [topology, setTopology] = useState<Topology>(initial.topology);
   const [rps, setRps] = useState<number>(initial.rps);
+  const [exampleRun, setExampleRun] = useState(0);
+  const [taskFocus, setTaskFocus] = useState(false);
+  const handleTaskFocusTaken = useCallback(() => setTaskFocus(false), []);
   const [presetId, setPresetId] = useState<string | null>(initial.presetId);
   /**
    * Canvas selection. Node ids and edge ids share this one set; an edge id is
@@ -1637,7 +1643,7 @@ export default function App() {
         setFitNonce((n) => n + 1);
       }
     },
-    [engine, resetLostRate],
+    [engine, resetLostRate, setPinned],
   );
 
   const applyEntry = useCallback(
@@ -2727,6 +2733,8 @@ export default function App() {
         preset.id,
         'example load',
       );
+      setExampleRun((n) => n + 1);
+      setTaskFocus(true);
       if (left) {
         toastSeq.current += 1;
         setToast({ text: `Opened ${preset.name} ${IN_PLACE}`, id: toastSeq.current });
@@ -2939,12 +2947,21 @@ export default function App() {
     tourSubject,
   );
   // A brief's canvas carries its example's id; that is not the example run.
-  // A finished tour broke and fixed the first example, so it counts too.
-  const explored = usePathProgress(
+  const exampleTask = useExampleTask(
     challengeId ? null : presetId,
+    exampleRun,
     topology,
     snapshot,
-    tour.open && tour.stage.kind === 'fixed' ? PRESETS[0]!.id : null,
+  );
+  const taskView = exampleTask.view;
+  // An example is done when its task is. A finished tour broke and fixed
+  // the first example, so it counts too.
+  const explored = usePathProgress(
+    tour.open && tour.stage.kind === 'fixed'
+      ? PRESETS[0]!.id
+      : taskView.kind === 'live' && taskView.done
+        ? taskView.task.presetId
+        : null,
   );
 
   /* ---------------- design files ----------------
@@ -3206,6 +3223,47 @@ export default function App() {
      on purpose, and that is not a reason to lose it. An incident's panel
      takes the same room. */
   const tourShown = tour.open && !breakShown && !incident && growthBase === null;
+  const taskShown =
+    taskView.kind !== 'none' &&
+    !challenge &&
+    !tour.open &&
+    !breakShown &&
+    !incident &&
+    growthBase === null;
+  const taskOpen = taskShown && !taskView.hidden && !(phone && inspectorVisible);
+  const taskRing =
+    taskView.kind === 'live' && !taskView.done
+      ? (taskView.task.steps[taskView.progress.step]?.ring ?? null)
+      : null;
+  const taskGuide = taskOpen ? `${taskView.task.presetId}:${exampleRun}` : null;
+  const [lastTaskGuide, setLastTaskGuide] = useState<string | null>(null);
+  if (taskGuide !== null && lastTaskGuide !== taskGuide) {
+    setLastTaskGuide(taskGuide);
+    setFitNonce((n) => n + 1);
+  }
+  const pathSteps = LEARNING_PATH.flatMap((track) => track.steps);
+  const taskIndex =
+    taskView.kind === 'none'
+      ? -1
+      : pathSteps.findIndex(
+          (step) => step.kind === 'example' && step.id === taskView.task.presetId,
+        );
+  const afterTask = taskIndex < 0 ? undefined : pathSteps[taskIndex + 1];
+  const taskNext = afterTask
+    ? {
+        name:
+          afterTask.kind === 'example'
+            ? (PRESETS.find((p) => p.id === afterTask.id)?.name ?? afterTask.id)
+            : (challengeById(afterTask.id)?.name ?? afterTask.id),
+        open: () => {
+          if (afterTask.kind === 'challenge') handleStartChallenge(afterTask.id);
+          else {
+            const p = PRESETS.find((p) => p.id === afterTask.id);
+            if (p) handleLoadPreset(p);
+          }
+        },
+      }
+    : null;
   const breakSearch = useBreakSearch(breakShown, topology);
   const breakView = breakSearch.view;
 
@@ -3569,7 +3627,7 @@ export default function App() {
             ? { id: incident.id, faults: incident.scene.faults ?? [] }
             : null,
         charts: chartsUp,
-        guided: false,
+        guided: taskOpen,
       }),
     [
       inspecting,
@@ -3580,6 +3638,7 @@ export default function App() {
       incident,
       incidentPlaying,
       chartsUp,
+      taskOpen,
     ],
   );
   const incidentCaption = useMemo(() => {
@@ -4205,7 +4264,8 @@ export default function App() {
           (libraryOpen ? ' has-library' : '') +
           (inspectorVisible ? ' has-inspector' : '') +
           (metricsVisible ? ' has-metrics' : '') +
-          (challenge || breakShown || incident ? ' has-challenge' : '')
+          (challenge || breakShown || incident ? ' has-challenge' : '') +
+          (taskOpen ? ' has-task' : '')
         }
         /* The three panel sizes, written here because .app-body is where the
            slots and the strip's insets all read them from. A drag rewrites
@@ -4322,7 +4382,9 @@ export default function App() {
               reveal={reveal}
               onFitClipped={handleFitClipped}
               spotlightId={
-                (tourShown ? tour.spotlight : null) ?? spotlightOf(shownFinding)
+                (tourShown ? tour.spotlight : null) ??
+                (taskOpen ? taskRing : null) ??
+                spotlightOf(shownFinding)
               }
               spotlightKey={shownFinding?.atMs ?? null}
             />
@@ -4351,6 +4413,34 @@ export default function App() {
                 onSetLoad={handleRpsChange}
                 onSelect={(id) => setSelectedIds(new Set([id]))}
                 onOpenPath={() => setPathOpen(true)}
+              />
+            ) : null}
+            {taskShown ? (
+              <TaskCard
+                view={taskView}
+                exampleName={
+                  PRESETS.find((p) => p.id === taskView.task.presetId)?.name ?? ''
+                }
+                topology={topology}
+                snapshot={snapshot}
+                selectedId={tourSubject}
+                squeezed={phone && inspectorVisible}
+                next={taskNext}
+                onSetLoad={handleRpsChange}
+                onSelect={(id) => setSelectedIds(new Set([id]))}
+                onHide={(hide) => {
+                  exampleTask.setHidden(taskView.task.presetId, hide);
+                  // On a phone the settings sheet is what folded it, so
+                  // showing the task again puts that sheet away.
+                  if (!hide && phone && inspectorVisible) setSelectedIds(new Set());
+                }}
+                onReload={() => {
+                  const p = PRESETS.find((x) => x.id === taskView.task.presetId);
+                  if (p) handleLoadPreset(p);
+                }}
+                onOpenPath={() => setPathOpen(true)}
+                takeFocus={taskFocus}
+                onFocusTaken={handleTaskFocusTaken}
               />
             ) : null}
             {challenge && check ? (

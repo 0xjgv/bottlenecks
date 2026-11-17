@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { Challenge } from '../sim/challenge';
 import { PRESETS } from '../sim/presets';
-import type { SimSnapshot, Topology } from '../sim/types';
+import type { Topology } from '../sim/types';
 import type { ChallengeBadge } from '../challengeWorkspace';
 import { LEARNING_PATH, type PathStep } from '../content/learningPath';
 
@@ -10,24 +10,16 @@ import { LEARNING_PATH, type PathStep } from '../content/learningPath';
  *
  * A challenge is done when it is passed, and the challenge store already
  * knows that, so it stays the one place a pass is recorded. An example has
- * no verdict, so "done" is a measured rule instead of a click: the student
- * ran it at twice its starting load or more for 10 seconds of simulated
- * time. Every example is stable at its starting load and degrades by 2x to
- * 4x, so that is the run in which they saw it break. Opening one and closing
- * it again does not count.
+ * no verdict of its own, so it is done when its task is: every step of it
+ * ticked off from what the engine measured (see exampleTask.ts). Opening
+ * one, or turning the load up without anything breaking, does not count.
+ *
+ * An earlier rule counted ten seconds at twice the starting load. That could mark an
+ * example done before the student had seen its constraint. Examples it already marked stay
+ * marked: the stored list is read the same way.
  * ------------------------------------------------------------------ */
 
 export const PATH_KEY = 'bottlenecks.path.v1';
-/** Load, as a multiple of the example's own, that counts as pushing it. */
-export const EXPLORE_FACTOR = 2;
-/** Simulated time it has to run there. */
-export const EXPLORE_MS = 10_000;
-/**
- * The most one snapshot can add. Snapshots arrive ten a second, so a bigger
- * gap is a tab coming back from the background or a fast-forward, and a
- * second of it is all that is credited.
- */
-const MAX_STEP_MS = 1000;
 
 /** Total load the clients offer: what the top bar's slider sets. */
 export function offeredLoad(topology: Topology): number {
@@ -36,10 +28,8 @@ export function offeredLoad(topology: Topology): number {
   return sum;
 }
 
-/** Each example's starting load, read once from the presets themselves. */
-const STARTING_LOAD: ReadonlyMap<string, number> = new Map(
-  PRESETS.map((p) => [p.id, offeredLoad(p.topology)]),
-);
+/** Every example's id. */
+const EXAMPLE_IDS: ReadonlySet<string> = new Set(PRESETS.map((p) => p.id));
 
 /* ---------------- storage ---------------- */
 
@@ -58,9 +48,7 @@ export function loadExplored(
     const list = (parsed as { explored?: unknown } | null)?.explored;
     if (!Array.isArray(list)) return new Set();
     return new Set(
-      list.filter(
-        (id): id is string => typeof id === 'string' && STARTING_LOAD.has(id),
-      ),
+      list.filter((id): id is string => typeof id === 'string' && EXAMPLE_IDS.has(id)),
     );
   } catch {
     return new Set();
@@ -81,15 +69,11 @@ export function saveExplored(
 /* ---------------- the tracker ---------------- */
 
 /**
- * Watches the run and marks an example explored. An external store, so the
- * snapshot effect only feeds it and React re-renders once, when an example
- * is newly done, rather than on every snapshot.
+ * The examples done. An external store, so a finished task marks one and
+ * React re-renders once, when it is newly done.
  */
 export class PathProgress {
   private explored: ReadonlySet<string>;
-  private presetId: string | null = null;
-  private heldMs = 0;
-  private lastMs = 0;
   private readonly listeners = new Set<() => void>();
   private readonly save: (explored: ReadonlySet<string>) => void;
 
@@ -109,34 +93,11 @@ export class PathProgress {
   readonly getExplored = (): ReadonlySet<string> => this.explored;
 
   /**
-   * One snapshot of the run. `presetId` is the example on the canvas, or null
-   * when it is the student's own design or a challenge's.
-   */
-  observe(presetId: string | null, topology: Topology, timeMs: number): void {
-    if (presetId !== this.presetId) {
-      this.presetId = presetId;
-      this.heldMs = 0;
-      this.lastMs = timeMs;
-      return;
-    }
-    const dt = timeMs - this.lastMs;
-    this.lastMs = timeMs;
-    if (presetId === null || this.explored.has(presetId) || dt <= 0) return;
-    const start = STARTING_LOAD.get(presetId);
-    if (start === undefined || offeredLoad(topology) < start * EXPLORE_FACTOR) return;
-    this.heldMs += Math.min(dt, MAX_STEP_MS);
-    if (this.heldMs < EXPLORE_MS) return;
-    this.credit(presetId);
-  }
-
-  /**
-   * Mark an example explored on other evidence: the first-visit tour, which
-   * only finishes once the engine showed that example full and then fixed.
-   * Its fix is an edit, which takes the canvas off the example, so the
-   * 10 second rule above could not have counted it.
+   * Mark an example done: its task finished, or the first-visit tour, which
+   * only ends once the engine showed the first example full and then fixed.
    */
   credit(presetId: string): void {
-    if (this.explored.has(presetId) || !STARTING_LOAD.has(presetId)) return;
+    if (this.explored.has(presetId) || !EXAMPLE_IDS.has(presetId)) return;
     this.explored = new Set([...this.explored, presetId]);
     this.save(this.explored);
     for (const listener of this.listeners) listener();
@@ -144,22 +105,11 @@ export class PathProgress {
 }
 
 /**
- * The examples explored so far, kept up to date from the run.
- *
- * `presetId` is null inside a challenge: a brief is set in an example's
- * system, but it is the brief being worked on, not the example.
+ * The examples done so far. `credit` is an example to mark done now, or
+ * null; marking is storage, so it happens in an effect.
  */
-export function usePathProgress(
-  presetId: string | null,
-  topology: Topology,
-  snapshot: SimSnapshot | null,
-  /** An example to count as explored now, see `PathProgress.credit`. */
-  credit: string | null = null,
-): ReadonlySet<string> {
+export function usePathProgress(credit: string | null): ReadonlySet<string> {
   const [progress] = useState(() => new PathProgress(loadExplored()));
-  useEffect(() => {
-    if (snapshot) progress.observe(presetId, topology, snapshot.system.timeMs);
-  }, [progress, presetId, topology, snapshot]);
   useEffect(() => {
     if (credit) progress.credit(credit);
   }, [progress, credit]);
